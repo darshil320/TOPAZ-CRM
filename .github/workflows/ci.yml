@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  prototype-tests:
+    name: Prototype — lint + pure-logic tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/prototype
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The pure-logic suite must pass WITHOUT the heavy ML deps (InsightFace/OpenCV/Twilio).
+      # We install only the lightweight dev tools here — that's the whole point of keeping
+      # imports lazy. If these fail, the import-light discipline has been broken.
+      - name: Install dev tools
+        run: pip install pytest ruff
+
+      - name: Lint
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+
+      - name: Run pure-logic tests
+        run: python -m pytest tests/ -q

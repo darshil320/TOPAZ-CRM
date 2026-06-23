@@ -1,0 +1,29 @@
+[project]
+name = "topaz-prototype"
+version = "0.1.0"
+description = "Topaz Showroom Intelligence — deal-closing face-recognition → WhatsApp-alert prototype"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+# Run from apps/prototype/. conftest.py puts `src` on the path.
+testpaths = ["tests"]
+addopts = "-q"
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# A sensible, strict-but-not-noisy default set.
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM"]
+ignore = [
+  "E501",  # line length is enforced by the formatter, not the linter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.ruff.format]
+quote-style = "double"

@@ -1,0 +1,16 @@
+# Core face recognition + camera (needed for enroll.py / demo.py)
+insightface==0.7.3
+onnxruntime==1.18.1          # CPU runtime; swap for onnxruntime-gpu on CUDA boxes
+opencv-python==4.10.0.84
+numpy<2.0                    # insightface 0.7.3 is not numpy>=2 ready
+
+# Config
+python-dotenv==1.0.1
+
+# WhatsApp senders (optional — only the one you use needs to work)
+twilio==9.2.3               # Twilio WhatsApp sandbox (easiest live demo)
+requests==2.32.3            # AiSensy (production BSP) + general HTTP
+
+# Dev / tests (the pure-logic suite needs only pytest — not the ML deps above;
+# the web view uses only the Python standard library)
+pytest==8.2.2
