@@ -4,6 +4,13 @@ Two modes:
   - App engine (AsyncSession for FastAPI routes) — long-lived, pooled.
   - Task engine (per-Celery-task, NullPool) — avoids the asyncio event-loop
     mismatch that occurs when an lru_cache'd engine is reused across tasks.
+
+IMPORTANT: The app engine is created at module import time (thread-safe eager
+init). Task sessions are context managers that dispose the engine on exit —
+never hold a reference across tasks.
+
+Worker pool requirement: Celery workers MUST use --pool=prefork (or solo/threads).
+gevent/eventlet monkey-patching breaks asyncio.run() inside tasks.
 """
 
 from contextlib import asynccontextmanager
@@ -24,33 +31,30 @@ def _make_app_engine():
     return create_async_engine(settings.DATABASE_URL, pool_size=5, max_overflow=10)
 
 
-_app_engine = None
-_app_session_factory = None
-
-
-def get_app_engine():
-    global _app_engine, _app_session_factory
-    if _app_engine is None:
-        _app_engine = _make_app_engine()
-        _app_session_factory = async_sessionmaker(_app_engine, expire_on_commit=False)
-    return _app_engine, _app_session_factory
+# Eager init at module load — avoids the M-1 check-and-set race under threaded servers.
+_app_engine = _make_app_engine()
+_app_session_factory = async_sessionmaker(_app_engine, expire_on_commit=False)
 
 
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    _, session_factory = get_app_engine()
-    async with session_factory() as session:
+    async with _app_session_factory() as session:
         yield session
 
 
-def make_task_session() -> AsyncSession:
-    """Return a fresh NullPool session for use inside a Celery task.
+@asynccontextmanager
+async def make_task_session() -> AsyncGenerator[AsyncSession, None]:
+    """Context manager yielding a NullPool session for use inside a Celery task.
 
-    Celery workers run in their own threads/processes with independent event
-    loops; an lru_cache'd engine retains connections tied to a different loop
-    and will deadlock. NullPool creates and closes a fresh connection per use.
+    Creates a fresh engine per invocation and disposes it on exit (C-1 fix).
+    Celery workers run in their own event loops; NullPool ensures no connection
+    is shared across event loop boundaries. Requires --pool=prefork/solo/threads.
     """
     settings = get_settings()
     engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    return factory()
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            yield session
+    finally:
+        await engine.dispose()

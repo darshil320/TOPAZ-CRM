@@ -105,7 +105,7 @@ async def _process(
 
         customer_id: UUID | None = top.customer_id if band == "REPEAT" else None
 
-        # 5. Write visit
+        # 5. Write visit + commit (create_visit does not commit — caller owns the UoW).
         visit_id = await create_visit(
             session,
             raw_event_id=raw_event_id,
@@ -114,6 +114,7 @@ async def _process(
             customer_id=customer_id,
             photo_key=photo_key,
         )
+        await session.commit()
 
         # 6. REPEAT — alert seam (WhatsApp task → salesperson alert)
         if band == "REPEAT" and customer_id:
@@ -130,6 +131,6 @@ async def _process(
         return {
             "status": "processed",
             "band": band,
-            "visit_id": str(visit_id) if visit_id else None,
+            "visit_id": str(visit_id),
             "customer_id": str(customer_id) if customer_id else None,
         }

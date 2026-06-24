@@ -27,16 +27,19 @@ async def create_visit(
     match_score: float | None,
     customer_id: UUID | None,
     photo_key: str | None,
-) -> UUID | None:
-    """Insert a visit row; silently skips duplicates (ON CONFLICT DO NOTHING).
+) -> UUID:
+    """Insert a visit row idempotently and return the visit.id.
 
-    Returns the visit.id if inserted, None if the raw_event_id already exists.
+    Uses DO UPDATE with a no-op set to always return the winning row's ID,
+    whether this call won the insert race or a concurrent worker did (H-2 fix).
+    Commit is the caller's responsibility (M-3 fix: removed commit from repo).
     """
     result = await session.execute(
         text(
             "INSERT INTO visits (raw_event_id, match_band, match_score, customer_id, photo_key)"
             " VALUES (:rid, :band, :score, :cid, :pkey)"
-            " ON CONFLICT (raw_event_id) DO NOTHING"
+            " ON CONFLICT (raw_event_id)"
+            " DO UPDATE SET raw_event_id = EXCLUDED.raw_event_id"
             " RETURNING id"
         ),
         {
@@ -48,5 +51,4 @@ async def create_visit(
         },
     )
     row = result.first()
-    await session.commit()
-    return UUID(str(row.id)) if row else None
+    return UUID(str(row.id))
