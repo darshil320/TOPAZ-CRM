@@ -147,7 +147,7 @@ export default async function CustomerPage({ params }: Props) {
         <ConversationThread
           customerId={id}
           waId={customer.wa_id ?? null}
-          initialMessages={messages ?? []}
+          initialMessages={(messages ?? []) as { id: string; content: string; direction: "outbound" | "inbound"; sender_type: string; draft_status: string | null; created_at: string }[]}
         />
       </div>
     </div>

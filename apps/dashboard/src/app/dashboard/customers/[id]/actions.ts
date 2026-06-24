@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/types";
+
+type PipelineStage = Database["public"]["Enums"]["pipeline_stage"];
 
 const VALID_STAGES = new Set(["new", "talking", "follow_up", "won", "lost"]);
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
@@ -18,7 +21,7 @@ export async function moveStage(
     const supabase = await createServerSupabaseClient();
     const { error } = await supabase
       .from("pipeline_stages")
-      .upsert({ customer_id: customerId, stage }, { onConflict: "customer_id" });
+      .upsert({ customer_id: customerId, stage: stage as PipelineStage }, { onConflict: "customer_id" });
     if (error) return { error: error.message };
     revalidatePath(`/dashboard/customers/${customerId}`);
     return { error: null };
