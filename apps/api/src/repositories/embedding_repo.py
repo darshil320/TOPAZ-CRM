@@ -43,22 +43,25 @@ async def find_nearest(
     ef = str(settings.HNSW_EF_SEARCH)
     vec_literal = "[" + ",".join(str(f) for f in embedding) + "]"
 
-    async with session.begin():
-        await session.execute(
-            text("SET LOCAL hnsw.ef_search = :ef"),
-            {"ef": ef},
-        )
-        result = await session.execute(
-            text(
-                "WITH q AS (SELECT (:vec)::vector AS qvec)"
-                " SELECT customer_id, 1 - (embedding <=> q.qvec) AS similarity"
-                " FROM face_embeddings, q"
-                " ORDER BY embedding <=> q.qvec"
-                " LIMIT :n"
-            ),
-            {"vec": vec_literal, "n": n},
-        )
-        rows = result.all()
+    # The caller owns the transaction (autobegin on first use in SQLAlchemy 2.0).
+    # Nested session.begin() raises InvalidRequestError when a transaction is
+    # already active — execute directly instead. SET LOCAL still scopes to the
+    # current transaction, which is what we need for ef_search.
+    # SET LOCAL does not support parameterized values in PostgreSQL — asyncpg
+    # tries to prepare it as a prepared statement and Postgres rejects $1.
+    # ef is cast from an integer config value so direct interpolation is safe.
+    await session.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef)}"))
+    result = await session.execute(
+        text(
+            "WITH q AS (SELECT (:vec)::vector AS qvec)"
+            " SELECT customer_id, 1 - (embedding <=> q.qvec) AS similarity"
+            " FROM face_embeddings, q"
+            " ORDER BY embedding <=> q.qvec"
+            " LIMIT :n"
+        ),
+        {"vec": vec_literal, "n": n},
+    )
+    rows = result.all()
 
     return [
         NearestEmbedding(customer_id=UUID(str(row.customer_id)), similarity=float(row.similarity))

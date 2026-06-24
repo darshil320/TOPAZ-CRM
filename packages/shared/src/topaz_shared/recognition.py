@@ -16,6 +16,7 @@ class RecognitionEvent(BaseModel):
     photo_key: str | None = None
     camera_id: str
     captured_at: datetime
+    consent_token: str | None = None
 
     @field_validator("quality_score")
     @classmethod

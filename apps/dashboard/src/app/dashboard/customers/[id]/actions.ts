@@ -31,6 +31,78 @@ export async function moveStage(
   }
 }
 
+export async function approveDraft(
+  messageId: string,
+  customerId: string,
+): Promise<{ error: string | null }> {
+  if (!DASHBOARD_API_KEY) return { error: "Send not configured — set DASHBOARD_API_KEY" };
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: sp } = await supabase
+      .from("salespersons")
+      .select("id")
+      .eq("auth_uid", user.id)
+      .single();
+
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("wa_id")
+      .eq("id", customerId)
+      .single();
+
+    if (!customer?.wa_id) return { error: "No WhatsApp number on file for this customer" };
+
+    const { data: msg } = await supabase
+      .from("messages")
+      .select("content")
+      .eq("id", messageId)
+      .single();
+
+    if (!msg) return { error: "Message not found" };
+
+    const { error: updateErr } = await supabase
+      .from("messages")
+      .update({ draft_status: "approved", approved_by: sp?.id ?? null, status: "pending" })
+      .eq("id", messageId);
+
+    if (updateErr) return { error: updateErr.message };
+
+    const resp = await fetch(`${API_BASE}/api/whatsapp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
+      body: JSON.stringify({ wa_id: customer.wa_id, content: msg.content, message_id: messageId }),
+    });
+
+    if (!resp.ok) return { error: `Send failed (${resp.status})` };
+
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
+export async function rejectDraft(
+  messageId: string,
+  customerId: string,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { error } = await supabase
+      .from("messages")
+      .update({ draft_status: "rejected" })
+      .eq("id", messageId);
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function sendReply(
   customerId: string,
   waId: string,

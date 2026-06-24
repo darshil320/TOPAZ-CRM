@@ -2,19 +2,16 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
-import AvailabilityToggle from "@/components/AvailabilityToggle";
 import SignOutButton from "@/components/SignOutButton";
 
-export default async function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function OwnerLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: salesperson } = await supabase
     .from("salespersons")
-    .select("id, name, role, available")
+    .select("id, name, role")
     .eq("auth_uid", user.id)
     .eq("active", true)
     .single();
@@ -28,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className="flex flex-col min-h-screen w-full bg-slate-50">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -37,19 +34,16 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               </svg>
             </div>
             <span className="font-semibold text-slate-900 text-sm tracking-tight">Topaz CRM</span>
+            <span className="hidden sm:inline text-xs text-slate-400 font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Owner</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-blue-700">{initials}</span>
+              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-amber-700">{initials}</span>
               </div>
               <span className="text-sm text-slate-600 font-medium">{salesperson.name}</span>
             </div>
             <div className="w-px h-4 bg-slate-200 hidden sm:block" />
-            <AvailabilityToggle
-              salespersonId={salesperson.id}
-              initialAvailable={salesperson.available ?? false}
-            />
             <SignOutButton />
           </div>
         </div>
@@ -57,7 +51,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
       <VisitAlertBanner salespersonId={salesperson.id} />
 
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6">{children}</main>
+      <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6">{children}</main>
     </div>
   );
 }

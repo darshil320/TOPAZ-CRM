@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Pre-shared key for dashboard server actions → /api/whatsapp/send.
     DASHBOARD_API_KEY: str | None = None
 
+    # Anthropic API key for AI draft generation. If unset, falls back to template.
+    ANTHROPIC_API_KEY: str | None = None
+
     @field_validator("DATABASE_URL")
     @classmethod
     def require_asyncpg_scheme(cls, v: str) -> str:

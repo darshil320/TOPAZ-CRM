@@ -24,13 +24,16 @@ from ..repositories.message_repo import create_message
 logger = logging.getLogger(__name__)
 
 
-def _draft_body(customer: CustomerInfo, salesperson_name: str | None) -> str:
-    """Minimal personalised follow-up template.
+_SYSTEM_PROMPT = (
+    "You are {salesperson}, a sales consultant at Topaz Furniture — a premium furniture "
+    "showroom in Ahmedabad, India. Write a warm, concise WhatsApp follow-up message (max 80 words) "
+    "to a customer who just visited the showroom. Be personal, reference their specific interest "
+    "if known, and end with exactly one easy yes/no question to keep the conversation going. "
+    "Sign off as '— {salesperson}'. No markdown, no bullet points — plain conversational text only."
+)
 
-    Replace this with an LLM call (e.g. Gemini / OpenAI) once the integration
-    is signed off. The DB row is created with draft_status=pending_approval so
-    a human reviews it before anything goes to the customer.
-    """
+
+def _template_body(customer: CustomerInfo, salesperson_name: str | None) -> str:
     name_greeting = f"Hi {customer.name}," if customer.name else "Hi there,"
     sign = f"— {salesperson_name}" if salesperson_name else "— The Topaz Team"
     return (
@@ -42,6 +45,38 @@ def _draft_body(customer: CustomerInfo, salesperson_name: str | None) -> str:
         "Just reply here and I'll get back to you right away.\n\n"
         f"{sign}"
     )
+
+
+async def _llm_draft_body(
+    customer: CustomerInfo,
+    salesperson_name: str | None,
+    recent_messages: list[dict],
+    api_key: str,
+) -> str:
+    import anthropic  # lazy import — optional dependency
+
+    sp = salesperson_name or "The Topaz Team"
+    interest = f"Their stated interest: {customer.primary_interest}." if customer.primary_interest else ""
+    history = ""
+    if recent_messages:
+        lines = [f"  [{m['direction']}] {m['content']}" for m in recent_messages]
+        history = "Recent conversation:\n" + "\n".join(lines)
+
+    user_prompt = (
+        f"Customer name: {customer.name or 'Unknown'}.\n"
+        f"{interest}\n"
+        f"{history}\n\n"
+        "Write the follow-up WhatsApp message now."
+    ).strip()
+
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    response = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        system=_SYSTEM_PROMPT.format(salesperson=sp),
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    return response.content[0].text.strip()
 
 
 @celery_app.task(
@@ -79,17 +114,36 @@ async def _draft_followup(customer_id: UUID, visit_id: UUID) -> dict:
         sp_info = await get_primary_salesperson(session, customer_id)
         salesperson_name: str | None = None
         if sp_info:
-            # Fetch salesperson name separately (assignment_repo returns id + whatsapp only)
-            from sqlalchemy import text
+            from sqlalchemy import text as sa_text
             row = await session.execute(
-                text("SELECT name FROM salespersons WHERE id = :sid"),
+                sa_text("SELECT name FROM salespersons WHERE id = :sid"),
                 {"sid": str(sp_info[0])},
             )
             r = row.first()
             if r:
                 salesperson_name = str(r.name)
 
-        content = _draft_body(customer, salesperson_name)
+        # Fetch the last 3 messages for context.
+        from sqlalchemy import text as sa_text
+        msg_rows = await session.execute(
+            sa_text(
+                "SELECT direction, content FROM messages"
+                " WHERE customer_id = :cid ORDER BY created_at DESC LIMIT 3"
+            ),
+            {"cid": str(customer_id)},
+        )
+        recent_messages = [{"direction": r.direction, "content": r.content} for r in msg_rows.all()]
+
+        settings = get_settings()
+        content: str
+        if settings.ANTHROPIC_API_KEY:
+            try:
+                content = await _llm_draft_body(customer, salesperson_name, recent_messages, settings.ANTHROPIC_API_KEY)
+            except Exception:
+                logger.warning("LLM draft failed for customer=%s — falling back to template", customer_id, exc_info=True)
+                content = _template_body(customer, salesperson_name)
+        else:
+            content = _template_body(customer, salesperson_name)
         message_id = await create_message(
             session,
             customer_id=customer_id,

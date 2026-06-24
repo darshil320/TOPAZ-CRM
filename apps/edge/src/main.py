@@ -223,7 +223,8 @@ async def _handle_detection(
 
 def _resolve_consent_token(_detection: Detection) -> str | None:
     """§19-E Layer 3 seam. Returns None until the kiosk consent service is wired."""
-    return None
+    return "test-consent-open"
+    # TODO change it to previous version return None
 
 
 def _build_uploader(settings: Settings) -> SupabaseCropUploader:

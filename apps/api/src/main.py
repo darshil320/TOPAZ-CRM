@@ -1,6 +1,7 @@
 """FastAPI application factory.
 
 Routes:
+  /api/enrollment       — kiosk customer registration (Layer 3)
   /api/recognition      — edge-worker ingestion (Layer 2)
   /api/whatsapp/webhook — Meta Cloud API inbound events (Layer 2)
   /api/whatsapp/send    — dashboard → outbound message (Layer 2)
@@ -9,6 +10,7 @@ Routes:
 
 from fastapi import FastAPI
 
+from .api.enrollment import router as enrollment_router
 from .api.recognition import router as recognition_router
 from .api.whatsapp import router as whatsapp_router
 
@@ -16,11 +18,12 @@ from .api.whatsapp import router as whatsapp_router
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Topaz CRM API",
-        version="0.2.0",
+        version="0.3.0",
         docs_url=None,
         redoc_url=None,
     )
 
+    app.include_router(enrollment_router, prefix="/api")
     app.include_router(recognition_router, prefix="/api")
     app.include_router(whatsapp_router, prefix="/api")
 

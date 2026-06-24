@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, field_validator
 
 from ..config import get_settings
@@ -32,13 +33,13 @@ async def verify_webhook(
     hub_mode: str = Query(alias="hub.mode"),
     hub_challenge: str = Query(alias="hub.challenge"),
     hub_verify_token: str = Query(alias="hub.verify_token"),
-) -> int:
+) -> PlainTextResponse:
     settings = get_settings()
     if not settings.WA_WEBHOOK_VERIFY_TOKEN:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Webhook not configured")
     if hub_mode != "subscribe" or hub_verify_token != settings.WA_WEBHOOK_VERIFY_TOKEN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification failed")
-    return int(hub_challenge)
+    return PlainTextResponse(hub_challenge)
 
 
 # ─── inbound webhook (POST) ───────────────────────────────────────────────────
