@@ -1,0 +1,33 @@
+[project]
+name = "topaz-edge"
+version = "0.1.0"
+description = "Topaz Layer 2 showroom face-recognition edge worker"
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.27",
+  "insightface>=0.7.3",
+  "numpy>=1.26",
+  "onnxruntime>=1.17",
+  "opencv-python-headless>=4.9",
+  "pydantic-settings>=2.2",
+]
+
+[project.scripts]
+topaz-edge = "src.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
