@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { sendReply } from "./actions";
 
 type Message = {
   id: string;
@@ -14,16 +15,18 @@ type Message = {
 
 export default function ConversationThread({
   customerId,
+  waId,
   initialMessages,
 }: {
   customerId: string;
+  waId: string | null;
   initialMessages: Message[];
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [replyText, setReplyText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
-  // Stable client reference — createClient() must not be called inside deps
   const supabaseRef = useRef(createClient());
 
   useEffect(() => {
@@ -52,14 +55,22 @@ export default function ConversationThread({
 
   function showToast(msg: string) {
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 4000);
   }
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!replyText.trim()) return;
-    showToast("Reply not yet wired — WhatsApp API TODO");
+    const text = replyText.trim();
+    if (!text || isPending) return;
+    if (!waId) {
+      showToast("No WhatsApp number on file for this customer");
+      return;
+    }
     setReplyText("");
+    startTransition(async () => {
+      const { error } = await sendReply(customerId, waId, text);
+      if (error) showToast(`Send failed: ${error}`);
+    });
   }
 
   return (
@@ -132,10 +143,10 @@ export default function ConversationThread({
         />
         <button
           type="submit"
-          disabled={!replyText.trim()}
+          disabled={!replyText.trim() || isPending}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-medium transition-colors shrink-0"
         >
-          Send
+          {isPending ? "…" : "Send"}
         </button>
       </form>
     </div>

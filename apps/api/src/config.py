@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     # pgvector HNSW search-time ef parameter (higher = better recall, slower).
     HNSW_EF_SEARCH: int = 40
 
+    # WhatsApp Cloud API (Meta). Leave unset in dev to skip WA sends.
+    WA_PHONE_NUMBER_ID: str | None = None   # WhatsApp Business phone-number ID
+    WA_TOKEN: str | None = None              # Meta System User access token
+    WA_WEBHOOK_VERIFY_TOKEN: str | None = None  # random string used in hub.verify
+
+    # Dashboard URL — embedded in salesperson alert links.
+    DASHBOARD_URL: str = "https://topaz.dmcdigital.in"
+
+    # Pre-shared key for dashboard server actions → /api/whatsapp/send.
+    DASHBOARD_API_KEY: str | None = None
+
     @field_validator("DATABASE_URL")
     @classmethod
     def require_asyncpg_scheme(cls, v: str) -> str:
