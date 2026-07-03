@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     WA_PHONE_NUMBER_ID: str | None = None   # WhatsApp Business phone-number ID
     WA_TOKEN: str | None = None              # Meta System User access token
     WA_WEBHOOK_VERIFY_TOKEN: str | None = None  # random string used in hub.verify
+    WA_APP_SECRET: str | None = None         # Meta App Secret — signs X-Hub-Signature-256
+
+    # §19-E kiosk consent seam: how long a kiosk enrollment stays claimable by
+    # the entrance camera as a pending consent token.
+    ENROLLMENT_PENDING_WINDOW_SECONDS: int = 120
+
+    # Cadence engine (followups table + Celery beat).
+    WELCOME_FOLLOWUP_DELAY_MINUTES: int = 120   # kiosk enrollment → welcome message
+    FOLLOWUP_BATCH_SIZE: int = 25               # max sends per beat tick
+    FOLLOWUP_STALE_DAYS: int = 3                # pending past due → cancelled
 
     # Dashboard URL — embedded in salesperson alert links.
     DASHBOARD_URL: str = "https://topaz.dmcdigital.in"

@@ -36,6 +36,7 @@ class RecognitionEvent:
     camera_id: str
     captured_at: str  # ISO 8601 with Z suffix
     photo_key: str | None = field(default=None)
+    consent_token: str | None = field(default=None)
 
     def to_payload(self) -> dict[str, Any]:
         if not self.raw_event_id:
@@ -58,6 +59,7 @@ class RecognitionEvent:
             "photo_key": self.photo_key,
             "camera_id": self.camera_id,
             "captured_at": self.captured_at,
+            "consent_token": self.consent_token,
         }
 
 

@@ -14,6 +14,8 @@ from rls_support import (
     CUST1, CUST2, SP2_ID, ZERO_VEC,
 )
 
+pytestmark = pytest.mark.usefixtures("seeded")
+
 
 # ── Tenant isolation: a salesperson sees only their assigned customers ──────────
 def test_assigned_sp_sees_their_customer():

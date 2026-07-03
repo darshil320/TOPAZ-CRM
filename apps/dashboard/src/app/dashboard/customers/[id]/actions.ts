@@ -72,6 +72,7 @@ export async function approveDraft(
 
     const resp = await fetch(`${API_BASE}/api/whatsapp/send`, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
       body: JSON.stringify({ wa_id: customer.wa_id, content: msg.content, message_id: messageId }),
     });
@@ -132,6 +133,7 @@ export async function sendReply(
     // 2. Enqueue the WhatsApp send via the FastAPI backend (§19-G: no service-role key in browser).
     const resp = await fetch(`${API_BASE}/api/whatsapp/send`, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "Content-Type": "application/json",
         "API-Key": DASHBOARD_API_KEY,

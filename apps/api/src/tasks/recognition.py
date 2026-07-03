@@ -25,7 +25,8 @@ from ..database import make_task_session
 from ..repositories.assignment_repo import get_primary_salesperson
 from ..repositories.customer_repo import get_customer_by_id
 from ..repositories.embedding_repo import find_nearest
-from ..repositories.visit_repo import create_visit, get_visit_id_by_raw_event_id
+from ..repositories.enrollment_repo import enroll_face, redeem_consent_customer
+from ..repositories.visit_repo import create_visit, get_visit_id_by_raw_event_id, link_visit_customer
 from ..services.matching import classify_band
 from .whatsapp import send_salesperson_alert
 from .ai import draft_followup
@@ -51,6 +52,7 @@ def process_recognition_event(
     photo_key: str | None,
     camera_id: str,
     captured_at: str,
+    consent_token: str | None = None,
 ) -> dict:
     """Synchronous Celery entry point — delegates to the async pipeline."""
     try:
@@ -62,6 +64,7 @@ def process_recognition_event(
                 photo_key=photo_key,
                 camera_id=camera_id,
                 captured_at=datetime.fromisoformat(captured_at),
+                consent_token=consent_token,
             )
         )
     except Exception as exc:
@@ -77,6 +80,7 @@ async def _process(
     photo_key: str | None,
     camera_id: str,
     captured_at: datetime,
+    consent_token: str | None = None,
 ) -> dict:
     async with make_task_session() as session:
         # 1. Idempotency
@@ -129,44 +133,115 @@ async def _process(
             customer_id=customer_id,
             photo_key=photo_key,
             salesperson_id=salesperson_id,
+            captured_at=captured_at,
         )
         await session.commit()
 
         # 6. REPEAT — WhatsApp alert to salesperson + queue AI follow-up draft.
+        # Failures here are logged, never raised: the visit is already
+        # committed, so a task retry would short-circuit at the idempotency
+        # gate (step 1) and the alert would silently never be re-attempted.
         if band == "REPEAT" and customer_id:
-            customer_name: str | None = None
-            if customer_id:
+            try:
                 customer = await get_customer_by_id(session, customer_id)
                 customer_name = customer.name if customer else None
 
-            if sp_info:
-                sp_id, sp_whatsapp = sp_info
-                send_salesperson_alert.delay(
-                    sp_whatsapp,
-                    str(customer_id),
-                    str(visit_id),
-                    customer_name,
+                if sp_info:
+                    sp_id, sp_whatsapp = sp_info
+                    send_salesperson_alert.delay(
+                        sp_whatsapp,
+                        str(customer_id),
+                        str(visit_id),
+                        customer_name,
+                    )
+                    logger.info(
+                        "Queued salesperson alert: sp=%s customer=%s visit=%s",
+                        sp_id, customer_id, visit_id,
+                    )
+                else:
+                    logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
+
+                # Queue AI draft only for REPEAT customers (we have their context).
+                draft_followup.delay(str(customer_id), str(visit_id))
+            except Exception:
+                logger.exception(
+                    "REPEAT post-visit dispatch failed for visit %s — "
+                    "salesperson alert / AI draft may be lost",
+                    visit_id,
                 )
-                logger.info(
-                    "Queued salesperson alert: sp=%s customer=%s visit=%s",
-                    sp_id, customer_id, visit_id,
+
+        # 7. NEW / UNCERTAIN — consent-gated enrollment (§19-E).
+        # The kiosk created consent + customer; the event's consent_token links
+        # this face to that customer. No token → no embedding is ever stored.
+        enrolled_customer_id: UUID | None = None
+        if band in ("NEW", "UNCERTAIN"):
+            if consent_token:
+                enrolled_customer_id = await _enroll_with_consent(
+                    session,
+                    consent_token=consent_token,
+                    embedding=embedding,
+                    quality_score=quality_score,
+                    camera_id=camera_id,
+                    visit_id=visit_id,
                 )
             else:
-                logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
-
-            # Queue AI draft only for REPEAT customers (we have their context).
-            draft_followup.delay(str(customer_id), str(visit_id))
-
-        # 7. NEW / UNCERTAIN — consent-gated enrollment seam (§19-E).
-        # Edge worker must attach a kiosk consent_token to the event before
-        # we can persist an embedding or a customer row.
-        if band in ("NEW", "UNCERTAIN"):
-            # TODO(Layer 3): if event carries consent_token → create_customer + enroll_embedding
-            logger.info("band=%s visit=%s — awaiting consent for enrollment", band, visit_id)
+                logger.info("band=%s visit=%s — no consent token; not enrolled", band, visit_id)
 
         return {
             "status": "processed",
             "band": band,
             "visit_id": str(visit_id),
             "customer_id": str(customer_id) if customer_id else None,
+            "enrolled_customer_id": str(enrolled_customer_id) if enrolled_customer_id else None,
         }
+
+
+async def _enroll_with_consent(
+    session,
+    *,
+    consent_token: str,
+    embedding: list[float],
+    quality_score: float,
+    camera_id: str,
+    visit_id: UUID,
+) -> UUID | None:
+    """Redeem a kiosk consent token: store the embedding + link the visit.
+
+    Returns the enrolled customer id, or None when the token is invalid,
+    expired, or already redeemed (all logged, never raised — the visit row
+    is already committed and must survive).
+    """
+    try:
+        consent_id = UUID(consent_token)
+    except ValueError:
+        logger.warning("Malformed consent_token on visit %s — ignoring", visit_id)
+        return None
+
+    try:
+        target_customer_id = await redeem_consent_customer(session, consent_id)
+        if target_customer_id is None:
+            logger.info(
+                "consent_token %s not redeemable (expired/withdrawn/already enrolled) visit=%s",
+                consent_id, visit_id,
+            )
+            return None
+
+        await enroll_face(
+            session,
+            customer_id=target_customer_id,
+            embedding=embedding,
+            quality_score=quality_score,
+            camera_id=camera_id,
+        )
+        await link_visit_customer(session, visit_id, target_customer_id)
+        await session.commit()
+        logger.info(
+            "Enrolled face via consent token: customer=%s visit=%s", target_customer_id, visit_id
+        )
+        return target_customer_id
+    except Exception:
+        # The face_embedding_consent_gate trigger may reject the insert if
+        # consent was withdrawn between redeem and write — that's a safe no-op.
+        logger.exception("Consent enrollment failed for visit %s", visit_id)
+        await session.rollback()
+        return None

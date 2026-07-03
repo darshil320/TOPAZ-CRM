@@ -40,6 +40,7 @@ async def ingest_recognition_event(
             photo_key=event.photo_key,
             camera_id=event.camera_id,
             captured_at=event.captured_at.isoformat(),
+            consent_token=event.consent_token,
         )
     except Exception as exc:
         raise HTTPException(

@@ -27,7 +27,21 @@ services:
       context: ..
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
-    command: celery -A src.worker worker --loglevel=info --concurrency=2
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ../apps/api/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Celery beat — fires the cadence engine (send_due_followups every 30 min,
+  # close_stale_followups nightly). Without this service no followup is ever sent.
+  beat:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    command: celery -A src.tasks.celery_app beat --loglevel=info
     env_file:
       - ../apps/api/.env
     depends_on:

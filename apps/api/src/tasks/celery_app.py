@@ -20,8 +20,10 @@ def create_celery_app() -> Celery:
         backend=settings.REDIS_URL,
         include=[
             "src.tasks.recognition",
-            # src.tasks.whatsapp, src.tasks.ai, src.tasks.followup, src.tasks.pipeline
-            # — added as each module is built (Layer 2+).
+            "src.tasks.whatsapp",
+            "src.tasks.ai",
+            "src.tasks.followup",
+            "src.tasks.pipeline",
         ],
     )
 

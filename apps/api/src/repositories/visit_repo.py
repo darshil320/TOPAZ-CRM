@@ -1,5 +1,6 @@
 """Visit repository — idempotent write + lookup by raw_event_id."""
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
@@ -28,6 +29,7 @@ async def create_visit(
     customer_id: UUID | None,
     photo_key: str | None,
     salesperson_id: UUID | None = None,
+    captured_at: datetime | None = None,
 ) -> UUID:
     """Insert a visit row idempotently and return the visit.id.
 
@@ -40,8 +42,9 @@ async def create_visit(
     result = await session.execute(
         text(
             "INSERT INTO visits"
-            " (raw_event_id, match_band, match_score, customer_id, photo_key, salesperson_id)"
-            " VALUES (:rid, :band, :score, :cid, :pkey, :spid)"
+            " (raw_event_id, match_band, match_score, customer_id, photo_key,"
+            "  salesperson_id, captured_at)"
+            " VALUES (:rid, :band, :score, :cid, :pkey, :spid, :captured_at)"
             " ON CONFLICT (raw_event_id)"
             " DO UPDATE SET raw_event_id = EXCLUDED.raw_event_id"
             " RETURNING id"
@@ -53,7 +56,20 @@ async def create_visit(
             "cid": str(customer_id) if customer_id else None,
             "pkey": photo_key,
             "spid": str(salesperson_id) if salesperson_id else None,
+            "captured_at": captured_at,
         },
     )
     row = result.first()
     return UUID(str(row.id))
+
+
+async def link_visit_customer(
+    session: AsyncSession,
+    visit_id: UUID,
+    customer_id: UUID,
+) -> None:
+    """Attach a customer to an existing visit (consent-token enrollment, §19-E)."""
+    await session.execute(
+        text("UPDATE visits SET customer_id = :cid WHERE id = :vid"),
+        {"cid": str(customer_id), "vid": str(visit_id)},
+    )

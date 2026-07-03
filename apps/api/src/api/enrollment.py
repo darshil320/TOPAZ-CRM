@@ -1,13 +1,18 @@
-"""POST /api/enrollment — kiosk customer registration (Layer 3).
+"""Kiosk enrollment endpoints (Layer 3).
+
+POST /api/enrollment          — kiosk customer registration.
+GET  /api/enrollment/pending  — edge worker polls for a claimable consent token
+                                (§19-E seam: token = consent UUID of the most
+                                recent kiosk enrollment still awaiting a face).
 
 Auth: API-Key header (same EDGE_API_KEY as /api/recognition).
-Writes consent + customer + optionally face_embedding in one transaction.
-Returns consent_id + customer_id so the edge worker can link the face to the
-correct customer row when it later fires a RecognitionEvent with consent_token.
+POST writes consent + customer + optionally face_embedding in one transaction,
+and queues the welcome followup when the customer opted into WhatsApp.
 """
 
 import hmac
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Header, HTTPException, status
 
@@ -15,10 +20,17 @@ from topaz_shared import EnrollmentRequest
 
 from ..config import get_settings
 from ..database import make_task_session
-from ..repositories.enrollment_repo import enroll_customer, enroll_face
+from ..repositories.enrollment_repo import (
+    enroll_customer,
+    enroll_face,
+    find_pending_consent_token,
+)
+from ..repositories.followup_repo import schedule_followup
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+WELCOME_TEMPLATE = "welcome_visit"
 
 
 def _verify_api_key(provided: str) -> None:
@@ -35,6 +47,7 @@ async def enroll(
 ) -> dict:
     """Create a consent record, customer row, and optionally a face embedding."""
     _verify_api_key(api_key)
+    settings = get_settings()
 
     async with make_task_session() as session:
         consent_id, customer_id = await enroll_customer(
@@ -59,14 +72,45 @@ async def enroll(
             )
             enrolled = True
 
+        followup_id = None
+        if req.wa_id and req.whatsapp_marketing:
+            followup_id = await schedule_followup(
+                session,
+                customer_id=customer_id,
+                template_name=WELCOME_TEMPLATE,
+                template_vars={"name": req.name or ""},
+                scheduled_at=datetime.now(timezone.utc)
+                + timedelta(minutes=settings.WELCOME_FOLLOWUP_DELAY_MINUTES),
+            )
+
         await session.commit()
 
     logger.info(
-        "Enrolled customer=%s consent=%s face=%s",
-        customer_id, consent_id, enrolled,
+        "Enrolled customer=%s consent=%s face=%s welcome_followup=%s",
+        customer_id, consent_id, enrolled, followup_id,
     )
     return {
         "consent_id": str(consent_id),
         "customer_id": str(customer_id),
         "enrolled": enrolled,
     }
+
+
+@router.get("/enrollment/pending")
+async def pending_consent(
+    api_key: str = Header(alias="API-Key"),
+) -> dict:
+    """Return the consent token the entrance camera should attach, if any.
+
+    The edge worker polls this endpoint; a non-null token means "a customer
+    just registered at the kiosk and their face has not been captured yet".
+    """
+    _verify_api_key(api_key)
+    settings = get_settings()
+
+    async with make_task_session() as session:
+        token = await find_pending_consent_token(
+            session, settings.ENROLLMENT_PENDING_WINDOW_SECONDS
+        )
+
+    return {"consent_token": str(token) if token else None}

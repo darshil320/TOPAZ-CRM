@@ -1,24 +1,27 @@
 """WhatsApp Cloud API integration — webhook receiver + outbound send endpoint.
 
 GET  /api/whatsapp/webhook  — Meta's hub.verify challenge (webhook registration)
-POST /api/whatsapp/webhook  — Inbound message events from Meta
+POST /api/whatsapp/webhook  — Inbound messages + delivery statuses from Meta
 POST /api/whatsapp/send     — Dashboard → send approved message to customer
                               (§19-G: service-role write goes through FastAPI, not browser)
 
-Inbound security: Meta signs webhook POSTs with X-Hub-Signature-256.
+Inbound security: Meta signs webhook POSTs with X-Hub-Signature-256 using the
+App Secret (WA_APP_SECRET) — NOT the access token.
 Outbound auth: DASHBOARD_API_KEY header (pre-shared, server-to-server only).
 """
 
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, field_validator
 
 from ..config import get_settings
+from ..database import make_task_session
+from ..repositories.message_repo import update_status_by_wamid
+from ..services.wa_webhook import parse_inbound_texts, parse_status_updates
 from ..tasks.ai import handle_inbound_reply
 from ..tasks.whatsapp import send_customer_message
 
@@ -37,7 +40,10 @@ async def verify_webhook(
     settings = get_settings()
     if not settings.WA_WEBHOOK_VERIFY_TOKEN:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Webhook not configured")
-    if hub_mode != "subscribe" or hub_verify_token != settings.WA_WEBHOOK_VERIFY_TOKEN:
+    token_ok = hmac.compare_digest(
+        hub_verify_token.encode(), settings.WA_WEBHOOK_VERIFY_TOKEN.encode()
+    )
+    if hub_mode != "subscribe" or not token_ok:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification failed")
     return PlainTextResponse(hub_challenge)
 
@@ -45,13 +51,26 @@ async def verify_webhook(
 # ─── inbound webhook (POST) ───────────────────────────────────────────────────
 
 def _verify_meta_signature(body: bytes, signature_header: str | None) -> None:
-    """Constant-time HMAC-SHA256 check of Meta's X-Hub-Signature-256 header."""
+    """Constant-time HMAC-SHA256 check of Meta's X-Hub-Signature-256 header.
+
+    Meta signs the raw request body with the App Secret. Fail-closed rule:
+    if WhatsApp is live (WA_TOKEN set) the secret is mandatory — a missing
+    secret must never silently open the webhook to forged payloads. Only a
+    fully unconfigured dev environment skips verification.
+    """
     settings = get_settings()
-    if not settings.WA_TOKEN:
-        return  # skip sig check if WA not configured (dev mode)
+    if not settings.WA_APP_SECRET:
+        if settings.WA_TOKEN:
+            logger.error("WA_TOKEN set but WA_APP_SECRET missing — rejecting webhook (fail closed)")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Webhook signature verification not configured",
+            )
+        logger.warning("WA_APP_SECRET unset — webhook signature NOT verified (dev mode)")
+        return
     if not signature_header or not signature_header.startswith("sha256="):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature")
-    expected = hmac.new(settings.WA_TOKEN.encode(), body, hashlib.sha256).hexdigest()
+    expected = hmac.new(settings.WA_APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
     provided = signature_header.removeprefix("sha256=")
     if not hmac.compare_digest(expected, provided):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
@@ -67,30 +86,33 @@ async def receive_webhook(
 
     payload = await request.json()
     try:
-        _dispatch_inbound(payload)
+        await _dispatch_inbound(payload)
     except Exception:
-        logger.exception("Error dispatching webhook payload")
-    # Always return 200 — Meta retries on any non-200.
+        # Return 500 so Meta redelivers — the wamid unique constraint and
+        # idempotent status updates make the retry safe. Swallowing the error
+        # here would permanently lose customer messages on a broker/DB blip.
+        logger.exception("Webhook dispatch failed — returning 500 so Meta retries")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Dispatch failed",
+        )
     return {"status": "ok"}
 
 
-def _dispatch_inbound(payload: dict) -> None:
-    """Extract text messages from the webhook payload and enqueue tasks."""
-    for entry in payload.get("entry", []):
-        for change in entry.get("changes", []):
-            value = change.get("value", {})
-            for msg in value.get("messages", []):
-                if msg.get("type") != "text":
-                    continue
-                wa_id: str = msg.get("from", "")
-                wamid: str = msg.get("id", "")
-                text_body: str = msg.get("text", {}).get("body", "")
-                ts: int = int(msg.get("timestamp", 0))
-                received_at = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+async def _dispatch_inbound(payload: dict) -> None:
+    """Queue inbound texts for processing and apply delivery-status updates."""
+    for msg in parse_inbound_texts(payload):
+        handle_inbound_reply.delay(msg.wa_id, msg.text, msg.wamid, msg.received_at)
+        logger.info("Queued inbound: wa_id=%s wamid=%s", msg.wa_id, msg.wamid)
 
-                if wa_id and wamid and text_body:
-                    handle_inbound_reply.delay(wa_id, text_body, wamid, received_at)
-                    logger.info("Queued inbound: wa_id=%s wamid=%s", wa_id, wamid)
+    statuses = parse_status_updates(payload)
+    if statuses:
+        async with make_task_session() as session:
+            for update in statuses:
+                applied = await update_status_by_wamid(session, update.wamid, update.status)
+                if not applied:
+                    logger.debug("Status %s for unknown/older wamid=%s", update.status, update.wamid)
+            await session.commit()
 
 
 # ─── outbound send (POST) ─────────────────────────────────────────────────────
@@ -98,7 +120,7 @@ def _dispatch_inbound(payload: dict) -> None:
 class SendRequest(BaseModel):
     wa_id: str
     content: str
-    message_id: str  # messages.id — caller updates status on success
+    message_id: str  # messages.id — the send task updates its status
 
     @field_validator("content")
     @classmethod

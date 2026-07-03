@@ -19,6 +19,7 @@ export async function enrollCustomer(data: {
   try {
     const response = await fetch(`${apiUrl}/api/enrollment`, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "Content-Type": "application/json",
         "API-Key": apiKey ?? "",

@@ -70,6 +70,6 @@ async def touch_last_inbound_at(
 ) -> None:
     """Update last_inbound_at to track the 24-h free-form window."""
     await session.execute(
-        text("UPDATE customers SET last_inbound_at = :at WHERE id = :cid"),
-        {"at": at.isoformat(), "cid": str(customer_id)},
+        text("UPDATE customers SET last_inbound_at = cast(:at AS timestamptz) WHERE id = :cid"),
+        {"at": at, "cid": str(customer_id)},
     )

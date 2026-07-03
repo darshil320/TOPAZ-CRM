@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from .celery_app import celery_app
+from ..config import get_settings
 from ..database import make_task_session
 from ..repositories.assignment_repo import get_primary_salesperson
 from ..repositories.customer_repo import CustomerInfo, get_customer_by_id, get_customer_by_wa_id, touch_last_inbound_at
@@ -86,21 +87,22 @@ async def _llm_draft_body(
     default_retry_delay=5,
     acks_late=True,
 )
-def draft_followup(self, customer_id: str, visit_id: str) -> dict:
+def draft_followup(self, customer_id: str, visit_id: str | None = None) -> dict:
     """Create a pending_approval AI draft message for a customer visit.
 
+    visit_id is logging context only — inbound-reply triggers pass None.
     Only runs if ai_followup_enabled is true on the customer. Idempotent by
     intent but not by constraint — the caller (recognition pipeline) should only
     enqueue this once per visit.
     """
     try:
-        return asyncio.run(_draft_followup(UUID(customer_id), UUID(visit_id)))
+        return asyncio.run(_draft_followup(UUID(customer_id), visit_id))
     except Exception as exc:
         logger.exception("draft_followup failed for customer=%s visit=%s", customer_id, visit_id)
         raise self.retry(exc=exc)
 
 
-async def _draft_followup(customer_id: UUID, visit_id: UUID) -> dict:
+async def _draft_followup(customer_id: UUID, visit_id: str | None) -> dict:
     async with make_task_session() as session:
         customer = await get_customer_by_id(session, customer_id)
         if not customer:
@@ -212,7 +214,7 @@ async def _handle_inbound(wa_id: str, content: str, wamid: str, received_at: str
 
         # Queue AI draft if the customer is in AI-handler mode and follow-up is enabled.
         if customer.ai_followup_enabled and customer.handler_mode == "ai":
-            draft_followup.delay(str(customer.id), "inbound")
+            draft_followup.delay(str(customer.id), None)
             return {"status": "logged_and_queued_draft", "message_id": str(message_id)}
 
         return {"status": "logged", "message_id": str(message_id)}

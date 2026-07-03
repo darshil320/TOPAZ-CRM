@@ -22,6 +22,7 @@ from typing import Any
 from uuid import uuid4
 
 from .config import Settings, load_settings
+from .consent import ConsentResolver
 from .cooldown import CooldownTracker
 from .detector import Detection, FaceDetector
 from .poster import RecognitionEvent, RecognitionPostError, RecognitionPoster
@@ -85,13 +86,22 @@ async def run() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = load_settings()
 
-    # §19-E: Layer 3 consent seam not yet wired — every detection is dropped.
-    # This warning is intentional and must remain until the kiosk integration ships.
-    LOGGER.warning(
-        "§19-E: Layer 3 consent seam not wired — detections are dropped "
-        "until the kiosk consent token is available"
-    )
+    if settings.consent_mode == "off":
+        # §19-E strict mode — every detection is dropped.
+        LOGGER.warning("§19-E: CONSENT_MODE=off — all detections are dropped")
+    elif settings.consent_mode == "open":
+        LOGGER.warning(
+            "§19-E: CONSENT_MODE=open — static test token attached to every "
+            "detection (bench testing only, never production)"
+        )
 
+    consent_resolver = ConsentResolver(
+        mode=settings.consent_mode,
+        api_url=settings.api_url,
+        api_key=settings.api_key_value,
+        poll_seconds=settings.consent_poll_seconds,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
     poster = RecognitionPoster(
         settings.api_url,
         settings.api_key_value,
@@ -119,7 +129,7 @@ async def run() -> int:
                 continue
             try:
                 uploader = await _process_frame(
-                    frame, detector, cooldown, poster, uploader, settings
+                    frame, detector, cooldown, poster, uploader, settings, consent_resolver
                 )
             except Exception:
                 LOGGER.exception("frame processing error (continuing)")
@@ -129,6 +139,7 @@ async def run() -> int:
             capture.stop()
         if uploader is not None:
             await uploader.close()
+        await consent_resolver.close()
         await poster.close()
 
     LOGGER.info("edge worker stopped")
@@ -142,11 +153,12 @@ async def _process_frame(
     poster: RecognitionPoster,
     uploader: SupabaseCropUploader | None,
     settings: Settings,
+    consent_resolver: ConsentResolver,
 ) -> SupabaseCropUploader | None:
     detections = detector.detect(frame)
     for detection in detections:
         uploader = await _handle_detection(
-            frame, detection, cooldown, poster, uploader, settings
+            frame, detection, cooldown, poster, uploader, settings, consent_resolver
         )
     return uploader
 
@@ -158,14 +170,14 @@ async def _handle_detection(
     poster: RecognitionPoster,
     uploader: SupabaseCropUploader | None,
     settings: Settings,
+    consent_resolver: ConsentResolver,
 ) -> SupabaseCropUploader | None:
     # 1. Quality gate (cheap in-process filter first)
     if detection.quality_score < settings.quality_floor:
         return uploader
 
-    # 2. §19-E DPDPA consent gate — LAYER 3 SEAM
-    # Replace _resolve_consent_token with a call to the kiosk consent service.
-    consent_token = _resolve_consent_token(detection)
+    # 2. §19-E DPDPA consent gate — kiosk token via ConsentResolver
+    consent_token = await consent_resolver.resolve()
     if consent_token is None:
         return uploader  # no consent → drop; no embedding, crop, or event stored
 
@@ -207,9 +219,13 @@ async def _handle_detection(
         camera_id=settings.camera_id,
         captured_at=_iso_z(captured_at),
         photo_key=photo_key,
+        consent_token=consent_token,
     )
     try:
         await poster.post_event(event)
+        # A kiosk token is single-use: forget it once attached so a second
+        # face in the same poll window can't enroll onto the same customer.
+        consent_resolver.invalidate()
         LOGGER.info(
             "posted recognition event raw_event_id=%s quality=%.3f",
             raw_event_id,
@@ -219,12 +235,6 @@ async def _handle_detection(
         LOGGER.exception("POST failed raw_event_id=%s", raw_event_id)
 
     return uploader
-
-
-def _resolve_consent_token(_detection: Detection) -> str | None:
-    """§19-E Layer 3 seam. Returns None until the kiosk consent service is wired."""
-    return "test-consent-open"
-    # TODO change it to previous version return None
 
 
 def _build_uploader(settings: Settings) -> SupabaseCropUploader:

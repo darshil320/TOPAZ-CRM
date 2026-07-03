@@ -41,6 +41,13 @@ class Settings(BaseSettings):
         gt=0.0,
         validation_alias="FRAME_POLL_SECONDS",
     )
+    # §19-E consent seam: kiosk (poll API) | open (static test token) | off (drop all).
+    consent_mode: str = Field(default="kiosk", validation_alias="CONSENT_MODE")
+    consent_poll_seconds: float = Field(
+        default=2.0,
+        gt=0.0,
+        validation_alias="CONSENT_POLL_SECONDS",
+    )
 
     @field_validator("camera_source", mode="before")
     @classmethod
@@ -78,6 +85,14 @@ class Settings(BaseSettings):
         text = value.strip()
         if not text:
             raise ValueError("CAMERA_ID must not be empty")
+        return text
+
+    @field_validator("consent_mode")
+    @classmethod
+    def _validate_consent_mode(cls, value: str) -> str:
+        text = value.strip().lower()
+        if text not in ("kiosk", "open", "off"):
+            raise ValueError("CONSENT_MODE must be one of: kiosk, open, off")
         return text
 
     @property

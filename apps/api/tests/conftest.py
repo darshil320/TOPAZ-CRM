@@ -1,11 +1,15 @@
-"""pytest fixtures for the RLS suite."""
+"""Shared pytest fixtures.
+
+The DB seed is opt-in (usefixtures in test_rls.py) so pure unit tests run
+without a live Supabase instance.
+"""
 import pytest
 
-from rls_support import seed_db
 
-
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def seeded():
-    """Seed the known fixture once before the suite runs."""
+    """Seed the known RLS fixture once before the DB-backed suite runs."""
+    from rls_support import seed_db
+
     seed_db()
     yield
