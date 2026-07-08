@@ -14,11 +14,10 @@ gevent/eventlet monkey-patching breaks asyncio.run() inside tasks.
 """
 
 import ssl
-import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from urllib.parse import urlsplit
 
+import certifi
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -28,16 +27,18 @@ from sqlalchemy.pool import NullPool
 
 from .config import get_settings
 
-# Passed explicitly so asyncpg skips its default client-cert auto-probe at
-# ~/.postgresql/postgresql.{crt,key} — that probe raises PermissionError
-# (instead of a clean "not found") on Railway's sandboxed root filesystem.
-_SSL_CONTEXT = ssl.create_default_context()
+# Uses certifi's CA bundle rather than the OS trust store — the minimal
+# python:3.12-slim image lacks a complete/current system CA bundle, which
+# makes Supabase's real certificate chain fail verification. Passing this
+# context explicitly also makes asyncpg skip its default client-cert
+# auto-probe at ~/.postgresql/postgresql.{crt,key}, which raises
+# PermissionError (instead of a clean "not found") on Railway's sandboxed
+# root filesystem.
+_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 def _make_app_engine():
     settings = get_settings()
-    parsed = urlsplit(settings.DATABASE_URL)
-    print(f"[database] DATABASE_URL host={parsed.hostname} port={parsed.port}", file=sys.stderr, flush=True)
     return create_async_engine(
         settings.DATABASE_URL,
         pool_size=5,
