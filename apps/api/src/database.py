@@ -13,6 +13,7 @@ Worker pool requirement: Celery workers MUST use --pool=prefork (or solo/threads
 gevent/eventlet monkey-patching breaks asyncio.run() inside tasks.
 """
 
+import ssl
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -25,10 +26,20 @@ from sqlalchemy.pool import NullPool
 
 from .config import get_settings
 
+# Passed explicitly so asyncpg skips its default client-cert auto-probe at
+# ~/.postgresql/postgresql.{crt,key} — that probe raises PermissionError
+# (instead of a clean "not found") on Railway's sandboxed root filesystem.
+_SSL_CONTEXT = ssl.create_default_context()
+
 
 def _make_app_engine():
     settings = get_settings()
-    return create_async_engine(settings.DATABASE_URL, pool_size=5, max_overflow=10)
+    return create_async_engine(
+        settings.DATABASE_URL,
+        pool_size=5,
+        max_overflow=10,
+        connect_args={"ssl": _SSL_CONTEXT},
+    )
 
 
 # Eager init at module load — avoids the M-1 check-and-set race under threaded servers.
@@ -51,7 +62,9 @@ async def make_task_session() -> AsyncGenerator[AsyncSession, None]:
     is shared across event loop boundaries. Requires --pool=prefork/solo/threads.
     """
     settings = get_settings()
-    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    engine = create_async_engine(
+        settings.DATABASE_URL, poolclass=NullPool, connect_args={"ssl": _SSL_CONTEXT}
+    )
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)
         async with factory() as session:
