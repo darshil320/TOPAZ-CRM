@@ -14,8 +14,10 @@ gevent/eventlet monkey-patching breaks asyncio.run() inside tasks.
 """
 
 import ssl
+import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from urllib.parse import urlsplit
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -34,6 +36,8 @@ _SSL_CONTEXT = ssl.create_default_context()
 
 def _make_app_engine():
     settings = get_settings()
+    parsed = urlsplit(settings.DATABASE_URL)
+    print(f"[database] DATABASE_URL host={parsed.hostname} port={parsed.port}", file=sys.stderr, flush=True)
     return create_async_engine(
         settings.DATABASE_URL,
         pool_size=5,
