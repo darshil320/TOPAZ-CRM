@@ -104,6 +104,40 @@ export async function rejectDraft(
   }
 }
 
+export async function addCollaborator(
+  customerId: string,
+  salespersonId: string,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: owner } = await supabase
+      .from("salespersons")
+      .select("id")
+      .eq("auth_uid", user.id)
+      .single();
+
+    const { error } = await supabase.from("customer_assignments").insert({
+      customer_id: customerId,
+      salesperson_id: salespersonId,
+      role: "collaborator",
+      active: true,
+      added_by: owner?.id ?? null,
+    });
+
+    // RLS (ca_insert) is owner-only by design — a non-owner insert attempt
+    // fails here, not just in the UI (defense in depth, §19-A.2).
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function sendReply(
   customerId: string,
   waId: string,

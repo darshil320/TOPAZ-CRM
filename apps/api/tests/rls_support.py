@@ -62,6 +62,8 @@ def seed_db():
                     "values (%s,%s,'inbound','hi','customer')", (MSG1, CUST1))
         cur.execute("insert into visits (customer_id, salesperson_id, match_band, raw_event_id) "
                     "values (%s,%s,'REPEAT', gen_random_uuid())", (CUST1, SP1_ID))
+        cur.execute("insert into visits (customer_id, match_band, raw_event_id) "
+                    "values (%s,'NEW', gen_random_uuid())", (CUST2,))
         cur.execute("insert into face_embeddings (customer_id, embedding) values (%s, %s::vector)",
                     (CUST1, ZERO_VEC))
     conn.close()

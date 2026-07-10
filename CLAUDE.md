@@ -33,16 +33,37 @@ the sibling prospecting repo (`dmc-orchestrator/prospects/`):
 
 ## Monorepo layout & phase mapping
 
+Status here is a coarse snapshot — **`docs/DEPLOYMENT.md` is the authoritative,
+currently-maintained status doc** (checkpoints, Railway/Vercel state, what's live vs
+placeholder). Update both when a track completes.
+
 | Folder | Phase | Status |
 |---|---|---|
 | `apps/prototype` | Pre-sales deal-closer | **Active** |
-| `apps/edge` | 1A · M1 (Jetson RTSP→ArcFace) | Planned |
-| `apps/api` | 1A M2/M6A · 1B M3/M4/M5 (FastAPI) | Planned |
-| `apps/dashboard` | 1A M6A · 1B M6B (Next.js) | Planned |
-| `packages/shared` | shared contracts | Planned |
-| `infra` | Docker/deploy/Jetson provisioning | Planned |
+| `apps/edge` | 1A · M1 (entrance camera → ArcFace, USB/RTSP, no Jetson) | Built — code complete, no autostart service yet |
+| `apps/api` | 1A M2/M6A · 1B M3/M4/M5 (FastAPI) | Built — deployed on Railway |
+| `apps/dashboard` | 1A M6A · 1B M6B (Next.js) | Built — deployed on Vercel |
+| `packages/shared` | shared contracts | Built |
+| `infra` | Docker/deploy/Jetson provisioning | Partial — local Docker Compose only, no on-prem provisioning scripts |
 
 See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse map.
+
+### Known gaps (fix or make a deliberate call before go-live)
+
+- `customer_assignments` claim/collaborator UI now exists (`/dashboard/walkins`,
+  `/owner/salespersons`, and the "Assigned Team" section on a customer page) — but a
+  primary salesperson still cannot self-serve a handoff/collaborator-add without the
+  owner; that path still routes through the owner per the RLS design (0005 `ca_insert`
+  is owner-only by design, §19-A.2).
+- `coverage_requests` (primary-on-leave coverage) is schema + RLS only — no repo, task,
+  or UI. Build before relying on it.
+- `conversations` table (meeting notes) is defined, RLS'd, indexed, but has **zero**
+  reads/writes anywhere in the app. Either build the meeting-notes feature that was
+  presumably intended, or drop the table in a migration — don't leave it silently dead.
+  Dropping a table is a destructive schema change: get explicit sign-off before doing it.
+- Consent withdrawal has no UI/API path yet; the DB cascade trigger
+  (`cascade_on_consent_withdrawal`) purges `face_embeddings` but the Storage face-crop
+  files are not purged by any app code — finish this before go-live (DPDPA risk).
 
 ---
 
@@ -58,7 +79,15 @@ These come from the feasibility report and are **binding** — violating them is
    through one send chokepoint that branches on the window.
 3. **Price/stock from live DB tool calls, never embeddings.** Embeddings discover; the DB
    answers price/stock/availability.
-4. **Build WhatsApp on a BSP (AiSensy), not raw Meta Cloud API** — sidesteps Meta App Review.
+4. ~~**Build WhatsApp on a BSP (AiSensy), not raw Meta Cloud API**~~ — **superseded.**
+   The shipped `apps/api` sends via the raw Meta Cloud API (`WA_TOKEN` System User
+   token), not AiSensy. This was a deliberate pivot recorded in
+   `docs/EXECUTION_PLAN.md` ADR-06 (full control over templates/webhooks; accepted the
+   cost of Meta Business Verification + App Review instead of a BSP). The AiSensy
+   adapter (`apps/prototype/src/notify/aisensy.py`) is kept only as a documented
+   fallback if Meta verification stalls — it is not wired into `apps/api`. If this
+   constraint resurfaces (e.g. a client contract requirement), it's a scope
+   conversation, not a silent revert.
 5. **Face recognition is a staff-assist insight tool, not an access gate** (85–95% field
    accuracy). Always expose a NEW/REPEAT/**UNCERTAIN** band; never auto-assert identity.
 

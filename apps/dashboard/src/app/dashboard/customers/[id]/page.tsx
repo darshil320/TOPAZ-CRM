@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import ConversationThread from "./ConversationThread";
 import StageSelect from "./StageSelect";
+import AddCollaboratorForm from "./AddCollaboratorForm";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -21,11 +22,12 @@ export default async function CustomerPage({ params }: Props) {
 
   const { data: sp } = await supabase
     .from("salespersons")
-    .select("id")
+    .select("id, role")
     .eq("auth_uid", user.id)
     .eq("active", true)
     .single();
   if (!sp) redirect("/login");
+  const isOwner = sp.role === "owner";
 
   const { data: assignment } = await supabase
     .from("customer_assignments")
@@ -34,21 +36,33 @@ export default async function CustomerPage({ params }: Props) {
     .eq("salesperson_id", sp.id)
     .eq("active", true)
     .single();
-  if (!assignment) redirect("/dashboard");
+  if (!assignment && !isOwner) redirect("/dashboard");
 
   const [
     { data: customer },
     { data: visits },
     { data: messages },
     { data: stageRow },
+    { data: team },
+    { data: activeSalespersons },
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).single(),
     supabase.from("visits").select("id, match_band, occurred_at, photo_key").eq("customer_id", id).order("occurred_at", { ascending: false }).limit(5),
     supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: true }).limit(30),
     supabase.from("pipeline_stages").select("stage").eq("customer_id", id).single(),
+    supabase.from("customer_assignments").select("id, role, salespersons(id, name)").eq("customer_id", id).eq("active", true),
+    isOwner
+      ? supabase.from("salespersons").select("id, name").eq("active", true)
+      : Promise.resolve({ data: null }),
   ]);
 
   if (!customer) notFound();
+
+  const teamRows = team ?? [];
+  const assignedIds = new Set(teamRows.map((t: any) => t.salespersons?.id).filter(Boolean));
+  const addableSalespersons = (activeSalespersons ?? [])
+    .filter((s: any) => !assignedIds.has(s.id))
+    .map((s: any) => ({ id: s.id as string, name: s.name as string }));
 
   const currentStage = stageRow?.stage ?? "new";
   const initials = customer.name
@@ -102,6 +116,32 @@ export default async function CustomerPage({ params }: Props) {
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Pipeline Stage</p>
         <StageSelect customerId={id} currentStage={currentStage} />
+      </div>
+
+      {/* Assigned team */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Assigned Team</p>
+        {teamRows.length === 0 ? (
+          <p className="text-sm text-slate-400">Unclaimed — no salesperson assigned yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {teamRows.map((t: any) => (
+              <span
+                key={t.id}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                  t.role === "primary"
+                    ? "bg-blue-100 text-blue-700 border-blue-200"
+                    : "bg-slate-100 text-slate-600 border-slate-200"
+                }`}
+              >
+                {t.salespersons?.name ?? "Unknown"} · {t.role}
+              </span>
+            ))}
+          </div>
+        )}
+        {isOwner && (
+          <AddCollaboratorForm customerId={id} options={addableSalespersons} />
+        )}
       </div>
 
       {/* Visit history */}

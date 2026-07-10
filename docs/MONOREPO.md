@@ -2,14 +2,18 @@
 
 How each part of this repo maps to the phases in `topaz-master-implementation-plan.md`.
 
-| Folder | Phase | Stack | Status |
+**Status source of truth:** `docs/DEPLOYMENT.md`. The table below was written during
+planning and is kept only as the phase-mapping reference — do not read its Status
+column as current; it was last accurate pre-build.
+
+| Folder | Phase | Stack | Status (see docs/DEPLOYMENT.md for current) |
 |---|---|---|---|
-| `apps/prototype` | Pre-sales (deal-closer) | Python · InsightFace · OpenCV · pluggable WhatsApp notifier · stdlib web view | **Building now** |
-| `apps/edge` | 1A · M1 | Python on Jetson Orin Nano · InsightFace/ArcFace · TensorRT · RTSP | Planned |
-| `apps/api` | 1A · M2, M6A · 1B · M3, M4, M5 | FastAPI · PostgreSQL+pgvector · Redis+Celery · Claude · BSP | Planned |
-| `apps/dashboard` | 1A · M6A · 1B · M6B | Next.js · Supabase realtime · server-side RBAC | Planned |
-| `packages/shared` | all | Shared types / API contracts (visit events, consent, webhooks) | Planned |
-| `infra` | all | Docker · Railway/Render · Vercel · provisioning scripts | Planned |
+| `apps/prototype` | Pre-sales (deal-closer) | Python · InsightFace · OpenCV · pluggable WhatsApp notifier · stdlib web view | Built |
+| `apps/edge` | 1A · M1 | Python · InsightFace/ArcFace (CPU by default) · USB webcam or RTSP CCTV via OpenCV | Built — code complete, no autostart service yet (Track E of DEPLOYMENT.md) |
+| `apps/api` | 1A · M2, M6A · 1B · M3, M4, M5 | FastAPI · PostgreSQL+pgvector · Redis+Celery · Claude · Meta Cloud API direct (not BSP — see CLAUDE.md note) | Built — deployed on Railway, secrets being finalized |
+| `apps/dashboard` | 1A · M6A · 1B · M6B | Next.js · Supabase realtime · server-side RBAC | Built — deployed on Vercel |
+| `packages/shared` | all | Shared types / API contracts (enrollment, recognition, auth linking) | Built |
+| `infra` | all | Docker Compose (local dev only — no Jetson/on-prem provisioning scripts exist yet) | Partial |
 
 ## Prototype → Phase 1A reuse
 

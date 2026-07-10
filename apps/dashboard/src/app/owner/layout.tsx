@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
 import SignOutButton from "@/components/SignOutButton";
@@ -50,6 +51,15 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
       </header>
 
       <VisitAlertBanner salespersonId={salesperson.id} />
+
+      <nav className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-4 flex items-center gap-4">
+        <Link href="/owner" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+          Pipeline
+        </Link>
+        <Link href="/owner/salespersons" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+          Salespersons
+        </Link>
+      </nav>
 
       <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6">{children}</main>
     </div>

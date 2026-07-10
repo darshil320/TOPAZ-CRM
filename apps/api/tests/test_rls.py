@@ -60,6 +60,28 @@ def test_claim_already_claimed_returns_false():
         assert cur.fetchone()[0] is False
 
 
+# ── 0007: unclaimed walk-in queue — any active salesperson can see + claim ──────
+def test_unassigned_sp_sees_unclaimed_customer():
+    with as_sp2() as cur:
+        cur.execute("select id from customers where id = %s", (CUST2,))
+        assert cur.fetchone() is not None
+
+def test_unassigned_sp_sees_unclaimed_customers_visit():
+    with as_sp2() as cur:
+        cur.execute("select count(*) from visits where customer_id = %s", (CUST2,))
+        assert cur.fetchone()[0] == 1
+
+def test_owner_sees_unclaimed_customer_too():
+    with as_owner() as cur:
+        cur.execute("select id from customers where id = %s", (CUST2,))
+        assert cur.fetchone() is not None
+
+def test_unrelated_sp_still_blind_to_assigned_customers_visit():
+    with as_sp2() as cur:
+        cur.execute("select count(*) from visits where customer_id = %s", (CUST1,))
+        assert cur.fetchone()[0] == 0
+
+
 # ── Biometric data is never browser-readable ────────────────────────────────────
 def test_salesperson_cannot_read_face_embeddings():
     with as_sp1() as cur:

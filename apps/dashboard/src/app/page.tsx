@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { tryAutoLinkSalesperson } from "@/lib/linkSalesperson";
 
 export default async function RootPage() {
   const supabase = await createServerSupabaseClient();
@@ -7,12 +8,24 @@ export default async function RootPage() {
 
   if (!user) redirect("/login");
 
-  const { data: sp } = await supabase
+  let { data: sp } = await supabase
     .from("salespersons")
     .select("role")
     .eq("auth_uid", user.id)
     .eq("active", true)
     .single();
+
+  if (!sp) {
+    const linked = await tryAutoLinkSalesperson(user.id, user.phone ?? null);
+    if (linked) {
+      ({ data: sp } = await supabase
+        .from("salespersons")
+        .select("role")
+        .eq("auth_uid", user.id)
+        .eq("active", true)
+        .single());
+    }
+  }
 
   if (!sp) {
     return (
