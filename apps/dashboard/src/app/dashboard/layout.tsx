@@ -26,9 +26,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     ? salesperson.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "SP";
 
+  const role = salesperson.role === "owner" ? "owner" : "salesperson";
+
   return (
     <div className="flex min-h-screen w-full bg-slate-50">
-      <Sidebar role="salesperson" />
+      <Sidebar role={role} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
@@ -39,6 +41,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
                   <span className="text-[10px] font-bold text-blue-700">{initials}</span>
                 </div>
                 <span className="text-sm text-slate-600 font-medium">{salesperson.name}</span>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    role === "owner" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                  }`}
+                >
+                  {role === "owner" ? "Owner" : "Salesperson"}
+                </span>
               </div>
               <div className="w-px h-4 bg-slate-200 hidden sm:block" />
               <AvailabilityToggle

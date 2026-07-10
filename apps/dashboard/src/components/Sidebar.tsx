@@ -10,6 +10,8 @@ interface NavItem {
   exact?: boolean;
 }
 
+const ICON_SIZE = "w-5 h-5";
+
 const ICONS = {
   customers: (c: string) => (
     <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -33,23 +35,38 @@ const ICONS = {
   ),
 };
 
-const NAV: Record<"salesperson" | "owner", NavItem[]> = {
-  salesperson: [
-    { href: "/dashboard", label: "My Customers", icon: ICONS.customers, exact: true },
-    { href: "/dashboard/walkins", label: "Walk-in Queue", icon: ICONS.walkin, exact: true },
-  ],
-  owner: [
-    { href: "/owner", label: "Pipeline", icon: ICONS.pipeline, exact: true },
-    { href: "/owner/salespersons", label: "Salespersons", icon: ICONS.people, exact: true },
-  ],
-};
+const SALES_NAV: NavItem[] = [
+  { href: "/dashboard", label: "My Customers", icon: ICONS.customers, exact: true },
+  { href: "/dashboard/walkins", label: "Walk-in Queue", icon: ICONS.walkin, exact: true },
+];
+
+const OWNER_NAV: NavItem[] = [
+  { href: "/owner", label: "Pipeline", icon: ICONS.pipeline, exact: true },
+  { href: "/owner/salespersons", label: "Salespersons", icon: ICONS.people, exact: true },
+];
+
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  return (
+    <Link
+      href={item.href}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+        active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      }`}
+    >
+      <span className={`${ICON_SIZE} shrink-0 flex items-center justify-center`}>
+        {item.icon(`${ICON_SIZE} ${active ? "text-blue-600" : "text-slate-400"}`)}
+      </span>
+      <span className="whitespace-nowrap">{item.label}</span>
+    </Link>
+  );
+}
 
 export default function Sidebar({ role }: { role: "salesperson" | "owner" }) {
   const pathname = usePathname();
-  const items = NAV[role];
 
   return (
-    <aside className="hidden sm:flex sticky top-0 h-screen w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="hidden sm:flex sticky top-0 h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="h-14 flex items-center gap-2.5 px-5 border-b border-slate-200">
         <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -60,33 +77,44 @@ export default function Sidebar({ role }: { role: "salesperson" | "owner" }) {
         <span className="font-semibold text-slate-900 text-sm tracking-tight">Topaz CRM</span>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {items.map((item) => {
-          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              {item.icon(`w-4.5 h-4.5 shrink-0 ${active ? "text-blue-600" : "text-slate-400"}`)}
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+        {role === "owner" ? (
+          <>
+            <div>
+              <p className="px-3 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Owner</p>
+              <div className="space-y-1">
+                {OWNER_NAV.map((item) => (
+                  <NavLink key={item.href} item={item} pathname={pathname} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="px-3 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Sales view</p>
+              <div className="space-y-1">
+                {SALES_NAV.map((item) => (
+                  <NavLink key={item.href} item={item} pathname={pathname} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1">
+            {SALES_NAV.map((item) => (
+              <NavLink key={item.href} item={item} pathname={pathname} />
+            ))}
+          </div>
+        )}
       </nav>
 
-      {role === "owner" && (
-        <div className="px-5 py-3 border-t border-slate-200">
-          <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-            Owner
-          </span>
-        </div>
-      )}
+      <div className="px-5 py-3 border-t border-slate-200">
+        <span
+          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+            role === "owner" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+          }`}
+        >
+          {role === "owner" ? "Owner" : "Salesperson"}
+        </span>
+      </div>
     </aside>
   );
 }
