@@ -14,7 +14,15 @@ const STAGE_CONFIG: Record<Stage, { label: string; dot: string; accent: string }
 
 export default async function OwnerPage() {
   const supabase = await createServerSupabaseClient();
-  const { data: sp } = await supabase.from("salespersons").select("role").single();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: sp } = await supabase
+    .from("salespersons")
+    .select("role")
+    .eq("auth_uid", user.id)
+    .eq("active", true)
+    .single();
   if (sp?.role !== "owner") redirect("/dashboard");
 
   const { data: rows } = await supabase
