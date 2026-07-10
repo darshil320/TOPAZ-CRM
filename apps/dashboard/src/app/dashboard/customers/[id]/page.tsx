@@ -43,14 +43,17 @@ export default async function CustomerPage({ params }: Props) {
     { data: visits },
     { data: messages },
     { data: stageRow },
-    { data: team },
+    teamResult,
     { data: activeSalespersons },
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).single(),
     supabase.from("visits").select("id, match_band, occurred_at, photo_key").eq("customer_id", id).order("occurred_at", { ascending: false }).limit(5),
     supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: true }).limit(30),
     supabase.from("pipeline_stages").select("stage").eq("customer_id", id).single(),
-    supabase.from("customer_assignments").select("id, role, salespersons(id, name)").eq("customer_id", id).eq("active", true),
+    // customer_assignments has TWO FKs into salespersons (salesperson_id, added_by) —
+    // the embed hint disambiguates which one PostgREST should follow. Without it the
+    // query errors ("more than one relationship found") and silently returns no data.
+    supabase.from("customer_assignments").select("id, role, salespersons!salesperson_id(id, name)").eq("customer_id", id).eq("active", true),
     isOwner
       ? supabase.from("salespersons").select("id, name").eq("active", true)
       : Promise.resolve({ data: null }),
@@ -58,7 +61,8 @@ export default async function CustomerPage({ params }: Props) {
 
   if (!customer) notFound();
 
-  const teamRows = team ?? [];
+  const teamRows = teamResult.data ?? [];
+  const teamLoadFailed = Boolean(teamResult.error);
   const assignedIds = new Set(teamRows.map((t: any) => t.salespersons?.id).filter(Boolean));
   const addableSalespersons = (activeSalespersons ?? [])
     .filter((s: any) => !assignedIds.has(s.id))
@@ -121,7 +125,9 @@ export default async function CustomerPage({ params }: Props) {
       {/* Assigned team */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Assigned Team</p>
-        {teamRows.length === 0 ? (
+        {teamLoadFailed ? (
+          <p className="text-sm text-red-600">Failed to load assigned team — refresh the page.</p>
+        ) : teamRows.length === 0 ? (
           <p className="text-sm text-slate-400">Unclaimed — no salesperson assigned yet.</p>
         ) : (
           <div className="flex flex-wrap gap-2 mb-3">
