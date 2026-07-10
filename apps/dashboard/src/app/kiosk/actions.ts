@@ -15,6 +15,9 @@ export async function enrollCustomer(data: {
   if (!apiUrl) {
     return { success: false, error: "TOPAZ_API_URL is not configured." };
   }
+  if (!apiKey) {
+    return { success: false, error: "DASHBOARD_API_KEY is not configured." };
+  }
 
   try {
     const response = await fetch(`${apiUrl}/api/enrollment`, {
@@ -22,7 +25,7 @@ export async function enrollCustomer(data: {
       signal: AbortSignal.timeout(10_000),
       headers: {
         "Content-Type": "application/json",
-        "API-Key": apiKey ?? "",
+        "API-Key": apiKey,
       },
       body: JSON.stringify({
         name: data.name || null,

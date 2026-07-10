@@ -5,7 +5,9 @@ GET  /api/enrollment/pending  — edge worker polls for a claimable consent toke
                                 (§19-E seam: token = consent UUID of the most
                                 recent kiosk enrollment still awaiting a face).
 
-Auth: API-Key header (same EDGE_API_KEY as /api/recognition).
+Auth: API-Key header. POST is called by the dashboard kiosk (DASHBOARD_API_KEY)
+and may also carry a face embedding from the edge worker (EDGE_API_KEY), so it
+accepts either. GET /pending is edge-only (EDGE_API_KEY).
 POST writes consent + customer + optionally face_embedding in one transaction,
 and queues the welcome followup when the customer opted into WhatsApp.
 """
@@ -33,11 +35,16 @@ router = APIRouter()
 WELCOME_TEMPLATE = "welcome_visit"
 
 
-def _verify_api_key(provided: str) -> None:
-    settings = get_settings()
-    expected = settings.EDGE_API_KEY.encode()
-    if not hmac.compare_digest(expected, provided.encode()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+def verify_api_key(provided: str, accepted: tuple[str | None, ...]) -> None:
+    """Raise 401 unless `provided` matches one of the configured keys.
+
+    Unset keys (None/empty) never match, so a missing DASHBOARD_API_KEY
+    cannot be satisfied by an empty header.
+    """
+    for key in accepted:
+        if key and hmac.compare_digest(key.encode(), provided.encode()):
+            return
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
 
 @router.post("/enrollment", status_code=status.HTTP_201_CREATED)
@@ -46,8 +53,8 @@ async def enroll(
     api_key: str = Header(alias="API-Key"),
 ) -> dict:
     """Create a consent record, customer row, and optionally a face embedding."""
-    _verify_api_key(api_key)
     settings = get_settings()
+    verify_api_key(api_key, (settings.DASHBOARD_API_KEY, settings.EDGE_API_KEY))
 
     async with make_task_session() as session:
         consent_id, customer_id = await enroll_customer(
@@ -105,8 +112,8 @@ async def pending_consent(
     The edge worker polls this endpoint; a non-null token means "a customer
     just registered at the kiosk and their face has not been captured yet".
     """
-    _verify_api_key(api_key)
     settings = get_settings()
+    verify_api_key(api_key, (settings.EDGE_API_KEY,))
 
     async with make_task_session() as session:
         token = await find_pending_consent_token(
