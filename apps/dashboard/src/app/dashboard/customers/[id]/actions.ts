@@ -119,16 +119,21 @@ export async function addCollaborator(
       .eq("auth_uid", user.id)
       .single();
 
-    const { error } = await supabase.from("customer_assignments").insert({
-      customer_id: customerId,
-      salesperson_id: salespersonId,
-      role: "collaborator",
-      active: true,
-      added_by: owner?.id ?? null,
-    });
+    // Upsert on (customer_id, salesperson_id): a prior removal leaves a row
+    // with active=false, and a plain insert would 409 on that unique pair.
+    const { error } = await supabase.from("customer_assignments").upsert(
+      {
+        customer_id: customerId,
+        salesperson_id: salespersonId,
+        role: "collaborator",
+        active: true,
+        added_by: owner?.id ?? null,
+      },
+      { onConflict: "customer_id,salesperson_id" },
+    );
 
-    // RLS (ca_insert) is owner-only by design — a non-owner insert attempt
-    // fails here, not just in the UI (defense in depth, §19-A.2).
+    // RLS (ca_insert/ca_update) is owner-only by design — a non-owner
+    // attempt fails here, not just in the UI (defense in depth, §19-A.2).
     if (error) return { error: error.message };
 
     revalidatePath(`/dashboard/customers/${customerId}`);

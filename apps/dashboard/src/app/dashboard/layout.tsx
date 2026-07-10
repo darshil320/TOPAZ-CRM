@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import Sidebar from "@/components/Sidebar";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
 import AvailabilityToggle from "@/components/AvailabilityToggle";
 import SignOutButton from "@/components/SignOutButton";
@@ -27,47 +27,33 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     : "SP";
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-slate-50">
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            </div>
-            <span className="font-semibold text-slate-900 text-sm tracking-tight">Topaz CRM</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-blue-700">{initials}</span>
+    <div className="flex min-h-screen w-full bg-slate-50">
+      <Sidebar role="salesperson" />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
+          <div className="px-4 sm:px-6 h-14 flex items-center justify-end">
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-blue-700">{initials}</span>
+                </div>
+                <span className="text-sm text-slate-600 font-medium">{salesperson.name}</span>
               </div>
-              <span className="text-sm text-slate-600 font-medium">{salesperson.name}</span>
+              <div className="w-px h-4 bg-slate-200 hidden sm:block" />
+              <AvailabilityToggle
+                salespersonId={salesperson.id}
+                initialAvailable={salesperson.available ?? false}
+              />
+              <SignOutButton />
             </div>
-            <div className="w-px h-4 bg-slate-200 hidden sm:block" />
-            <AvailabilityToggle
-              salespersonId={salesperson.id}
-              initialAvailable={salesperson.available ?? false}
-            />
-            <SignOutButton />
           </div>
-        </div>
-      </header>
+        </header>
 
-      <VisitAlertBanner salespersonId={salesperson.id} />
+        <VisitAlertBanner salespersonId={salesperson.id} />
 
-      <nav className="max-w-5xl mx-auto w-full px-4 sm:px-6 pt-4 flex items-center gap-4">
-        <Link href="/dashboard" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
-          My Customers
-        </Link>
-        <Link href="/dashboard/walkins" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
-          Walk-in Queue
-        </Link>
-      </nav>
-
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6">{children}</main>
+        <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6">{children}</main>
+      </div>
     </div>
   );
 }
