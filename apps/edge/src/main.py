@@ -2,9 +2,11 @@
 
 Pipeline (§6.1):
   ThreadedVideoCapture → FaceDetector (InsightFace buffalo_l) →
-  quality gate → §19-E consent gate → CooldownTracker →
-  L2-normalise (numpy) → SupabaseCropUploader (consent-gated) →
-  RecognitionPoster (POST /api/recognition, 3 retries)
+  quality gate → consent token resolve (attached, not blocking) → CooldownTracker →
+  L2-normalise (numpy) → SupabaseCropUploader (no-ops without a token) →
+  RecognitionPoster (POST /api/recognition, 3 retries) — server matches
+  against existing embeddings regardless of token; NEW-customer enrollment
+  still requires one.
 
 SIGINT / SIGTERM → graceful shutdown (camera + HTTP clients released).
 """
@@ -176,10 +178,14 @@ async def _handle_detection(
     if detection.quality_score < settings.quality_floor:
         return uploader
 
-    # 2. §19-E DPDPA consent gate — kiosk token via ConsentResolver
+    # 2. Consent token, if any — attached to the event so the server can
+    # gate NEW-customer enrollment (recognition.py) on it. A repeat visitor
+    # match doesn't need one: the server only reads consent_token for the
+    # NEW/UNCERTAIN enrollment branch, never for matching against embeddings
+    # already lawfully held. Absent token → still posted for matching;
+    # crop upload and enrollment simply no-op without it (see uploader.py,
+    # recognition.py).
     consent_token = await consent_resolver.resolve()
-    if consent_token is None:
-        return uploader  # no consent → drop; no embedding, crop, or event stored
 
     # 3. Cooldown: suppress same-face re-fire within the cooldown window
     try:
