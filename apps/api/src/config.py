@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # pgvector HNSW search-time ef parameter (higher = better recall, slower).
     HNSW_EF_SEARCH: int = 40
 
+    # Server-side floor on the edge-reported face quality score; detections
+    # below it are dropped before matching (tune alongside the edge QUALITY_FLOOR).
+    QUALITY_FLOOR: float = 0.2
+
     # WhatsApp Cloud API (Meta). Leave unset in dev to skip WA sends.
     WA_PHONE_NUMBER_ID: str | None = None   # WhatsApp Business phone-number ID
     WA_TOKEN: str | None = None              # Meta System User access token

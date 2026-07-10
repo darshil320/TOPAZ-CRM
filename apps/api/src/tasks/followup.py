@@ -106,7 +106,11 @@ async def _process_one(session, followup: ClaimedFollowup) -> str:
         await session.commit()
         return "skipped"
 
-    template_vars = {**followup.template_vars, "name": context.name or ""}
+    template_vars = {
+        **followup.template_vars,
+        "name": context.name or "",
+        "advisor_name": context.advisor_name or "",
+    }
     use_free_form = within_service_window(context.last_inbound_at)
 
     try:

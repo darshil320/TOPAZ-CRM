@@ -33,8 +33,6 @@ from .ai import draft_followup
 
 logger = logging.getLogger(__name__)
 
-QUALITY_FLOOR = 0.4
-
 
 @celery_app.task(
     bind=True,
@@ -90,17 +88,17 @@ async def _process(
             return {"status": "duplicate", "visit_id": str(existing)}
 
         # 2. Quality gate
-        if quality_score < QUALITY_FLOOR:
+        settings = get_settings()
+        if quality_score < settings.QUALITY_FLOOR:
             logger.info(
                 "raw_event_id %s rejected: quality_score %.3f < %.1f",
                 raw_event_id,
                 quality_score,
-                QUALITY_FLOOR,
+                settings.QUALITY_FLOOR,
             )
             return {"status": "rejected", "reason": "quality_too_low"}
 
         # 3. ANN query
-        settings = get_settings()
         candidates = await find_nearest(session, embedding)
 
         # 4. Band classification

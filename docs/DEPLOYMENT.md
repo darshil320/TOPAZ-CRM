@@ -5,7 +5,7 @@ Legend: **YOU** = only Darshil can do (portals, hardware, people) · **AI** = pa
 
 ## Status snapshot (2026-07-07)
 
-DONE: all Phase 1 code built + empirically verified · repo on GitHub (darshil320/TOPAZ-CRM) · Railway project `cooperative-wisdom`: api + worker + beat + Redis all Online · api public domain `api-production-c6189.up.railway.app` · Meta webhook configured + verified (GET challenge green) · WhatsApp number +91 63563 20206 REGISTERED on "Topaz furniture" WABA (ID 27846807084905593, phone ID 1261681507021925) · payment method step showed green.
+DONE: all Phase 1 code built + empirically verified · repo on GitHub (darshil320/TOPAZ-CRM) · Railway project `cooperative-wisdom`: api + worker + beat + Redis all Online · api public domain `api-production-c6189.up.railway.app` · Meta webhook configured + verified (GET challenge green) · WhatsApp number +91 63563 20206 REGISTERED on WABA **1506116721198796**, live phone ID **1189429440922862** (both verified against Meta Graph API 2026-07-10; old phone ID 1261681507021925 and old WABA 27846807084905593 are dead/empty). Templates on live WABA: `topaz_welcome` APPROVED, lang `en`, **NAMED params** `{{customer_name}}`/`{{advisor_name}}` + URL button; `topaz_followup` **NOT YET CREATED** (send fails until created — spec: NAMED param `{{customer_name}}`, MARKETING, lang `en`) · payment method step showed green.
 
 REMAINING: Tracks A–G below.
 
@@ -50,7 +50,7 @@ For EACH of api / worker / beat → **Variables** tab (or use Railway "Shared Va
 DATABASE_URL                = postgresql+asyncpg://... (from A2)
 WA_TOKEN                    = (from A3)
 WA_APP_SECRET               = (from A4)
-WA_PHONE_NUMBER_ID          = 1261681507021925
+WA_PHONE_NUMBER_ID          = 1189429440922862
 WA_WEBHOOK_VERIFY_TOKEN     = (rotate: new random string — old one was exposed in screenshots)
 SUPABASE_SERVICE_ROLE_KEY   = (from A5)
 DASHBOARD_API_KEY           = (first key from A1)

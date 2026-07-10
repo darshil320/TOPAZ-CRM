@@ -24,6 +24,17 @@ def test_render_empty_name_uses_default():
     assert "Hi there," in body
 
 
+def test_render_welcome_includes_advisor():
+    body = render_followup("welcome_visit", {"name": "Hemant", "advisor_name": "Ramesh"})
+    assert "Your advisor Ramesh" in body
+
+
+def test_render_welcome_advisor_fallback_reads_naturally():
+    body = render_followup("welcome_visit", {"name": "Hemant"})
+    assert "Your advisor at Topaz Furniture" in body
+    assert "{" not in body
+
+
 def test_render_unknown_template_raises():
     with pytest.raises(KeyError):
         render_followup("nonexistent_template", {})
@@ -34,15 +45,29 @@ def test_render_ignores_unknown_placeholder_vars():
     assert "Hi Asha," in body
 
 
-def test_meta_template_params_ordering():
-    name, params = meta_template_params("welcome_visit", {"name": "Hemant"})
+def test_meta_template_params_named_ordering():
+    name, params = meta_template_params(
+        "welcome_visit", {"name": "Hemant", "advisor_name": "Ramesh"}
+    )
     assert name == "topaz_welcome"
-    assert params == ["Hemant"]
+    assert params == [
+        {"type": "text", "parameter_name": "customer_name", "text": "Hemant"},
+        {"type": "text", "parameter_name": "advisor_name", "text": "Ramesh"},
+    ]
 
 
-def test_meta_template_params_default_name():
+def test_meta_template_params_defaults():
     _, params = meta_template_params("welcome_visit", {})
-    assert params == ["there"]
+    assert params == [
+        {"type": "text", "parameter_name": "customer_name", "text": "there"},
+        {"type": "text", "parameter_name": "advisor_name", "text": "at Topaz Furniture"},
+    ]
+
+
+def test_meta_template_params_followup_single_param():
+    name, params = meta_template_params("topaz_followup", {"name": "Asha"})
+    assert name == "topaz_followup"
+    assert params == [{"type": "text", "parameter_name": "customer_name", "text": "Asha"}]
 
 
 def test_all_templates_render_cleanly():

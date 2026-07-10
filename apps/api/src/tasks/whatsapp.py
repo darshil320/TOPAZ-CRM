@@ -61,16 +61,17 @@ def send_wa_text(to: str, body: str) -> str | None:
     )
 
 
-def send_wa_template(to: str, template_name: str, params: list[str], lang: str = "en") -> str | None:
-    """Approved-template send (allowed outside the 24h window)."""
+def send_wa_template(to: str, template_name: str, params: list[dict], lang: str = "en") -> str | None:
+    """Approved-template send (allowed outside the 24h window).
+
+    params: prebuilt body-component parameter objects, e.g.
+    {"type": "text", "parameter_name": "customer_name", "text": "Hemant"} —
+    our registered templates use NAMED parameter format
+    (see services/templates.meta_template_params).
+    """
     components = []
     if params:
-        components.append(
-            {
-                "type": "body",
-                "parameters": [{"type": "text", "text": p} for p in params],
-            }
-        )
+        components.append({"type": "body", "parameters": params})
     return _post_wa_payload(
         {
             "messaging_product": "whatsapp",

@@ -30,6 +30,7 @@ class FollowupCustomerContext:
     whatsapp_marketing: bool
     consent_withdrawn: bool
     last_inbound_at: datetime | None
+    advisor_name: str | None
 
 
 async def schedule_followup(
@@ -111,8 +112,11 @@ async def get_followup_customer_context(
     result = await session.execute(
         text(
             "SELECT cu.id, cu.name, cu.wa_id, cu.ai_followup_enabled, cu.last_inbound_at,"
-            "       co.whatsapp_marketing, co.withdrawn_at"
+            "       co.whatsapp_marketing, co.withdrawn_at, sp.name AS advisor_name"
             " FROM customers cu JOIN consents co ON co.id = cu.consent_id"
+            " LEFT JOIN customer_assignments ca"
+            "        ON ca.customer_id = cu.id AND ca.role = 'primary' AND ca.active = true"
+            " LEFT JOIN salespersons sp ON sp.id = ca.salesperson_id AND sp.active = true"
             " WHERE cu.id = :cid"
         ),
         {"cid": str(customer_id)},
@@ -128,6 +132,7 @@ async def get_followup_customer_context(
         whatsapp_marketing=bool(row.whatsapp_marketing),
         consent_withdrawn=row.withdrawn_at is not None,
         last_inbound_at=row.last_inbound_at,
+        advisor_name=str(row.advisor_name) if row.advisor_name else None,
     )
 
 
