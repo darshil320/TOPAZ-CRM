@@ -16,7 +16,7 @@ All DB I/O uses a NullPool session (asyncio event-loop safety in Celery, §19-I)
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from .celery_app import celery_app
@@ -26,7 +26,12 @@ from ..repositories.assignment_repo import get_primary_salesperson
 from ..repositories.customer_repo import get_customer_by_id
 from ..repositories.embedding_repo import find_nearest
 from ..repositories.enrollment_repo import enroll_face, redeem_consent_customer
-from ..repositories.visit_repo import create_visit, get_visit_id_by_raw_event_id, link_visit_customer
+from ..repositories.visit_repo import (
+    create_visit,
+    get_visit_id_by_raw_event_id,
+    link_visit_customer,
+    recent_repeat_visit_exists,
+)
 from ..services.matching import classify_band
 from .whatsapp import send_salesperson_alert
 from .ai import draft_followup
@@ -141,26 +146,42 @@ async def _process(
         # gate (step 1) and the alert would silently never be re-attempted.
         if band == "REPEAT" and customer_id:
             try:
-                customer = await get_customer_by_id(session, customer_id)
-                customer_name = customer.name if customer else None
+                # Throttle: one alert + draft per walk-in session, not per frame.
+                # A lingering visitor fires many REPEAT detections (edge cooldown
+                # only suppresses near-identical faces); without this, each one
+                # would re-alert the salesperson and queue another AI draft.
+                alert_since = captured_at - timedelta(minutes=settings.ALERT_COOLDOWN_MINUTES)
+                recently_alerted = await recent_repeat_visit_exists(
+                    session, customer_id, alert_since, exclude_visit_id=visit_id
+                )
 
-                if sp_info:
-                    sp_id, sp_whatsapp = sp_info
-                    send_salesperson_alert.delay(
-                        sp_whatsapp,
-                        str(customer_id),
-                        str(visit_id),
-                        customer_name,
-                    )
+                if recently_alerted:
                     logger.info(
-                        "Queued salesperson alert: sp=%s customer=%s visit=%s",
-                        sp_id, customer_id, visit_id,
+                        "REPEAT visit %s within %d-min alert window for customer=%s "
+                        "— skipping duplicate alert + draft",
+                        visit_id, settings.ALERT_COOLDOWN_MINUTES, customer_id,
                     )
                 else:
-                    logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
+                    customer = await get_customer_by_id(session, customer_id)
+                    customer_name = customer.name if customer else None
 
-                # Queue AI draft only for REPEAT customers (we have their context).
-                draft_followup.delay(str(customer_id), str(visit_id))
+                    if sp_info:
+                        sp_id, sp_whatsapp = sp_info
+                        send_salesperson_alert.delay(
+                            sp_whatsapp,
+                            str(customer_id),
+                            str(visit_id),
+                            customer_name,
+                        )
+                        logger.info(
+                            "Queued salesperson alert: sp=%s customer=%s visit=%s",
+                            sp_id, customer_id, visit_id,
+                        )
+                    else:
+                        logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
+
+                    # Queue AI draft only for REPEAT customers (we have their context).
+                    draft_followup.delay(str(customer_id), str(visit_id))
             except Exception:
                 logger.exception(
                     "REPEAT post-visit dispatch failed for visit %s — "

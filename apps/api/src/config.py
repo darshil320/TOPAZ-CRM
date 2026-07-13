@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # the entrance camera as a pending consent token.
     ENROLLMENT_PENDING_WINDOW_SECONDS: int = 120
 
+    # Per-customer salesperson-alert throttle: once a REPEAT alert fires for a
+    # customer, further REPEAT detections within this window do NOT re-alert or
+    # re-draft (one alert per walk-in session, not per camera frame).
+    ALERT_COOLDOWN_MINUTES: int = 30
+
     # Cadence engine (followups table + Celery beat).
     WELCOME_FOLLOWUP_DELAY_MINUTES: int = 120   # kiosk enrollment → welcome message
     FOLLOWUP_BATCH_SIZE: int = 25               # max sends per beat tick

@@ -73,3 +73,29 @@ async def link_visit_customer(
         text("UPDATE visits SET customer_id = :cid WHERE id = :vid"),
         {"cid": str(customer_id), "vid": str(visit_id)},
     )
+
+
+async def recent_repeat_visit_exists(
+    session: AsyncSession,
+    customer_id: UUID,
+    since: datetime,
+    *,
+    exclude_visit_id: UUID,
+) -> bool:
+    """True if this customer had another REPEAT visit at/after `since` (alert throttle).
+
+    Used to fire at most one salesperson alert per walk-in session instead of one
+    per camera frame. Excludes the just-written visit so a lone REPEAT still alerts.
+    """
+    result = await session.execute(
+        text(
+            "SELECT 1 FROM visits"
+            " WHERE customer_id = :cid"
+            "   AND match_band = 'REPEAT'"
+            "   AND id <> :vid"
+            "   AND occurred_at >= :since"
+            " LIMIT 1"
+        ),
+        {"cid": str(customer_id), "vid": str(exclude_visit_id), "since": since},
+    )
+    return result.first() is not None
