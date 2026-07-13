@@ -31,6 +31,26 @@ export async function moveStage(
   }
 }
 
+export async function setAlertsMuted(
+  customerId: string,
+  muted: boolean,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    // Owner-only at the DB layer too: the protect_customer_owner_fields trigger
+    // (migration 0008) rejects a non-owner flipping alerts_muted.
+    const { error } = await supabase
+      .from("customers")
+      .update({ alerts_muted: muted })
+      .eq("id", customerId);
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function approveDraft(
   messageId: string,
   customerId: string,

@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     # Anthropic API key for AI draft generation. If unset, falls back to template.
     ANTHROPIC_API_KEY: str | None = None
 
+    # Supabase project URL + service-role key — used by the worker to fetch the
+    # private face-crop for the salesperson arrival alert. If either is unset the
+    # alert gracefully falls back to text-only (no photo).
+    SUPABASE_URL: str | None = None
+    SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    FACE_CROP_BUCKET: str = "face-crops"
+
     @field_validator("DATABASE_URL")
     @classmethod
     def require_asyncpg_scheme(cls, v: str) -> str:

@@ -107,6 +107,16 @@ def test_salesperson_can_take_over_handler():   # manual override IS allowed
             "where id = %s", (SP2_ID, CUST1))    # any salesperson value; the point is it's permitted
         assert cur.rowcount == 1
 
+def test_salesperson_cannot_mute_alerts():      # 0008 owner-only guard
+    with as_sp1() as cur:
+        with pytest.raises(psycopg2.Error):
+            cur.execute("update customers set alerts_muted = true where id = %s", (CUST1,))
+
+def test_owner_can_mute_alerts():
+    with as_owner() as cur:
+        cur.execute("update customers set alerts_muted = true where id = %s", (CUST1,))
+        assert cur.rowcount == 1
+
 
 # ── anon (the consent kiosk) can do exactly one thing ───────────────────────────
 def test_anon_can_insert_consent():

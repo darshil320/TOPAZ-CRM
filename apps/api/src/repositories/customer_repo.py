@@ -15,6 +15,7 @@ class CustomerInfo:
     wa_id: str | None
     ai_followup_enabled: bool
     handler_mode: str
+    alerts_muted: bool = False
 
 
 async def get_customer_by_id(
@@ -23,7 +24,7 @@ async def get_customer_by_id(
 ) -> CustomerInfo | None:
     result = await session.execute(
         text(
-            "SELECT id, name, wa_id, ai_followup_enabled, handler_mode"
+            "SELECT id, name, wa_id, ai_followup_enabled, handler_mode, alerts_muted"
             " FROM customers WHERE id = :cid"
         ),
         {"cid": str(customer_id)},
@@ -37,6 +38,7 @@ async def get_customer_by_id(
         wa_id=str(row.wa_id) if row.wa_id else None,
         ai_followup_enabled=bool(row.ai_followup_enabled),
         handler_mode=str(row.handler_mode),
+        alerts_muted=bool(row.alerts_muted),
     )
 
 
@@ -46,7 +48,7 @@ async def get_customer_by_wa_id(
 ) -> CustomerInfo | None:
     result = await session.execute(
         text(
-            "SELECT id, name, wa_id, ai_followup_enabled, handler_mode"
+            "SELECT id, name, wa_id, ai_followup_enabled, handler_mode, alerts_muted"
             " FROM customers WHERE wa_id = :wid"
         ),
         {"wid": wa_id},
@@ -60,6 +62,7 @@ async def get_customer_by_wa_id(
         wa_id=str(row.wa_id) if row.wa_id else None,
         ai_followup_enabled=bool(row.ai_followup_enabled),
         handler_mode=str(row.handler_mode),
+        alerts_muted=bool(row.alerts_muted),
     )
 
 

@@ -279,6 +279,7 @@ export type Database = {
         Row: {
           ai_autosend: boolean
           ai_followup_enabled: boolean
+          alerts_muted: boolean
           budget_range: string | null
           consent_id: string
           created_at: string
@@ -296,6 +297,7 @@ export type Database = {
         Insert: {
           ai_autosend?: boolean
           ai_followup_enabled?: boolean
+          alerts_muted?: boolean
           budget_range?: string | null
           consent_id: string
           created_at?: string
@@ -313,6 +315,7 @@ export type Database = {
         Update: {
           ai_autosend?: boolean
           ai_followup_enabled?: boolean
+          alerts_muted?: boolean
           budget_range?: string | null
           consent_id?: string
           created_at?: string

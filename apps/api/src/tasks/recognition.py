@@ -28,6 +28,7 @@ from ..repositories.embedding_repo import find_nearest
 from ..repositories.enrollment_repo import enroll_face, redeem_consent_customer
 from ..repositories.visit_repo import (
     create_visit,
+    get_latest_photo_key,
     get_visit_id_by_raw_event_id,
     link_visit_customer,
     recent_repeat_visit_exists,
@@ -146,42 +147,59 @@ async def _process(
         # gate (step 1) and the alert would silently never be re-attempted.
         if band == "REPEAT" and customer_id:
             try:
-                # Throttle: one alert + draft per walk-in session, not per frame.
-                # A lingering visitor fires many REPEAT detections (edge cooldown
-                # only suppresses near-identical faces); without this, each one
-                # would re-alert the salesperson and queue another AI draft.
-                alert_since = captured_at - timedelta(minutes=settings.ALERT_COOLDOWN_MINUTES)
-                recently_alerted = await recent_repeat_visit_exists(
-                    session, customer_id, alert_since, exclude_visit_id=visit_id
-                )
+                customer = await get_customer_by_id(session, customer_id)
 
-                if recently_alerted:
+                # Mute: known regulars (staff/family) the owner flagged — visit is
+                # recorded for footfall, but no arrival alert and no AI draft fire.
+                if customer and customer.alerts_muted:
                     logger.info(
-                        "REPEAT visit %s within %d-min alert window for customer=%s "
-                        "— skipping duplicate alert + draft",
-                        visit_id, settings.ALERT_COOLDOWN_MINUTES, customer_id,
+                        "REPEAT visit %s: customer=%s is muted — no alert/draft",
+                        visit_id, customer_id,
                     )
                 else:
-                    customer = await get_customer_by_id(session, customer_id)
-                    customer_name = customer.name if customer else None
+                    # Throttle: one alert + draft per walk-in session, not per frame.
+                    # A lingering visitor fires many REPEAT detections (edge cooldown
+                    # only suppresses near-identical faces); without this, each one
+                    # would re-alert the salesperson and queue another AI draft.
+                    alert_since = captured_at - timedelta(minutes=settings.ALERT_COOLDOWN_MINUTES)
+                    recently_alerted = await recent_repeat_visit_exists(
+                        session, customer_id, alert_since, exclude_visit_id=visit_id
+                    )
 
-                    if sp_info:
-                        sp_id, sp_whatsapp = sp_info
-                        send_salesperson_alert.delay(
-                            sp_whatsapp,
-                            str(customer_id),
-                            str(visit_id),
-                            customer_name,
-                        )
+                    if recently_alerted:
                         logger.info(
-                            "Queued salesperson alert: sp=%s customer=%s visit=%s",
-                            sp_id, customer_id, visit_id,
+                            "REPEAT visit %s within %d-min alert window for customer=%s "
+                            "— skipping duplicate alert + draft",
+                            visit_id, settings.ALERT_COOLDOWN_MINUTES, customer_id,
                         )
                     else:
-                        logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
+                        customer_name = customer.name if customer else None
 
-                    # Queue AI draft only for REPEAT customers (we have their context).
-                    draft_followup.delay(str(customer_id), str(visit_id))
+                        if sp_info:
+                            sp_id, sp_whatsapp = sp_info
+                            # Attach the customer's stored face crop so the
+                            # salesperson can recognise them at the door. No-touch
+                            # repeats don't capture a fresh crop (§19-E), so fall
+                            # back to the enrollment-time photo.
+                            alert_photo_key = photo_key or await get_latest_photo_key(
+                                session, customer_id
+                            )
+                            send_salesperson_alert.delay(
+                                sp_whatsapp,
+                                str(customer_id),
+                                str(visit_id),
+                                customer_name,
+                                alert_photo_key,
+                            )
+                            logger.info(
+                                "Queued salesperson alert: sp=%s customer=%s visit=%s",
+                                sp_id, customer_id, visit_id,
+                            )
+                        else:
+                            logger.info("REPEAT visit: no primary salesperson for customer=%s", customer_id)
+
+                        # Queue AI draft only for REPEAT customers (we have their context).
+                        draft_followup.delay(str(customer_id), str(visit_id))
             except Exception:
                 logger.exception(
                     "REPEAT post-visit dispatch failed for visit %s — "

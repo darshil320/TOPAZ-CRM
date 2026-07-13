@@ -75,6 +75,27 @@ async def link_visit_customer(
     )
 
 
+async def get_latest_photo_key(
+    session: AsyncSession,
+    customer_id: UUID,
+) -> str | None:
+    """Most recent stored face-crop key for a customer (for the arrival alert).
+
+    No-touch REPEAT visits don't capture a crop (§19-E consent gate), so this
+    returns the enrollment-time crop — a face the salesperson can recognise.
+    """
+    result = await session.execute(
+        text(
+            "SELECT photo_key FROM visits"
+            " WHERE customer_id = :cid AND photo_key IS NOT NULL"
+            " ORDER BY occurred_at DESC LIMIT 1"
+        ),
+        {"cid": str(customer_id)},
+    )
+    row = result.first()
+    return str(row.photo_key) if row and row.photo_key else None
+
+
 async def recent_repeat_visit_exists(
     session: AsyncSession,
     customer_id: UUID,

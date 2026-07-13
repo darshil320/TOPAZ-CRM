@@ -113,6 +113,10 @@ async def _draft_followup(customer_id: UUID, visit_id: str | None) -> dict:
             logger.info("draft_followup: AI follow-up disabled for customer %s", customer_id)
             return {"status": "skipped", "reason": "ai_followup_disabled"}
 
+        if customer.alerts_muted:
+            logger.info("draft_followup: customer %s is muted — no draft", customer_id)
+            return {"status": "skipped", "reason": "alerts_muted"}
+
         sp_info = await get_primary_salesperson(session, customer_id)
         salesperson_name: str | None = None
         if sp_info:

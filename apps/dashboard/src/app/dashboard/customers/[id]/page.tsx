@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import ConversationThread from "./ConversationThread";
 import StageSelect from "./StageSelect";
 import AddCollaboratorForm from "./AddCollaboratorForm";
+import MuteAlertsToggle from "./MuteAlertsToggle";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -121,6 +122,14 @@ export default async function CustomerPage({ params }: Props) {
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Pipeline Stage</p>
         <StageSelect customerId={id} currentStage={currentStage} />
       </div>
+
+      {/* Arrival alerts (owner-only) — mute known regulars: staff, family, etc. */}
+      {isOwner && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Arrival Alerts</p>
+          <MuteAlertsToggle customerId={id} initialMuted={Boolean(customer.alerts_muted)} />
+        </div>
+      )}
 
       {/* Assigned team */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
