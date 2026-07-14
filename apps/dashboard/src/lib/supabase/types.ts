@@ -287,6 +287,7 @@ export type Database = {
           handler_salesperson_id: string | null
           handler_since: string | null
           id: string
+          interest_summary: string | null
           last_inbound_at: string | null
           name: string | null
           phone: string | null
@@ -305,6 +306,7 @@ export type Database = {
           handler_salesperson_id?: string | null
           handler_since?: string | null
           id?: string
+          interest_summary?: string | null
           last_inbound_at?: string | null
           name?: string | null
           phone?: string | null
@@ -323,6 +325,7 @@ export type Database = {
           handler_salesperson_id?: string | null
           handler_since?: string | null
           id?: string
+          interest_summary?: string | null
           last_inbound_at?: string | null
           name?: string | null
           phone?: string | null

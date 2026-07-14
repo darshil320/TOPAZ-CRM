@@ -51,6 +51,74 @@ export async function setAlertsMuted(
   }
 }
 
+export async function updateInterestSummary(
+  customerId: string,
+  summary: string,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    // Editable by owner + assigned salesperson (cust_update RLS); not an
+    // owner-only field, so no trigger guards it.
+    const { error } = await supabase
+      .from("customers")
+      .update({ interest_summary: summary.trim() || null })
+      .eq("id", customerId);
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
+export async function addMeetingNote(
+  customerId: string,
+  input: { notes: string; budget?: string; products?: string },
+): Promise<{ error: string | null }> {
+  const notes = input.notes.trim();
+  if (!notes) return { error: "Note cannot be empty" };
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: sp } = await supabase
+      .from("salespersons")
+      .select("id")
+      .eq("auth_uid", user.id)
+      .eq("active", true)
+      .single();
+
+    // Stamp the pipeline stage at the time the note was written (context for
+    // later — "we were at follow_up when this was discussed").
+    const { data: stageRow } = await supabase
+      .from("pipeline_stages")
+      .select("stage")
+      .eq("customer_id", customerId)
+      .single();
+
+    const products = (input.products ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    const { error } = await supabase.from("conversations").insert({
+      customer_id: customerId,
+      salesperson_id: sp?.id ?? null,
+      notes,
+      budget: input.budget?.trim() || null,
+      products: products.length ? products : null,
+      stage_at_time: stageRow?.stage ?? null,
+    });
+    // conv_insert RLS is owner-or-assigned — a non-assigned salesperson fails here.
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/customers/${customerId}`);
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function approveDraft(
   messageId: string,
   customerId: string,

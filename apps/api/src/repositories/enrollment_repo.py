@@ -23,14 +23,17 @@ async def enroll_customer(
     phone: str | None,
     wa_id: str | None,
     primary_interest: str | None,
+    interest_summary: str | None = None,
     face_tracking: bool,
     personal_data: bool,
     whatsapp_marketing: bool,
 ) -> tuple[UUID, UUID]:
     """Create a consent row and a customer row; return (consent_id, customer_id).
 
-    If a customer with the same wa_id already exists, update their name and
-    primary_interest rather than creating a duplicate (ON CONFLICT … DO UPDATE).
+    If a customer with the same wa_id already exists, update their name,
+    primary_interest and interest_summary rather than creating a duplicate
+    (ON CONFLICT … DO UPDATE). COALESCE keeps existing values when the new
+    enrollment omits a field — a returning customer never loses prior notes.
     """
     consent_row = await session.execute(
         text(
@@ -46,25 +49,34 @@ async def enroll_customer(
         customer_row = await session.execute(
             text(
                 "INSERT INTO customers"
-                " (consent_id, name, phone, wa_id, primary_interest, ai_followup_enabled, handler_mode)"
-                " VALUES (:cid, :name, :phone, :wa_id, :pi, true, 'ai')"
+                " (consent_id, name, phone, wa_id, primary_interest, interest_summary,"
+                "  ai_followup_enabled, handler_mode)"
+                " VALUES (:cid, :name, :phone, :wa_id, :pi, :isum, true, 'ai')"
                 " ON CONFLICT (wa_id) DO UPDATE"
                 "   SET name = COALESCE(EXCLUDED.name, customers.name),"
                 "       primary_interest = COALESCE(EXCLUDED.primary_interest, customers.primary_interest),"
+                "       interest_summary = COALESCE(EXCLUDED.interest_summary, customers.interest_summary),"
                 "       updated_at = now()"
                 " RETURNING id"
             ),
-            {"cid": str(consent_id), "name": name, "phone": phone, "wa_id": wa_id, "pi": primary_interest},
+            {
+                "cid": str(consent_id), "name": name, "phone": phone, "wa_id": wa_id,
+                "pi": primary_interest, "isum": interest_summary,
+            },
         )
     else:
         customer_row = await session.execute(
             text(
                 "INSERT INTO customers"
-                " (consent_id, name, phone, wa_id, primary_interest, ai_followup_enabled, handler_mode)"
-                " VALUES (:cid, :name, :phone, NULL, :pi, true, 'ai')"
+                " (consent_id, name, phone, wa_id, primary_interest, interest_summary,"
+                "  ai_followup_enabled, handler_mode)"
+                " VALUES (:cid, :name, :phone, NULL, :pi, :isum, true, 'ai')"
                 " RETURNING id"
             ),
-            {"cid": str(consent_id), "name": name, "phone": phone, "pi": primary_interest},
+            {
+                "cid": str(consent_id), "name": name, "phone": phone,
+                "pi": primary_interest, "isum": interest_summary,
+            },
         )
 
     customer_id = UUID(str(customer_row.scalar_one()))

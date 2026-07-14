@@ -63,6 +63,7 @@ async def enroll(
             phone=req.phone,
             wa_id=req.wa_id,
             primary_interest=req.primary_interest,
+            interest_summary=req.interest_summary,
             face_tracking=req.face_tracking,
             personal_data=req.personal_data,
             whatsapp_marketing=req.whatsapp_marketing,

@@ -11,6 +11,7 @@ class EnrollmentRequest(BaseModel):
     phone: str | None = None
     wa_id: str | None = None
     primary_interest: str | None = None
+    interest_summary: str | None = None
     face_tracking: bool = False
     personal_data: bool = False
     whatsapp_marketing: bool = False
@@ -36,7 +37,7 @@ class EnrollmentRequest(BaseModel):
             return None
         return v.lstrip("+")
 
-    @field_validator("phone")
+    @field_validator("phone", "primary_interest", "interest_summary")
     @classmethod
     def empty_to_none(cls, v: str | None) -> str | None:
         return None if v == "" else v

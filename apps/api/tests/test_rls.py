@@ -117,6 +117,30 @@ def test_owner_can_mute_alerts():
         cur.execute("update customers set alerts_muted = true where id = %s", (CUST1,))
         assert cur.rowcount == 1
 
+def test_assigned_sp_can_edit_interest_summary():   # 0009, NOT owner-only
+    with as_sp1() as cur:
+        cur.execute("update customers set interest_summary = 'wants a recliner' where id = %s", (CUST1,))
+        assert cur.rowcount == 1
+
+def test_unrelated_sp_cannot_edit_interest_summary():
+    with as_sp2() as cur:
+        cur.execute("update customers set interest_summary = 'x' where id = %s", (CUST1,))
+        assert cur.rowcount == 0                     # RLS hides the row → no update
+
+
+# ── Meeting notes (conversations): owner/assigned read+write, others blind ──────
+def test_assigned_sp_can_add_meeting_note():
+    with as_sp1() as cur:
+        cur.execute(
+            "insert into conversations (customer_id, notes) values (%s, 'discussed sofa') returning id",
+            (CUST1,))
+        assert cur.fetchone() is not None
+
+def test_unrelated_sp_cannot_add_meeting_note():
+    with as_sp2() as cur:
+        with pytest.raises(psycopg2.Error):          # conv_insert with-check blocks it
+            cur.execute("insert into conversations (customer_id, notes) values (%s, 'x')", (CUST1,))
+
 
 # ── anon (the consent kiosk) can do exactly one thing ───────────────────────────
 def test_anon_can_insert_consent():

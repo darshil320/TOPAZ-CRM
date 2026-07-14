@@ -7,6 +7,7 @@ type FormData = {
   name: string;
   phone: string;
   primary_interest: string;
+  interest_summary: string;
 };
 
 type ConsentData = {
@@ -25,6 +26,7 @@ export default function KioskPage() {
     name: "",
     phone: "",
     primary_interest: "Modular Kitchen",
+    interest_summary: "",
   });
 
   const [consent, setConsent] = useState<ConsentData>({
@@ -42,7 +44,7 @@ export default function KioskPage() {
 
   const handleReset = () => {
     goToStep(1);
-    setFormData({ name: "", phone: "", primary_interest: "Modular Kitchen" });
+    setFormData({ name: "", phone: "", primary_interest: "Modular Kitchen", interest_summary: "" });
     setConsent({ face_tracking: false, personal_data: false, whatsapp_marketing: false });
     setError(null);
   };
@@ -81,6 +83,7 @@ export default function KioskPage() {
         phone: formData.phone,
         wa_id,
         primary_interest: formData.primary_interest,
+        interest_summary: formData.interest_summary,
         face_tracking: consent.face_tracking,
         personal_data: consent.personal_data,
         whatsapp_marketing: consent.whatsapp_marketing,
@@ -183,6 +186,20 @@ export default function KioskPage() {
                     <option value="Full Interior">Full Interior</option>
                     <option value="Other">Other</option>
                   </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="interest_summary" className="text-sm font-semibold text-slate-700 block">
+                    What are you looking for? <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <textarea
+                    id="interest_summary"
+                    value={formData.interest_summary}
+                    onChange={(e) => setFormData({ ...formData, interest_summary: e.target.value })}
+                    placeholder="e.g. 7-seater recliner sofa for the living room, budget around ₹1.5L, prefers fabric over leather"
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:outline-none text-base transition-all bg-white resize-none"
+                  />
                 </div>
               </div>
 

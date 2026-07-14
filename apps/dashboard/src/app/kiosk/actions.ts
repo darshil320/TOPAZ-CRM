@@ -5,6 +5,7 @@ export async function enrollCustomer(data: {
   phone: string;
   wa_id: string;
   primary_interest: string;
+  interest_summary: string;
   face_tracking: boolean;
   personal_data: boolean;
   whatsapp_marketing: boolean;
@@ -32,6 +33,7 @@ export async function enrollCustomer(data: {
         phone: data.phone || null,
         wa_id: data.wa_id || null,
         primary_interest: data.primary_interest || null,
+        interest_summary: data.interest_summary || null,
         face_tracking: data.face_tracking,
         personal_data: data.personal_data,
         whatsapp_marketing: data.whatsapp_marketing,
