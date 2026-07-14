@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import ConversationThread from "./ConversationThread";
 import StageSelect from "./StageSelect";
 import AddCollaboratorForm from "./AddCollaboratorForm";
@@ -18,20 +19,12 @@ const BAND_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default async function CustomerPage({ params }: Props) {
   const { id } = await params;
-  const supabase = await createServerSupabaseClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: sp } = await supabase
-    .from("salespersons")
-    .select("id, role")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
+  const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  const isOwner = sp.role === "owner";
+  const isOwner = isOwnerRole(sp);
 
+  const supabase = await createServerSupabaseClient();
   const { data: assignment } = await supabase
     .from("customer_assignments")
     .select("id")

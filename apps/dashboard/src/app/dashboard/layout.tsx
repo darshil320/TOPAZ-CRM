@@ -1,25 +1,15 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentSalesperson } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import MobileNav from "@/components/MobileNav";
+import MobileBrand from "@/components/MobileBrand";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
 import AvailabilityToggle from "@/components/AvailabilityToggle";
 import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: salesperson } = await supabase
-    .from("salespersons")
-    .select("id, name, role, available")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
-
+  const salesperson = await getCurrentSalesperson();
   if (!salesperson) redirect("/login");
 
   const initials = salesperson.name
@@ -34,8 +24,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-          <div className="px-4 sm:px-6 h-14 flex items-center justify-end">
-            <div className="flex items-center gap-3">
+          <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
+            <MobileBrand />
+            <div className="flex items-center gap-3 ml-auto">
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
                   <span className="text-[10px] font-bold text-blue-700">{initials}</span>
@@ -61,8 +52,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
         <VisitAlertBanner salespersonId={salesperson.id} />
 
-        <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">{children}</main>
       </div>
+
+      <MobileNav role={role} />
     </div>
   );
 }

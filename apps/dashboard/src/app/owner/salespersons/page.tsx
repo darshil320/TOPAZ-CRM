@@ -1,21 +1,15 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import AddSalespersonForm from "./AddSalespersonForm";
 import ActiveToggle from "./ActiveToggle";
 
 export default async function SalespersonsPage() {
+  const sp = await getCurrentSalesperson();
+  if (!sp) redirect("/login");
+  if (!isOwnerRole(sp)) redirect("/dashboard");
+
   const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: sp } = await supabase
-    .from("salespersons")
-    .select("role")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
-  if (sp?.role !== "owner") redirect("/dashboard");
-
   const { data: salespersons } = await supabase
     .from("salespersons")
     .select("id, name, whatsapp, role, active, auth_uid, created_at")
@@ -30,8 +24,8 @@ export default async function SalespersonsPage() {
 
       <AddSalespersonForm />
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm whitespace-nowrap">
           <thead>
             <tr className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-widest border-b border-slate-100">
               <th className="px-5 py-3">Name</th>

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 const STAGES = ["new", "talking", "follow_up", "won", "lost"] as const;
@@ -13,18 +14,11 @@ const STAGE_CONFIG: Record<Stage, { label: string; dot: string; accent: string }
 };
 
 export default async function OwnerPage() {
+  const sp = await getCurrentSalesperson();
+  if (!sp) redirect("/login");
+  if (!isOwnerRole(sp)) redirect("/dashboard");
+
   const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: sp } = await supabase
-    .from("salespersons")
-    .select("role")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
-  if (sp?.role !== "owner") redirect("/dashboard");
-
   const { data: rows } = await supabase
     .from("pipeline_stages")
     .select("stage, customer_id, customers(id, name, phone, primary_interest)");
@@ -46,12 +40,15 @@ export default async function OwnerPage() {
         <p className="text-sm text-slate-500 mt-0.5">{total} customer{total !== 1 ? "s" : ""} across all stages</p>
       </div>
 
-      <div className="grid grid-cols-5 gap-3 min-w-0">
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 scrollbar-hide sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-5 sm:overflow-visible">
         {STAGES.map((stage) => {
           const cfg = STAGE_CONFIG[stage];
           const customers = byStage[stage];
           return (
-            <div key={stage} className={`rounded-2xl border overflow-hidden flex flex-col ${cfg.accent}`}>
+            <div
+              key={stage}
+              className={`snap-start shrink-0 w-[80%] min-w-[220px] sm:w-auto sm:min-w-0 rounded-2xl border overflow-hidden flex flex-col ${cfg.accent}`}
+            >
               {/* Column header */}
               <div className="px-3.5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">

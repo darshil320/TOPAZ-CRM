@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import ClaimButton from "./ClaimButton";
 
 const BAND_CONFIG: Record<string, { label: string; color: string }> = {
@@ -9,19 +10,11 @@ const BAND_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default async function WalkinsPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: sp } = await supabase
-    .from("salespersons")
-    .select("id, role")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
+  const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (sp.role === "owner") redirect("/owner");
+  if (isOwnerRole(sp)) redirect("/owner");
 
+  const supabase = await createServerSupabaseClient();
   const [{ data: mine }, { data: customers }] = await Promise.all([
     supabase
       .from("customer_assignments")

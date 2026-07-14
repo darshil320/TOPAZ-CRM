@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import Link from "next/link";
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -22,9 +23,9 @@ function CustomerAvatar({ name }: { name: string | null }) {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
+  const supabase = await createServerSupabaseClient();
 
   const { data: assignments } = await supabase
     .from("customer_assignments")

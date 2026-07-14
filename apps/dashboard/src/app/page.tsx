@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 import { tryAutoLinkSalesperson } from "@/lib/linkSalesperson";
 
 export default async function RootPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) redirect("/login");
+  const supabase = await createServerSupabaseClient();
 
   let { data: sp } = await supabase
     .from("salespersons")
