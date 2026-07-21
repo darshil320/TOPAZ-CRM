@@ -28,7 +28,7 @@ export default async function AnalyticsPage() {
 
   const [{ data: stageRows }, { count: customersTotal }, { data: budgets }, { data: alertRows }] =
     await Promise.all([
-      supabase.from("pipeline_stages").select("stage, updated_at"),
+      supabase.from("pipeline_stages").select("customer_id, stage, updated_at"),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("conversations").select("customer_id, budget").limit(1000),
       supabase
@@ -46,15 +46,20 @@ export default async function AnalyticsPage() {
   const maxDaily = Math.max(1, ...daily.map((d) => d.count));
   const maxFunnel = Math.max(1, ...FUNNEL.map((f) => counts[f.key]));
 
-  // Best-effort value: max logged budget per won customer, summed (§Phase-2 order value not modelled).
-  const wonAt = new Map<string, number>();
+  // Best-effort value: max logged budget per WON customer, summed. Non-won budgets
+  // are excluded so the figure reflects closed deals (§Phase-2 order value not modelled).
+  const wonIds = new Set(
+    rows.filter((r) => r.stage === "won").map((r) => r.customer_id).filter(Boolean) as string[],
+  );
+  const budgetByCustomer = new Map<string, number>();
   for (const b of budgets ?? []) {
     const parsed = parseBudgetToINR(b.budget);
     if (parsed && b.customer_id) {
-      wonAt.set(b.customer_id, Math.max(wonAt.get(b.customer_id) ?? 0, parsed));
+      budgetByCustomer.set(b.customer_id, Math.max(budgetByCustomer.get(b.customer_id) ?? 0, parsed));
     }
   }
-  const estValue = [...wonAt.values()].reduce((s, v) => s + v, 0);
+  let estValue = 0;
+  for (const id of wonIds) estValue += budgetByCustomer.get(id) ?? 0;
 
   const initialAlerts: AlertItem[] = (alertRows ?? []).map((a: any) => ({
     id: a.id,

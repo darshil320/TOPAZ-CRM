@@ -10,7 +10,7 @@
 export const PIPELINE_STAGES = ["new", "talking", "follow_up", "won", "lost"] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
-export type StageRow = { stage: string | null; updated_at: string | null };
+export type StageRow = { stage: string | null; updated_at: string | null; customer_id?: string | null };
 
 export type StageCounts = Record<PipelineStage, number>;
 
