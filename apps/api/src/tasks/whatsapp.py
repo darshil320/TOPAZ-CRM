@@ -227,6 +227,52 @@ def send_salesperson_alert(
 
 @celery_app.task(
     bind=True,
+    name="src.tasks.whatsapp.send_intent_alert",
+    max_retries=3,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def send_intent_alert(
+    self,
+    salesperson_whatsapp: str,
+    customer_id: str,
+    customer_name: str | None,
+    labels: list[str],
+    snippet: str | None = None,
+) -> None:
+    """WhatsApp alert to a salesperson when an inbound message trips an intent trigger.
+
+    Reuses the free-form text path (same channel as the arrival alert).
+    labels: human-readable reasons, e.g. ["wants a call back", "showing a buying signal"].
+    salesperson_whatsapp: E.164 number; falls back to the owner when unclaimed.
+    """
+    settings = get_settings()
+    display = (customer_name or "A customer").title()
+    dashboard_link = f"{settings.DASHBOARD_URL}/dashboard/customers/{customer_id}"
+    reasons = "; ".join(labels) if labels else "needs attention"
+    quote = f"\n\n_“{snippet}”_" if snippet else ""
+    body = (
+        f"⚡ *Action needed — {display}*\n"
+        f"{display} {reasons}.{quote}\n\n"
+        f"Reply on dashboard → {dashboard_link}"
+    )
+    try:
+        send_wa_text(salesperson_whatsapp, body)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in _RETRYABLE_STATUS_CODES:
+            raise self.retry(exc=exc)
+        logger.error(
+            "Intent alert failed (non-retryable %s) for salesperson %s customer %s",
+            exc.response.status_code,
+            salesperson_whatsapp,
+            customer_id,
+        )
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(
+    bind=True,
     name="src.tasks.whatsapp.send_customer_message",
     max_retries=3,
     default_retry_delay=10,

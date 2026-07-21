@@ -34,6 +34,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          created_at: string
+          customer_id: string
+          detail: string | null
+          id: string
+          message_id: string | null
+          salesperson_id: string | null
+          seen_at: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          detail?: string | null
+          id?: string
+          message_id?: string | null
+          salesperson_id?: string | null
+          seen_at?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          detail?: string | null
+          id?: string
+          message_id?: string | null
+          salesperson_id?: string | null
+          seen_at?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string

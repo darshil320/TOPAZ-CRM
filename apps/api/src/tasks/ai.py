@@ -18,9 +18,11 @@ from uuid import UUID
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import make_task_session
+from ..repositories.alert_repo import create_alert, get_owner_whatsapp
 from ..repositories.assignment_repo import get_primary_salesperson
 from ..repositories.customer_repo import CustomerInfo, get_customer_by_id, get_customer_by_wa_id, touch_last_inbound_at
 from ..repositories.message_repo import create_message
+from ..services.intent import INTENT_LABELS, detect_intents
 
 logger = logging.getLogger(__name__)
 
@@ -213,12 +215,52 @@ async def _handle_inbound(wa_id: str, content: str, wamid: str, received_at: str
             wamid=wamid,
         )
         await touch_last_inbound_at(session, customer.id, at)
+
+        # ── Intent-trigger detection (M5): flag high-value signals for the SP ──
+        intents = detect_intents(content)
+        alert_recipient: str | None = None
+        alert_labels: list[str] = []
+        if intents:
+            primary = await get_primary_salesperson(session, customer.id)
+            sp_id = primary[0] if primary else None
+            alert_recipient = primary[1] if primary else await get_owner_whatsapp(session)
+            for hit in intents:
+                await create_alert(
+                    session,
+                    customer_id=customer.id,
+                    type_=hit.type,
+                    salesperson_id=sp_id,
+                    detail=hit.matched,
+                    message_id=message_id,
+                )
+                alert_labels.append(INTENT_LABELS.get(hit.type, hit.type))
+
         await session.commit()
-        logger.info("Inbound logged: message=%s customer=%s", message_id, customer.id)
+        logger.info(
+            "Inbound logged: message=%s customer=%s intents=%s",
+            message_id, customer.id, [h.type for h in intents],
+        )
+
+        # Fire the salesperson WhatsApp alert (outside the tx; best-effort delivery).
+        if intents and alert_recipient:
+            from .whatsapp import send_intent_alert  # local import avoids task-module cycle
+
+            send_intent_alert.delay(
+                alert_recipient,
+                str(customer.id),
+                customer.name,
+                alert_labels,
+                content.strip()[:160],
+            )
 
         # Queue AI draft if the customer is in AI-handler mode and follow-up is enabled.
+        result_status = "logged"
         if customer.ai_followup_enabled and customer.handler_mode == "ai":
             draft_followup.delay(str(customer.id), None)
-            return {"status": "logged_and_queued_draft", "message_id": str(message_id)}
+            result_status = "logged_and_queued_draft"
 
-        return {"status": "logged", "message_id": str(message_id)}
+        return {
+            "status": result_status,
+            "message_id": str(message_id),
+            "intents": [h.type for h in intents],
+        }
