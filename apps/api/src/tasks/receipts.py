@@ -52,16 +52,22 @@ async def _render(payment_id: UUID) -> str | None:
         await session.commit()
 
         # Optional customer receipt over WhatsApp (flagged off by default).
+        # Wrapped so a send failure never restarts the task (which would
+        # re-render + re-send — code-review HIGH). The PDF + registry row are
+        # already committed above; the WA message is best-effort.
         if settings.SEND_RECEIPTS_TO_CUSTOMER and customer["wa_id"] and within_service_window(
             customer["last_inbound_at"]
         ):
-            name = (customer["name"] or "there").split(" ")[0]
-            verb = "refund of" if pay["kind"] == "refund" else "payment of"
-            send_wa_text(
-                customer["wa_id"],
-                f"Hi {name}, we've recorded your {verb} ₹{pay['amount']} for order "
-                f"{order['order_no']}. Receipt {pay['receipt_no']}. Thank you — Topaz Furniture.",
-            )
+            try:
+                name = (customer["name"] or "there").split(" ")[0]
+                verb = "refund of" if pay["kind"] == "refund" else "payment of"
+                send_wa_text(
+                    customer["wa_id"],
+                    f"Hi {name}, we've recorded your {verb} ₹{pay['amount']} for order "
+                    f"{order['order_no']}. Receipt {pay['receipt_no']}. Thank you — Topaz Furniture.",
+                )
+            except Exception:
+                logger.warning("Receipt WA send failed for %s (PDF already filed)", payment_id, exc_info=True)
     logger.info("Rendered receipt %s → %s", payment_id, key)
     return key
 

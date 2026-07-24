@@ -28,6 +28,12 @@ from .deps import require_dashboard_key
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", dependencies=[Depends(require_dashboard_key)])
 
+# Roles allowed to record ANY payment. The FastAPI layer is the whole authz
+# boundary here — the service-role DB connection bypasses RLS, so the RLS
+# pay_insert policy (accounts/owner/admin) must be re-enforced in code
+# (security-review CRITICAL-1).
+_PAYMENT_ROLES = {"owner", "admin", "accounts"}
+# Roles allowed to refund + to override the over-payment guard.
 _ELEVATED_ROLES = {"owner", "admin"}
 
 
@@ -54,11 +60,18 @@ async def record_payment(req: PaymentCreate) -> dict:
         role = await repo.salesperson_role(session, req.recorded_by)
         if role is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unknown recorder")
+        if role not in _PAYMENT_ROLES:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Only accounts/owner/admin may record payments")
         elevated = role in _ELEVATED_ROLES
 
         if req.kind == "refund" and not elevated:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Only owner/admin can record a refund")
+
+        # Lock the order row so the over-payment check + insert are atomic against
+        # concurrent payments (security-review CRITICAL-2, TOCTOU).
+        await repo.lock_order(session, req.order_id)
 
         # Over-payment guard (non-refunds only; refunds reduce paid).
         if req.kind != "refund":
@@ -84,8 +97,14 @@ async def record_payment(req: PaymentCreate) -> dict:
             await repo.mark_earliest_schedule_paid(session, req.order_id, req.amount)
         await session.commit()
 
-    # Receipt PDF (+ optional customer WhatsApp) in the worker.
-    from ..tasks.receipts import render_receipt
-    render_receipt.delay(str(payment_id))
+    # Receipt PDF (+ optional customer WhatsApp) in the worker. The payment is
+    # already committed; a broker hiccup here must NOT surface as an error, or the
+    # salesperson may resubmit and double-record (no idempotency key on POST).
+    # A missing receipt PDF can be backfilled — a duplicate payment cannot.
+    try:
+        from ..tasks.receipts import render_receipt
+        render_receipt.delay(str(payment_id))
+    except Exception:
+        logger.warning("Receipt enqueue failed for payment %s — backfill later", payment_id, exc_info=True)
     logger.info("Recorded payment %s (%s %s) on order %s", receipt_no, req.kind, req.amount, req.order_id)
     return {"id": str(payment_id), "receipt_no": receipt_no}

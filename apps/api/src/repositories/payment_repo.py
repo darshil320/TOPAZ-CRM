@@ -27,6 +27,16 @@ async def order_customer_id(session: AsyncSession, order_id: UUID) -> str | None
     return str(row[0]) if row else None
 
 
+async def lock_order(session: AsyncSession, order_id: UUID) -> bool:
+    """Take a row lock on the order for the duration of the transaction. Serialises
+    concurrent payment inserts so the over-payment guard can't be raced (TOCTOU).
+    Returns False if the order doesn't exist."""
+    result = await session.execute(
+        text("SELECT id FROM orders WHERE id = :id FOR UPDATE"), {"id": str(order_id)}
+    )
+    return result.first() is not None
+
+
 async def order_totals(session: AsyncSession, order_id: UUID) -> tuple[Decimal, Decimal] | None:
     """(grand_total, paid) from the derived view. paid nets refunds. None if no order."""
     result = await session.execute(

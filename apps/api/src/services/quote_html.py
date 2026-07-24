@@ -4,7 +4,7 @@ runs without the templating dep.
 """
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from .num_words import amount_in_words
@@ -26,7 +26,7 @@ SELLER_DEFAULTS = {
 
 def _inr(value) -> str:
     """Format a number in the Indian grouping with 2dp, e.g. 126789.5 -> '1,26,789.50'."""
-    d = Decimal(str(value or 0)).quantize(Decimal("0.01"))
+    d = Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     sign = "-" if d < 0 else ""
     d = abs(d)
     whole, frac = divmod(int(d * 100), 100)

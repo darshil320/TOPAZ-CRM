@@ -24,10 +24,15 @@ _REJECT_STAGE = "negotiation"
 
 
 def _client_ip(request: Request) -> str | None:
-    """First hop from X-Forwarded-For (proxied), else the peer address."""
+    """Best-effort client IP for the audit trail. Uses the LAST hop of
+    X-Forwarded-For (the value the trusted proxy appended) rather than the
+    leftmost (client-settable) entry, which is spoofable (security-review
+    MEDIUM). Audit-only — never used for an authz decision."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
-        return fwd.split(",")[0].strip()
+        hops = [h.strip() for h in fwd.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     return request.client.host if request.client else None
 
 

@@ -21,7 +21,13 @@ export default async function PaymentsPage() {
   const [{ data: todayPays }, { data: outstanding }, { data: orders }] = await Promise.all([
     supabase.from("payments").select("amount, kind, paid_at").gte("paid_at", startOfToday.toISOString()),
     supabase.from("order_outstanding").select("order_id, outstanding"),
-    supabase.from("orders").select("id, order_no, created_at, status, customers(name)").limit(500),
+    // Explicit ordering so the 500-row cap is deterministic (newest first) rather
+    // than dropping arbitrary rows as the table grows (code-review MEDIUM).
+    supabase
+      .from("orders")
+      .select("id, order_no, created_at, status, customers(name)")
+      .order("created_at", { ascending: false })
+      .limit(500),
   ]);
 
   const collectedToday = (todayPays ?? []).reduce(

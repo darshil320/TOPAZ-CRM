@@ -68,6 +68,15 @@ async def _send_quote(quotation_id: UUID) -> None:
             logger.warning("Quote %s customer has no wa_id — send skipped", quotation_id)
             return
 
+        # Idempotency guard (retry-safe): flip draft→sent FIRST and commit. On a
+        # retry the row is no longer 'draft', so mark_sent returns False and we
+        # bail out BEFORE re-sending — customer messages can't be un-sent, so a
+        # missed send is preferable to a duplicate (code-review HIGH).
+        if not await repo.mark_sent(session, quotation_id):
+            logger.info("Quote %s already sent — skipping resend", quotation_id)
+            return
+        await session.commit()
+
         # Ensure a PDF exists (render inline if the earlier task hasn't run).
         if not ctx.get("pdf_key"):
             await _render_and_store(quotation_id)
@@ -117,7 +126,7 @@ async def _send_quote(quotation_id: UUID) -> None:
             content=body, sender_type="system", status="sent" if wamid else "pending",
             wamid=wamid, category="utility", template_name=template_name,
         )
-        await repo.mark_sent(session, quotation_id)
+        # status already flipped to 'sent' above (retry guard)
         await session.commit()
     logger.info("Quote %s sent (wamid=%s, template=%s)", quotation_id, wamid, template_name)
 
