@@ -4,10 +4,14 @@ import { useState } from "react";
 import { moveStage } from "./actions";
 
 const STAGES = [
-  { id: "new", label: "New", inactive: "hover:border-slate-400 text-slate-600", active: "bg-slate-700 text-white border-slate-700" },
-  { id: "talking", label: "Talking", inactive: "hover:border-blue-400 text-slate-600", active: "bg-blue-600 text-white border-blue-600" },
-  { id: "follow_up", label: "Follow-up", inactive: "hover:border-amber-400 text-slate-600", active: "bg-amber-500 text-white border-amber-500" },
-  { id: "won", label: "Won", inactive: "hover:border-green-400 text-slate-600", active: "bg-green-600 text-white border-green-600" },
+  { id: "inquiry", label: "Inquiry", inactive: "hover:border-slate-400 text-slate-600", active: "bg-slate-700 text-white border-slate-700" },
+  { id: "contacted", label: "Contacted", inactive: "hover:border-blue-400 text-slate-600", active: "bg-blue-600 text-white border-blue-600" },
+  { id: "visit_scheduled", label: "Visit Scheduled", inactive: "hover:border-indigo-400 text-slate-600", active: "bg-indigo-600 text-white border-indigo-600" },
+  { id: "walk_in", label: "Walk-in", inactive: "hover:border-cyan-400 text-slate-600", active: "bg-cyan-600 text-white border-cyan-600" },
+  { id: "design_discussion", label: "Design", inactive: "hover:border-violet-400 text-slate-600", active: "bg-violet-600 text-white border-violet-600" },
+  { id: "quotation_sent", label: "Quote Sent", inactive: "hover:border-amber-400 text-slate-600", active: "bg-amber-500 text-white border-amber-500" },
+  { id: "negotiation", label: "Negotiation", inactive: "hover:border-orange-400 text-slate-600", active: "bg-orange-500 text-white border-orange-500" },
+  { id: "order_confirmed", label: "Order Confirmed", inactive: "hover:border-green-400 text-slate-600", active: "bg-green-600 text-white border-green-600" },
   { id: "lost", label: "Lost", inactive: "hover:border-red-400 text-slate-600", active: "bg-red-500 text-white border-red-500" },
 ] as const;
 

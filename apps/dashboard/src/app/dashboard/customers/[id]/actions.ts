@@ -6,7 +6,17 @@ import type { Database } from "@/lib/supabase/types";
 
 type PipelineStage = Database["public"]["Enums"]["pipeline_stage"];
 
-const VALID_STAGES = new Set(["new", "talking", "follow_up", "won", "lost"]);
+const VALID_STAGES = new Set([
+  "inquiry",
+  "contacted",
+  "visit_scheduled",
+  "walk_in",
+  "design_discussion",
+  "quotation_sent",
+  "negotiation",
+  "order_confirmed",
+  "lost",
+]);
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 

@@ -4,10 +4,14 @@ import { getSessionUser } from "@/lib/auth";
 import Link from "next/link";
 
 const STAGE_CONFIG: Record<string, { label: string; color: string }> = {
-  new: { label: "New", color: "bg-slate-100 text-slate-600" },
-  talking: { label: "Talking", color: "bg-blue-100 text-blue-700" },
-  follow_up: { label: "Follow-up", color: "bg-amber-100 text-amber-700" },
-  won: { label: "Won", color: "bg-green-100 text-green-700" },
+  inquiry: { label: "Inquiry", color: "bg-slate-100 text-slate-600" },
+  contacted: { label: "Contacted", color: "bg-blue-100 text-blue-700" },
+  visit_scheduled: { label: "Visit Scheduled", color: "bg-indigo-100 text-indigo-700" },
+  walk_in: { label: "Walk-in", color: "bg-cyan-100 text-cyan-700" },
+  design_discussion: { label: "Design", color: "bg-violet-100 text-violet-700" },
+  quotation_sent: { label: "Quote Sent", color: "bg-amber-100 text-amber-700" },
+  negotiation: { label: "Negotiation", color: "bg-orange-100 text-orange-700" },
+  order_confirmed: { label: "Order Confirmed", color: "bg-green-100 text-green-700" },
   lost: { label: "Lost", color: "bg-red-100 text-red-600" },
 };
 
@@ -64,8 +68,8 @@ export default async function DashboardPage() {
       ) : (
         <div className="space-y-2">
           {customers.map((c: any) => {
-            const stage = c.pipeline_stages?.stage ?? "new";
-            const stageCfg = STAGE_CONFIG[stage] ?? STAGE_CONFIG.new;
+            const stage = c.pipeline_stages?.stage ?? "inquiry";
+            const stageCfg = STAGE_CONFIG[stage] ?? STAGE_CONFIG.inquiry;
             return (
               <Link
                 key={c.id}

@@ -2,12 +2,23 @@
  * Pure aggregation helpers for the owner analytics view (M6B).
  *
  * No structured order value exists yet (that's Phase 2 order management), so
- * "sales" is measured as deals moved to `won`, dated by `pipeline_stages.updated_at`
- * (the terminal-stage timestamp is a faithful proxy for the win date). Monetary
- * value is a best-effort parse of the free-text `budget` logged in meeting notes.
+ * "sales" is measured as deals moved to `order_confirmed`, dated by
+ * `pipeline_stages.updated_at` (the terminal-stage timestamp is a faithful proxy
+ * for the win date). Monetary value is a best-effort parse of the free-text
+ * `budget` logged in meeting notes.
  */
 
-export const PIPELINE_STAGES = ["new", "talking", "follow_up", "won", "lost"] as const;
+export const PIPELINE_STAGES = [
+  "inquiry",
+  "contacted",
+  "visit_scheduled",
+  "walk_in",
+  "design_discussion",
+  "quotation_sent",
+  "negotiation",
+  "order_confirmed",
+  "lost",
+] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export type StageRow = { stage: string | null; updated_at: string | null; customer_id?: string | null };
@@ -15,7 +26,17 @@ export type StageRow = { stage: string | null; updated_at: string | null; custom
 export type StageCounts = Record<PipelineStage, number>;
 
 export function emptyStageCounts(): StageCounts {
-  return { new: 0, talking: 0, follow_up: 0, won: 0, lost: 0 };
+  return {
+    inquiry: 0,
+    contacted: 0,
+    visit_scheduled: 0,
+    walk_in: 0,
+    design_discussion: 0,
+    quotation_sent: 0,
+    negotiation: 0,
+    order_confirmed: 0,
+    lost: 0,
+  };
 }
 
 export function countByStage(rows: StageRow[]): StageCounts {
@@ -27,17 +48,18 @@ export function countByStage(rows: StageRow[]): StageCounts {
   return counts;
 }
 
-/** Won / (won + lost). 0 when no closed deals yet. */
+/** order_confirmed / (order_confirmed + lost). 0 when no closed deals yet. */
 export function conversionRate(counts: StageCounts): number {
-  const closed = counts.won + counts.lost;
-  return closed === 0 ? 0 : counts.won / closed;
+  const closed = counts.order_confirmed + counts.lost;
+  return closed === 0 ? 0 : counts.order_confirmed / closed;
 }
 
 export type DailyPoint = { date: string; label: string; count: number };
 
 /**
  * Won-deal count per day for the last `days` days (oldest → newest), including
- * empty days. `today` is injected so the function stays pure/testable.
+ * empty days. A "won" deal is one in the terminal `order_confirmed` stage.
+ * `today` is injected so the function stays pure/testable.
  */
 export function wonByDay(rows: StageRow[], days: number, today: Date): DailyPoint[] {
   const buckets = new Map<string, number>();
@@ -56,7 +78,7 @@ export function wonByDay(rows: StageRow[], days: number, today: Date): DailyPoin
   }
 
   for (const row of rows) {
-    if (row.stage !== "won" || !row.updated_at) continue;
+    if (row.stage !== "order_confirmed" || !row.updated_at) continue;
     const key = isoDate(new Date(row.updated_at));
     if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
   }

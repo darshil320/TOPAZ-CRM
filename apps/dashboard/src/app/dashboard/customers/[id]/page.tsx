@@ -66,7 +66,7 @@ export default async function CustomerPage({ params }: Props) {
     .filter((s: any) => !assignedIds.has(s.id))
     .map((s: any) => ({ id: s.id as string, name: s.name as string }));
 
-  const currentStage = stageRow?.stage ?? "new";
+  const currentStage = stageRow?.stage ?? "inquiry";
   const initials = customer.name
     ? customer.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "?";

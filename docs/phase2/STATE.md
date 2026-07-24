@@ -6,7 +6,7 @@ Update at END of every session. This file is the cross-session memory.
 
 | # | Module | Status | Session notes |
 |---|---|---|---|
-| 01 | foundation (migrations 0007-0013, doc_series, GST engine) | todo | |
+| 01 | foundation (migrations 0011-0019, doc_series, GST engine) | done | gates green (111 pytest incl. 24 GST goldens, numbering concurrency, payments immutability, outstanding view); not pushed to prod |
 | 02 | quotations-api | todo | |
 | 03 | quote-pdf-send-approval | todo | |
 | 04 | orders-pipeline | todo | |
@@ -25,6 +25,12 @@ Status values: todo / in-progress / done / verified (gates green + user demo pas
 ## Decisions log
 <!-- append: date · module · decision · why -->
 - 2026-07-04 · setup · Plan docs created from execution-plan report; conventions pinned in PLAN.md.
+- 2026-07-22 · setup · Migrations RENUMBERED 0007→0011… (Phase 1 M5/M6B took 0007-0010). Ledger + specs to reflect. EXECUTION_PLAN_2A_2B.md §0.1.
+- 2026-07-22 · setup · Built Docker-free empirical harness `apps/api/scripts/pgtest.sh` (temp PG15 cluster + pgvector + anon/authenticated/service_role + auth.uid() stub + all migrations). Runs RLS + repo suites without `supabase start`. PG15 chosen for prod parity (security_invoker views).
+- 2026-07-22 · 01 · pipeline_stage strategy = FULL REMAP (user decision). Added 8 new stages (0018), data-migrated old→new (0019: new→inquiry, talking→design_discussion, follow_up→negotiation, won→order_confirmed, lost kept). Old enum values retained (PG can't drop) but unused. Updated 8 shipped dashboard files to new vocabulary; est-value/win analytics re-pointed won→order_confirmed. tsc clean.
+- 2026-07-22 · 01 · GST rounding: per-line pre-tax rounded 2dp then summed; document discount pro-rated at full precision by line share; CGST/SGST/IGST accumulated full-precision, rounded half-up 2dp at document level. 24 golden cases pin exact values.
+- 2026-07-22 · 01 · Payments hard-immutable via `forbid_payment_mutation()` trigger (blocks UPDATE/DELETE incl. service role) + insert-only grant. Corrections = refund rows only.
+- 2026-07-22 · 01 · GST inclusive/exclusive + HSN-per-family still UNANSWERED by client → built on documented fallback (exclusive, 18%, 9403). Goldens must be re-confirmed with Hemant before 2A go-live (module 07).
 
 ## Discoveries for later modules
 <!-- things found mid-build that affect future modules -->
@@ -46,5 +52,6 @@ Status values: todo / in-progress / done / verified (gates green + user demo pas
 - 2B templates to submit at module 08: production_started, production_completed (image), ready_for_dispatch
 
 ## Environment
-- Prod Supabase project = Phase 1's. Staging project: NOT created yet (user action, module 01 prerequisite).
-- Migrations 0001–0006 applied in prod as of 2026-07-04? 0006 (visits.captured_at) push still pending — verify before 0007.
+- Prod Supabase project = Phase 1's. Staging project: NOT created yet (user action; prerequisite before pushing 0011-0019 to any hosted DB).
+- Migration head (repo AND prod) = **0010** (Phase 1 M5/M6B shipped 0007-0010). Phase 2 migrations 0011-0019 are BUILT on branch `phase2` and verified on the local PG15 harness but **NOT pushed to prod/staging** — that happens at module 07 go-live after backup/PITR (0019 is destructive on live pipeline data).
+- Local test DB: no `supabase start`/Docker needed — run `apps/api/scripts/pgtest.sh` (spins temp PG15 + pgvector, applies all migrations, runs pytest).

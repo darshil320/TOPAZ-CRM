@@ -12,10 +12,14 @@ import {
 import AlertFeed, { type AlertItem } from "./AlertFeed";
 
 const FUNNEL = [
-  { key: "new", label: "New", bar: "bg-slate-400" },
-  { key: "talking", label: "Talking", bar: "bg-blue-500" },
-  { key: "follow_up", label: "Follow-up", bar: "bg-amber-500" },
-  { key: "won", label: "Won", bar: "bg-green-500" },
+  { key: "inquiry", label: "Inquiry", bar: "bg-slate-400" },
+  { key: "contacted", label: "Contacted", bar: "bg-blue-500" },
+  { key: "visit_scheduled", label: "Visit Scheduled", bar: "bg-indigo-500" },
+  { key: "walk_in", label: "Walk-in", bar: "bg-cyan-500" },
+  { key: "design_discussion", label: "Design", bar: "bg-violet-500" },
+  { key: "quotation_sent", label: "Quote Sent", bar: "bg-amber-500" },
+  { key: "negotiation", label: "Negotiation", bar: "bg-orange-500" },
+  { key: "order_confirmed", label: "Order Confirmed", bar: "bg-green-500" },
   { key: "lost", label: "Lost", bar: "bg-red-400" },
 ] as const;
 
@@ -40,7 +44,15 @@ export default async function AnalyticsPage() {
 
   const rows = (stageRows ?? []) as StageRow[];
   const counts = countByStage(rows);
-  const activePipeline = counts.talking + counts.follow_up;
+  // "Active pipeline" = mid-funnel deals being actively worked (everything
+  // except the entry stage and the two terminal stages order_confirmed/lost).
+  const activePipeline =
+    counts.contacted +
+    counts.visit_scheduled +
+    counts.walk_in +
+    counts.design_discussion +
+    counts.quotation_sent +
+    counts.negotiation;
   const rate = conversionRate(counts);
   const daily = wonByDay(rows, 14, new Date());
   const maxDaily = Math.max(1, ...daily.map((d) => d.count));
@@ -49,7 +61,7 @@ export default async function AnalyticsPage() {
   // Best-effort value: max logged budget per WON customer, summed. Non-won budgets
   // are excluded so the figure reflects closed deals (§Phase-2 order value not modelled).
   const wonIds = new Set(
-    rows.filter((r) => r.stage === "won").map((r) => r.customer_id).filter(Boolean) as string[],
+    rows.filter((r) => r.stage === "order_confirmed").map((r) => r.customer_id).filter(Boolean) as string[],
   );
   const budgetByCustomer = new Map<string, number>();
   for (const b of budgets ?? []) {
@@ -71,9 +83,9 @@ export default async function AnalyticsPage() {
   }));
 
   const kpis = [
-    { label: "Won deals", value: String(counts.won), sub: "all time" },
+    { label: "Won deals", value: String(counts.order_confirmed), sub: "all time" },
     { label: "Conversion", value: `${Math.round(rate * 100)}%`, sub: "won / closed" },
-    { label: "Active pipeline", value: String(activePipeline), sub: "talking + follow-up" },
+    { label: "Active pipeline", value: String(activePipeline), sub: "mid-funnel deals" },
     { label: "Total customers", value: String(customersTotal ?? 0), sub: "in CRM" },
   ];
 

@@ -680,7 +680,20 @@ export type Database = {
     Enums: {
       assignment_role: "primary" | "collaborator"
       coverage_status: "open" | "claimed" | "closed"
-      pipeline_stage: "new" | "talking" | "follow_up" | "won" | "lost"
+      pipeline_stage:
+        | "new"
+        | "talking"
+        | "follow_up"
+        | "won"
+        | "lost"
+        | "inquiry"
+        | "contacted"
+        | "visit_scheduled"
+        | "walk_in"
+        | "design_discussion"
+        | "quotation_sent"
+        | "negotiation"
+        | "order_confirmed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -813,7 +826,21 @@ export const Constants = {
     Enums: {
       assignment_role: ["primary", "collaborator"],
       coverage_status: ["open", "claimed", "closed"],
-      pipeline_stage: ["new", "talking", "follow_up", "won", "lost"],
+      pipeline_stage: [
+        "new",
+        "talking",
+        "follow_up",
+        "won",
+        "lost",
+        "inquiry",
+        "contacted",
+        "visit_scheduled",
+        "walk_in",
+        "design_discussion",
+        "quotation_sent",
+        "negotiation",
+        "order_confirmed",
+      ],
     },
   },
 } as const

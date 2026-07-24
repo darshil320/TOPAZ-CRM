@@ -2,15 +2,29 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
-const STAGES = ["new", "talking", "follow_up", "won", "lost"] as const;
+const STAGES = [
+  "inquiry",
+  "contacted",
+  "visit_scheduled",
+  "walk_in",
+  "design_discussion",
+  "quotation_sent",
+  "negotiation",
+  "order_confirmed",
+  "lost",
+] as const;
 type Stage = (typeof STAGES)[number];
 
 const STAGE_CONFIG: Record<Stage, { label: string; dot: string; accent: string }> = {
-  new:       { label: "New",       dot: "bg-slate-400",  accent: "border-slate-200 bg-slate-50/80" },
-  talking:   { label: "Talking",   dot: "bg-blue-500",   accent: "border-blue-200 bg-blue-50/80" },
-  follow_up: { label: "Follow-up", dot: "bg-amber-500",  accent: "border-amber-200 bg-amber-50/80" },
-  won:       { label: "Won",       dot: "bg-green-500",  accent: "border-green-200 bg-green-50/80" },
-  lost:      { label: "Lost",      dot: "bg-red-400",    accent: "border-red-200 bg-red-50/80" },
+  inquiry:           { label: "Inquiry",         dot: "bg-slate-400",   accent: "border-slate-200 bg-slate-50/80" },
+  contacted:         { label: "Contacted",       dot: "bg-blue-500",    accent: "border-blue-200 bg-blue-50/80" },
+  visit_scheduled:   { label: "Visit Scheduled", dot: "bg-indigo-500",  accent: "border-indigo-200 bg-indigo-50/80" },
+  walk_in:           { label: "Walk-in",         dot: "bg-cyan-500",    accent: "border-cyan-200 bg-cyan-50/80" },
+  design_discussion: { label: "Design",          dot: "bg-violet-500",  accent: "border-violet-200 bg-violet-50/80" },
+  quotation_sent:    { label: "Quote Sent",      dot: "bg-amber-500",   accent: "border-amber-200 bg-amber-50/80" },
+  negotiation:       { label: "Negotiation",     dot: "bg-orange-500",  accent: "border-orange-200 bg-orange-50/80" },
+  order_confirmed:   { label: "Order Confirmed", dot: "bg-green-500",   accent: "border-green-200 bg-green-50/80" },
+  lost:              { label: "Lost",            dot: "bg-red-400",     accent: "border-red-200 bg-red-50/80" },
 };
 
 export default async function OwnerPage() {
@@ -40,7 +54,7 @@ export default async function OwnerPage() {
         <p className="text-sm text-slate-500 mt-0.5">{total} customer{total !== 1 ? "s" : ""} across all stages</p>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 scrollbar-hide sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-5 sm:overflow-visible">
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 scrollbar-hide sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-3 lg:grid-cols-9 sm:overflow-visible">
         {STAGES.map((stage) => {
           const cfg = STAGE_CONFIG[stage];
           const customers = byStage[stage];
