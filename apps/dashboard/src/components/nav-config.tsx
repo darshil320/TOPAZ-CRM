@@ -48,12 +48,19 @@ export const ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   ),
+  orders: (c: string) => (
+    <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
+  ),
 } as const;
 
 export const SALES_NAV: NavItem[] = [
   { href: "/dashboard", label: "My Customers", shortLabel: "Customers", icon: ICONS.customers, exact: true },
   { href: "/dashboard/walkins", label: "Walk-in Queue", shortLabel: "Walk-ins", icon: ICONS.walkin, exact: true },
   { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
+  { href: "/dashboard/orders", label: "Orders", shortLabel: "Orders", icon: ICONS.orders },
+  { href: "/dashboard/pipeline", label: "Pipeline Board", shortLabel: "Board", icon: ICONS.pipeline },
 ];
 
 export const OWNER_NAV: NavItem[] = [

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteQuote, reviseQuote, sendQuote } from "./actions";
+import { createOrderFromQuote } from "../orders/actions";
 
 interface Props {
   quoteId: string;
@@ -17,6 +18,20 @@ export default function QuoteActions({ quoteId, status }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isDraft = status === "draft";
+
+  const isApproved = status === "approved";
+  const toOrder = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await createOrderFromQuote(quoteId);
+      if (result.error || !result.id) {
+        setError(result.error ?? "Could not create order");
+        return;
+      }
+      router.push(`/dashboard/orders/${result.id}`);
+      router.refresh();
+    });
+  };
 
   const revise = () => {
     setError(null);
@@ -62,6 +77,16 @@ export default function QuoteActions({ quoteId, status }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
+        {isApproved && (
+          <button
+            type="button"
+            onClick={toOrder}
+            disabled={isPending}
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+          >
+            {isPending ? "Working…" : "Create order"}
+          </button>
+        )}
         {isDraft && (
           <button
             type="button"

@@ -583,6 +583,243 @@ export type Database = {
           },
         ]
       }
+      orders: {
+        Row: {
+          advance_expected: number
+          cgst: number
+          created_at: string
+          customer_id: string
+          discount_amount: number
+          expected_delivery_date: string | null
+          grand_total: number
+          id: string
+          igst: number
+          notes: string | null
+          order_no: string
+          quotation_id: string | null
+          salesperson_id: string | null
+          sgst: number
+          status: string
+          subtotal: number
+          taxable_value: number
+          updated_at: string
+        }
+        Insert: {
+          advance_expected?: number
+          cgst?: number
+          created_at?: string
+          customer_id: string
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          grand_total?: number
+          id?: string
+          igst?: number
+          notes?: string | null
+          order_no: string
+          quotation_id?: string | null
+          salesperson_id?: string | null
+          sgst?: number
+          status?: string
+          subtotal?: number
+          taxable_value?: number
+          updated_at?: string
+        }
+        Update: {
+          advance_expected?: number
+          cgst?: number
+          created_at?: string
+          customer_id?: string
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          grand_total?: number
+          id?: string
+          igst?: number
+          notes?: string | null
+          order_no?: string
+          quotation_id?: string | null
+          salesperson_id?: string | null
+          sgst?: number
+          status?: string
+          subtotal?: number
+          taxable_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          customization: string | null
+          description: string
+          dimensions: string | null
+          fabric: string | null
+          gst_rate: number
+          hsn: string
+          id: string
+          line_total: number
+          material: string | null
+          order_id: string
+          polish: string | null
+          product_id: string | null
+          qty: number
+          sort: number
+          unit: string | null
+          unit_price: number
+        }
+        Insert: {
+          customization?: string | null
+          description: string
+          dimensions?: string | null
+          fabric?: string | null
+          gst_rate: number
+          hsn: string
+          id?: string
+          line_total: number
+          material?: string | null
+          order_id: string
+          polish?: string | null
+          product_id?: string | null
+          qty: number
+          sort?: number
+          unit?: string | null
+          unit_price: number
+        }
+        Update: {
+          customization?: string | null
+          description?: string
+          dimensions?: string | null
+          fabric?: string | null
+          gst_rate?: number
+          hsn?: string
+          id?: string
+          line_total?: number
+          material?: string | null
+          order_id?: string
+          polish?: string | null
+          product_id?: string | null
+          qty?: number
+          sort?: number
+          unit?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          id: string
+          kind: string
+          mode: string
+          notes: string | null
+          order_id: string
+          paid_at: string
+          receipt_no: string
+          recorded_by: string | null
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          id?: string
+          kind: string
+          mode: string
+          notes?: string | null
+          order_id: string
+          paid_at: string
+          receipt_no: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          id?: string
+          kind?: string
+          mode?: string
+          notes?: string | null
+          order_id?: string
+          paid_at?: string
+          receipt_no?: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_schedules: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          label: string | null
+          order_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          label?: string | null
+          order_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          label?: string | null
+          order_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_schedules_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
@@ -880,7 +1117,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      order_outstanding: {
+        Row: {
+          grand_total: number | null
+          order_id: string | null
+          outstanding: number | null
+          paid: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_pkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       claim_customer: { Args: { p_customer_id: string }; Returns: boolean }
