@@ -17,13 +17,13 @@ function defaultValidUntil(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function blankInitial(customerId: string, validUntil: string): QuoteBuilderInitial {
+function blankInitial(customerId: string, validUntil: string, terms: string): QuoteBuilderInitial {
   return {
     customerId,
     discount: "0",
     placeOfSupply: "GJ",
     validUntil,
-    terms: "",
+    terms,
     notes: "",
     lines: [
       {
@@ -51,14 +51,22 @@ export default async function NewQuotePage({ searchParams }: Props) {
   const { customer } = await searchParams;
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: customers }, { data: products }] = await Promise.all([
+  const [{ data: customers }, { data: products }, { data: settings }] = await Promise.all([
     supabase.from("customers").select("id, name, phone").order("name", { ascending: true }).limit(500),
     supabase
       .from("products")
       .select("id, name, hsn, gst_rate, base_price, unit")
       .eq("active", true)
       .order("name", { ascending: true }),
+    supabase.from("app_settings").select("key, value").in("key", ["quote_terms", "quote_validity_days"]),
   ]);
+
+  const settingsMap = new Map((settings ?? []).map((r) => [r.key, r.value]));
+  const terms = typeof settingsMap.get("quote_terms") === "string" ? (settingsMap.get("quote_terms") as string) : "";
+  const validityDays =
+    typeof settingsMap.get("quote_validity_days") === "number"
+      ? (settingsMap.get("quote_validity_days") as number)
+      : VALIDITY_DAYS;
 
   const preselect = (customers ?? []).some((c) => c.id === customer) ? (customer as string) : "";
 
@@ -81,7 +89,7 @@ export default async function NewQuotePage({ searchParams }: Props) {
         mode="create"
         customers={(customers ?? []) as CustomerOption[]}
         products={(products ?? []) as ProductOption[]}
-        initial={blankInitial(preselect, defaultValidUntil(VALIDITY_DAYS))}
+        initial={blankInitial(preselect, defaultValidUntil(validityDays), terms)}
       />
     </div>
   );
