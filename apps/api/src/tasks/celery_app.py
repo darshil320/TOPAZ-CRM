@@ -26,6 +26,8 @@ def create_celery_app() -> Celery:
             "src.tasks.pipeline",
             "src.tasks.pdf",
             "src.tasks.quotes",
+            "src.tasks.receipts",
+            "src.tasks.payment_reminders",
         ],
     )
 
@@ -46,6 +48,10 @@ def create_celery_app() -> Celery:
             "close-stale-followups": {
                 "task": "src.tasks.pipeline.close_stale_followups",
                 "schedule": crontab(hour=1, minute=0),
+            },
+            "payment-reminders": {
+                "task": "src.tasks.payment_reminders.send_payment_reminders",
+                "schedule": crontab(hour=10, minute=0),  # daily 10:00 IST (timezone set above)
             },
         },
     )

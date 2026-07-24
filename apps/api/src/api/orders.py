@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import order_repo as repo
+from ..repositories import payment_repo
 from ..repositories import quotation_repo
 from ..services import gst, numbering, order_status
 from .deps import require_dashboard_key
@@ -57,6 +58,16 @@ class StatusPatch(BaseModel):
 class OrderPatch(BaseModel):
     expected_delivery_date: date | None = None
     notes: str | None = None
+
+
+class ScheduleRowIn(BaseModel):
+    label: str | None = None
+    due_date: date
+    amount: Decimal = Field(gt=0)
+
+
+class ScheduleReplace(BaseModel):
+    rows: list[ScheduleRowIn] = Field(default_factory=list)
 
 
 def _compute(items: list[OrderItemIn], discount: Decimal, place_of_supply: str):
@@ -131,6 +142,21 @@ async def patch_status(order_id: UUID, req: StatusPatch) -> dict:
                                 detail="Order status changed concurrently — retry")
         await session.commit()
     return {"order_id": str(order_id), "status": req.status}
+
+
+@router.post("/{order_id}/schedule")
+async def set_schedule(order_id: UUID, req: ScheduleReplace) -> dict:
+    """Replace an order's unpaid payment schedule (paid rows are preserved)."""
+    async with make_task_session() as session:
+        if await repo.get_status(session, order_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        rows = [
+            payment_repo.ScheduleRow(label=r.label, due_date=r.due_date, amount=r.amount)
+            for r in req.rows
+        ]
+        await payment_repo.replace_schedule(session, order_id, rows)
+        await session.commit()
+    return {"order_id": str(order_id), "rows": len(req.rows)}
 
 
 @router.patch("/{order_id}")

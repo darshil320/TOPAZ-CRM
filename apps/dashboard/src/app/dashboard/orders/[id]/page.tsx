@@ -5,6 +5,7 @@ import { getCurrentSalesperson } from "@/lib/auth";
 import { formatINR, formatDate } from "@/lib/format";
 import { orderStatusChip } from "../status";
 import OrderStatusActions from "../OrderStatusActions";
+import RecordPaymentForm from "../RecordPaymentForm";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -153,10 +154,17 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Recorded payments */}
-      {(payments ?? []).length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payments</p>
+      {/* Recorded payments + record form */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payments</p>
+          {order.status !== "cancelled" && (
+            <RecordPaymentForm orderId={order.id} defaultDate={new Date().toISOString().slice(0, 10)} />
+          )}
+        </div>
+        {(payments ?? []).length === 0 ? (
+          <p className="text-sm text-slate-400">No payments recorded yet.</p>
+        ) : (
           <div className="space-y-1.5">
             {(payments ?? []).map((p) => (
               <div key={p.id} className="flex items-center justify-between text-sm">
@@ -169,8 +177,8 @@ export default async function OrderDetailPage({ params }: Props) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Timeline */}
       {(timeline ?? []).length > 0 && (

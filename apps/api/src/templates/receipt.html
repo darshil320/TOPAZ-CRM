@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #1e293b; font-size: 12px; margin: 0; }
+  .brand-bar { height: 6px; background: {{ seller.brand_color }}; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 0 12px; border-bottom: 1px solid #e2e8f0; }
+  .seller-name { font-size: 20px; font-weight: 700; color: {{ seller.brand_color }}; }
+  .seller-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 16px; margin: 0; letter-spacing: 1px; color: #0f172a; }
+  .doc-title .no { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .doc-title .meta { font-size: 11px; color: #64748b; }
+  .box { margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .row:last-child { border-bottom: none; }
+  .label { color: #64748b; }
+  .amount { font-size: 22px; font-weight: 700; color: {{ seller.brand_color }}; }
+  .words { margin-top: 8px; font-size: 11px; color: #475569; font-style: italic; }
+  .refund-flag { display: inline-block; margin-left: 8px; font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #b91c1c; }
+  footer { margin-top: 28px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .sign { text-align: center; font-size: 11px; color: #64748b; }
+  .sign .line { width: 160px; border-top: 1px solid #94a3b8; margin: 32px auto 4px; }
+</style>
+</head>
+<body>
+  <div class="brand-bar"></div>
+  <header>
+    <div>
+      <div class="seller-name">{{ seller.name }}</div>
+      <div class="seller-meta">{{ seller.tagline }}</div>
+      <div class="seller-meta">{{ seller.address }}</div>
+      {% if seller.gstin %}<div class="seller-meta">GSTIN: {{ seller.gstin }}</div>{% endif %}
+    </div>
+    <div class="doc-title">
+      <h1>{% if is_refund %}REFUND{% else %}RECEIPT{% endif %}</h1>
+      <div class="no">{{ receipt_no }}</div>
+      <div class="meta">Date: {{ paid_at }}</div>
+    </div>
+  </header>
+
+  <div class="box">
+    <div class="row"><span class="label">Received from</span><span>{{ customer.name }}{% if customer.phone %} · {{ customer.phone }}{% endif %}</span></div>
+    <div class="row"><span class="label">Against order</span><span>{{ order_no }} (total ₹{{ order_total }})</span></div>
+    <div class="row"><span class="label">Type</span><span>{{ kind }}{% if is_refund %}<span class="refund-flag">refund</span>{% endif %}</span></div>
+    <div class="row"><span class="label">Mode</span><span>{{ mode }}{% if reference %} · Ref {{ reference }}{% endif %}</span></div>
+    <div class="row"><span class="label">{% if is_refund %}Amount refunded{% else %}Amount received{% endif %}</span><span class="amount">₹{{ amount }}</span></div>
+  </div>
+  <div class="words">{{ amount_words }}</div>
+
+  <footer>
+    <div class="seller-meta">This is a computer-generated receipt.</div>
+    <div class="sign">
+      <div class="line"></div>
+      For {{ seller.name }}
+    </div>
+  </footer>
+</body>
+</html>

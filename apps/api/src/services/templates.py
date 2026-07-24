@@ -25,6 +25,10 @@ class FollowupTemplate:
     meta_template: str
     # (Meta parameter_name, template_vars key) pairs, in body order.
     meta_params: tuple[tuple[str, str], ...]
+    # "marketing" templates require whatsapp_marketing consent; "utility"
+    # (transactional, e.g. payment due) bypass it — they still require a wa_id
+    # and a non-withdrawn consent. See tasks/followup._skip_reason.
+    category: str = "marketing"
 
 
 FOLLOWUP_TEMPLATES: dict[str, FollowupTemplate] = {
@@ -50,6 +54,22 @@ FOLLOWUP_TEMPLATES: dict[str, FollowupTemplate] = {
         ),
         meta_template="topaz_followup",
         meta_params=(("customer_name", "name"),),
+    ),
+    "payment_due": FollowupTemplate(
+        body=(
+            "Hi {name}, a gentle reminder from Topaz Furniture: a payment of "
+            "₹{amount} for order {order_no} is due on {due_date}. "
+            "Reply here for payment options or any questions.\n\n"
+            "— Team Topaz Furniture"
+        ),
+        meta_template="payment_due",
+        meta_params=(
+            ("customer_name", "name"),
+            ("amount", "amount"),
+            ("order_no", "order_no"),
+            ("due_date", "due_date"),
+        ),
+        category="utility",  # transactional — bypasses marketing-consent gate
     ),
 }
 

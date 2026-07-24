@@ -183,8 +183,12 @@ def _skip_reason(followup: ClaimedFollowup, context) -> str | None:
         return "no_wa_id"
     if context.consent_withdrawn:
         return "consent_withdrawn"
-    if not context.whatsapp_marketing:
-        return "no_marketing_consent"
-    if not context.ai_followup_enabled:
-        return "ai_followup_disabled"
+    # Utility/transactional templates (e.g. payment_due) bypass the marketing-
+    # consent + ai-followup gates; they still require a non-withdrawn consent
+    # and a wa_id (checked above).
+    if FOLLOWUP_TEMPLATES[followup.template_name].category == "marketing":
+        if not context.whatsapp_marketing:
+            return "no_marketing_consent"
+        if not context.ai_followup_enabled:
+            return "ai_followup_disabled"
     return None
