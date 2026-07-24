@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #1e293b; font-size: 12px; margin: 0; }
+  .brand-bar { height: 6px; background: {{ seller.brand_color }}; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 0 12px; border-bottom: 1px solid #e2e8f0; }
+  .seller-name { font-size: 20px; font-weight: 700; color: {{ seller.brand_color }}; }
+  .seller-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 16px; margin: 0; letter-spacing: 1px; color: #0f172a; }
+  .doc-title .no { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .doc-title .meta { font-size: 11px; color: #64748b; }
+  .parties { display: flex; justify-content: space-between; margin: 16px 0; }
+  .parties .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 4px; }
+  .parties .val { font-size: 13px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #f8fafc; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; padding: 8px 6px; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 8px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  td.num, th.num { text-align: right; }
+  .specs { color: #94a3b8; font-size: 10px; margin-top: 2px; }
+  .totals { width: 46%; margin-left: auto; margin-top: 12px; }
+  .totals td { border: none; padding: 4px 6px; }
+  .totals .grand td { border-top: 2px solid #e2e8f0; font-weight: 700; font-size: 14px; padding-top: 8px; }
+  .words { margin-top: 8px; font-size: 11px; color: #475569; font-style: italic; }
+  .terms { margin-top: 20px; }
+  .terms .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 4px; }
+  .terms p { white-space: pre-wrap; font-size: 11px; color: #475569; margin: 0; }
+  footer { margin-top: 28px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .sign { text-align: center; font-size: 11px; color: #64748b; }
+  .sign .line { width: 160px; border-top: 1px solid #94a3b8; margin: 32px auto 4px; }
+  .status-chip { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; text-transform: capitalize; }
+</style>
+</head>
+<body>
+  <div class="brand-bar"></div>
+  <header>
+    <div>
+      <div class="seller-name">{{ seller.name }}</div>
+      <div class="seller-meta">{{ seller.tagline }}</div>
+      <div class="seller-meta">{{ seller.address }}</div>
+      {% if seller.phone %}<div class="seller-meta">Phone: {{ seller.phone }}</div>{% endif %}
+      {% if seller.gstin %}<div class="seller-meta">GSTIN: {{ seller.gstin }}</div>{% endif %}
+    </div>
+    <div class="doc-title">
+      <h1>QUOTATION</h1>
+      <div class="no">{{ quote_no }}{% if revision_no > 1 %} · Rev {{ revision_no }}{% endif %}</div>
+      <div class="meta">Date: {{ created_at }}</div>
+      <div class="meta">Valid until: {{ valid_until }}</div>
+      <div class="meta"><span class="status-chip">{{ status }}</span></div>
+    </div>
+  </header>
+
+  <div class="parties">
+    <div>
+      <div class="label">Bill To</div>
+      <div class="val">{{ customer.name }}</div>
+      {% if customer.phone %}<div class="seller-meta">{{ customer.phone }}</div>{% endif %}
+    </div>
+    <div style="text-align:right">
+      <div class="label">Place of Supply</div>
+      <div class="val">{{ place_of_supply }}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Description</th>
+        <th>HSN</th>
+        <th class="num">Qty</th>
+        <th class="num">Rate</th>
+        <th class="num">GST%</th>
+        <th class="num">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.sr }}</td>
+        <td>
+          {{ it.description }}
+          {% if it.specs %}<div class="specs">{{ it.specs }}</div>{% endif %}
+        </td>
+        <td>{{ it.hsn }}</td>
+        <td class="num">{{ it.qty }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
+        <td class="num">{{ it.unit_price }}</td>
+        <td class="num">{{ it.gst_rate }}</td>
+        <td class="num">{{ it.line_total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td>Subtotal</td><td class="num">{{ subtotal }}</td></tr>
+    {% if has_discount %}<tr><td>Discount</td><td class="num">- {{ discount_amount }}</td></tr>{% endif %}
+    <tr><td>Taxable Value</td><td class="num">{{ taxable_value }}</td></tr>
+    {% if intra %}
+      <tr><td>CGST</td><td class="num">{{ cgst }}</td></tr>
+      <tr><td>SGST</td><td class="num">{{ sgst }}</td></tr>
+    {% else %}
+      <tr><td>IGST</td><td class="num">{{ igst }}</td></tr>
+    {% endif %}
+    <tr class="grand"><td>Grand Total (₹)</td><td class="num">{{ grand_total }}</td></tr>
+  </table>
+
+  <div class="words">{{ grand_total_words }}</div>
+
+  {% if terms %}
+  <div class="terms">
+    <div class="label">Terms &amp; Conditions</div>
+    <p>{{ terms }}</p>
+  </div>
+  {% endif %}
+
+  <footer>
+    <div class="seller-meta">This is a computer-generated quotation.</div>
+    <div class="sign">
+      <div class="line"></div>
+      For {{ seller.name }}
+    </div>
+  </footer>
+</body>
+</html>

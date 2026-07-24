@@ -15,6 +15,10 @@ dependencies = [
     "pgvector>=0.3,<1.0",
     "httpx>=0.27,<1.0",
     "anthropic>=0.40,<1.0",
+    "jinja2>=3.1,<4.0",
+    # PDF rendering (module 03). Chromium binary installed separately:
+    #   playwright install --with-deps chromium
+    "playwright>=1.47,<2.0",
 ]
 
 [project.optional-dependencies]

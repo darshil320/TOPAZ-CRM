@@ -24,6 +24,8 @@ def create_celery_app() -> Celery:
             "src.tasks.ai",
             "src.tasks.followup",
             "src.tasks.pipeline",
+            "src.tasks.pdf",
+            "src.tasks.quotes",
         ],
     )
 

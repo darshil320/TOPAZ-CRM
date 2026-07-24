@@ -8,7 +8,7 @@ Update at END of every session. This file is the cross-session memory.
 |---|---|---|---|
 | 01 | foundation (migrations 0011-0019, doc_series, GST engine) | done | gates green (111 pytest incl. 24 GST goldens, numbering concurrency, payments immutability, outstanding view); not pushed to prod |
 | 02 | quotations-api | done | BACKEND (prior session): quotation_repo + /api/quotations router + deps + 4 empirical tests green. UI (this session): quotes list + QuoteBuilder (create/edit) + detail (items/totals/revision chain) + actions.ts (create/update/revise/delete → FastAPI, 10s timeout, API-Key). Client GST mirror `lib/gst.ts` matches gst.py goldens (3500→140/140/3780 intra; 280 inter; 350-disc→126/126/3402). types.ts extended (products/quotations/quotation_items). Nav item added. tsc clean. |
-| 03 | quote-pdf-send-approval | todo | |
+| 03 | quote-pdf-send-approval | in-progress | CODE done + verified: pdf.py (Playwright, lazy), quote_html.py + templates/quotation.html (Jinja, amber brand, amount-in-words), storage.py (private bucket + signed URL), tasks/pdf.render_quotation_pdf, tasks/quotes.send_quotation + notify_quote_decision (24h-window branch, WA_MEDIA_ENABLED flag), send_wa_document, api/public.py (token-gated GET/approve/reject, idempotent, IP-stamped, pipeline upsert), /quotations/{id}/send. Dashboard: /q/[token] public page + ApproveActions, Send button, middleware excludes /q. Tests: test_num_words + test_quote_html (11 pure) + test_quotations_send_empirical (4, green on pgtest). tsc clean. MANUAL GATES REMAINING: real PDF render (needs `playwright install chromium`), real WA doc/template send to phone (WA-MEDIA-SPIKE), Meta template submission (quote_sent, quote_approved_confirm). |
 | 04 | orders-pipeline | todo | |
 | 05 | payments | todo | |
 | 06 | roles-rls-admin | todo | |
@@ -31,6 +31,8 @@ Status values: todo / in-progress / done / verified (gates green + user demo pas
 - 2026-07-22 · 01 · GST rounding: per-line pre-tax rounded 2dp then summed; document discount pro-rated at full precision by line share; CGST/SGST/IGST accumulated full-precision, rounded half-up 2dp at document level. 24 golden cases pin exact values.
 - 2026-07-22 · 01 · Payments hard-immutable via `forbid_payment_mutation()` trigger (blocks UPDATE/DELETE incl. service role) + insert-only grant. Corrections = refund rows only.
 - 2026-07-22 · 01 · GST inclusive/exclusive + HSN-per-family still UNANSWERED by client → built on documented fallback (exclusive, 18%, 9403). Goldens must be re-confirmed with Hemant before 2A go-live (module 07).
+- 2026-07-24 · 02 · Module 02 UI shipped (quotes list/builder/detail + actions.ts); client GST mirror lib/gst.ts matches gst.py goldens; committed 46e0129.
+- 2026-07-24 · scope · SCOPE FLAG RAISED (docs/phase2/PLAN_2A_SELL.md §0): every SOW on file (topaz-sow-v1 §4, superseded crm-sow-3L §3) EXCLUDES orders + payment tracking, reserving them for a "separate Phase 2 SOW"; the current signed CRM SOW (crm-sow-1.5L) does not name quote/order/payment. VENDOR DECISION (Darshil, DMC): proceed to build M03–M07 (quote send/approval, orders, payments, roles/RLS, hardening) now; vendor owns papering the Phase-2 SOW/CR before invoicing. Flag recorded per CLAUDE.md — not silently dropped. Feature-flag customer WA delivery until WA-MEDIA-SPIKE + Meta verification clear.
 
 ## Discoveries for later modules
 <!-- things found mid-build that affect future modules -->

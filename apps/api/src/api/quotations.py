@@ -143,3 +143,20 @@ async def delete_quotation(quotation_id: UUID) -> None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail="Only draft quotations can be deleted")
         await session.commit()
+
+
+@router.post("/{quotation_id}/send", status_code=status.HTTP_202_ACCEPTED)
+async def send_quotation(quotation_id: UUID) -> dict:
+    """Render (if needed) + WhatsApp the quote to the customer, advancing it to
+    'sent'. Draft-only; the render + send + status flip happen in the worker."""
+    async with make_task_session() as session:
+        current = await repo.get_status(session, quotation_id)
+    if current is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+    if current != "draft":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Only draft quotations can be sent (status: {current})")
+    from ..tasks.quotes import send_quotation as send_task
+    send_task.delay(str(quotation_id))
+    logger.info("Queued send for quotation %s", quotation_id)
+    return {"quotation_id": str(quotation_id), "queued": True}

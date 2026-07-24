@@ -128,6 +128,40 @@ def send_wa_image(to: str, media_id: str, caption: str) -> str | None:
     )
 
 
+def _upload_document_to_meta(pdf: bytes, filename: str) -> str | None:
+    """Upload PDF bytes to the WhatsApp Cloud API; return the media id (or None)."""
+    settings = get_settings()
+    if not settings.WA_PHONE_NUMBER_ID or not settings.WA_TOKEN:
+        return None
+    url = f"{_WA_API_BASE}/{settings.WA_PHONE_NUMBER_ID}/media"
+    try:
+        resp = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {settings.WA_TOKEN}"},
+            data={"messaging_product": "whatsapp", "type": "application/pdf"},
+            files={"file": (filename, pdf, "application/pdf")},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except Exception:
+        logger.warning("Meta document upload failed", exc_info=True)
+        return None
+
+
+def send_wa_document(to: str, media_id: str, filename: str, caption: str) -> str | None:
+    """Send an uploaded document (by media id) with a filename + caption.
+    24h-window rules apply (free-form document only inside the window)."""
+    return _post_wa_payload(
+        {
+            "messaging_product": "whatsapp",
+            "to": to.lstrip("+"),
+            "type": "document",
+            "document": {"id": media_id, "filename": filename, "caption": caption},
+        }
+    )
+
+
 def send_wa_template(to: str, template_name: str, params: list[dict], lang: str = "en") -> str | None:
     """Approved-template send (allowed outside the 24h window).
 

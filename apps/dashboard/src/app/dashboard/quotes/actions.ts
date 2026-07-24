@@ -146,6 +146,25 @@ export async function reviseQuote(id: string): Promise<QuoteResult> {
   }
 }
 
+export async function sendQuote(id: string): Promise<QuoteResult> {
+  if (!DASHBOARD_API_KEY) return { error: "Quotations API not configured — set DASHBOARD_API_KEY" };
+  try {
+    const resp = await fetch(`${QUOTES_API}/${id}/send`, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { "API-Key": DASHBOARD_API_KEY },
+    });
+    // 202 Accepted: render + WhatsApp send happen in the worker; 409 if not a draft.
+    if (!resp.ok) return { error: await readError(resp) };
+
+    revalidatePath("/dashboard/quotes");
+    revalidatePath(`/dashboard/quotes/${id}`);
+    return { error: null, id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function deleteQuote(id: string): Promise<{ error: string | null }> {
   if (!DASHBOARD_API_KEY) return { error: "Quotations API not configured — set DASHBOARD_API_KEY" };
   try {

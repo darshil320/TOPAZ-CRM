@@ -246,3 +246,123 @@ async def get_status(session: AsyncSession, quotation_id: UUID) -> str | None:
     )
     row = result.first()
     return row[0] if row else None
+
+
+# ─── module 03: send + public approval ──────────────────────────────────────
+
+async def get_send_context(session: AsyncSession, quotation_id: UUID) -> dict | None:
+    """Header + customer contact needed to send a quote. None if not found."""
+    result = await session.execute(
+        text(
+            "SELECT q.id, q.quote_no, q.status, q.revision_no, q.pdf_key, q.approval_token,"
+            "       q.customer_id, c.name AS customer_name, c.wa_id, c.last_inbound_at"
+            " FROM quotations q JOIN customers c ON c.id = q.customer_id"
+            " WHERE q.id = :id"
+        ),
+        {"id": str(quotation_id)},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
+
+
+async def set_pdf_key(session: AsyncSession, quotation_id: UUID, pdf_key: str) -> None:
+    await session.execute(
+        text("UPDATE quotations SET pdf_key = :k WHERE id = :id"),
+        {"k": pdf_key, "id": str(quotation_id)},
+    )
+
+
+async def mark_sent(session: AsyncSession, quotation_id: UUID) -> bool:
+    """Advance a draft quotation to 'sent'. False if not currently a draft
+    (idempotent: re-sending an already-sent quote is a no-op here)."""
+    result = await session.execute(
+        text("UPDATE quotations SET status = 'sent' WHERE id = :id AND status = 'draft' RETURNING id"),
+        {"id": str(quotation_id)},
+    )
+    return result.first() is not None
+
+
+async def get_public_summary(session: AsyncSession, token: UUID) -> dict | None:
+    """Customer-facing quote summary by approval_token. None if unknown/expired."""
+    header = await session.execute(
+        text(
+            "SELECT q.id, q.quote_no, q.status, q.revision_no, q.valid_until, q.place_of_supply,"
+            "       q.subtotal, q.discount_amount, q.taxable_value, q.cgst, q.sgst, q.igst,"
+            "       q.grand_total, q.terms, q.pdf_key, q.customer_id, c.name AS customer_name"
+            " FROM quotations q JOIN customers c ON c.id = q.customer_id"
+            " WHERE q.approval_token = :t AND q.status <> 'expired'"
+        ),
+        {"t": str(token)},
+    )
+    row = header.mappings().first()
+    if row is None:
+        return None
+    items = await session.execute(
+        text(
+            "SELECT description, dimensions, material, fabric, polish, customization,"
+            "       qty, unit, unit_price, hsn, gst_rate, line_total"
+            " FROM quotation_items WHERE quotation_id = :id ORDER BY sort, id"
+        ),
+        {"id": str(row["id"])},
+    )
+    result = dict(row)
+    result["items"] = [dict(m) for m in items.mappings().all()]
+    return result
+
+
+async def mark_viewed(session: AsyncSession, token: UUID) -> None:
+    """First customer open: 'sent' → 'viewed'. No-op once past 'sent'."""
+    await session.execute(
+        text("UPDATE quotations SET status = 'viewed' WHERE approval_token = :t AND status = 'sent'"),
+        {"t": str(token)},
+    )
+
+
+async def record_decision(
+    session: AsyncSession, token: UUID, *, approve: bool, ip: str | None
+) -> dict | None:
+    """Idempotently set approved/rejected from a public decision.
+
+    Only transitions from a live state ('sent'/'viewed'); a repeat POST after
+    the terminal state is a no-op (returns the row with changed=False). None if
+    the token is unknown/expired. approved_at/ip stamped only on the transition.
+    """
+    ctx = await session.execute(
+        text(
+            "SELECT id, status, customer_id FROM quotations"
+            " WHERE approval_token = :t AND status <> 'expired'"
+        ),
+        {"t": str(token)},
+    )
+    row = ctx.mappings().first()
+    if row is None:
+        return None
+
+    new_status = "approved" if approve else "rejected"
+    updated = await session.execute(
+        text(
+            "UPDATE quotations"
+            " SET status = :new, approved_at = now(), approved_ip = :ip"
+            " WHERE approval_token = :t AND status IN ('sent', 'viewed')"
+            " RETURNING id"
+        ),
+        {"new": new_status, "ip": ip, "t": str(token)},
+    )
+    changed = updated.first() is not None
+    return {
+        "id": str(row["id"]),
+        "customer_id": str(row["customer_id"]),
+        "status": new_status if changed else row["status"],
+        "changed": changed,
+    }
+
+
+async def upsert_pipeline_stage(session: AsyncSession, customer_id: str, stage: str) -> None:
+    """Move a customer to a pipeline stage (idempotent upsert on customer_id)."""
+    await session.execute(
+        text(
+            "INSERT INTO pipeline_stages (customer_id, stage) VALUES (:cid, :stage)"
+            " ON CONFLICT (customer_id) DO UPDATE SET stage = :stage, updated_at = now()"
+        ),
+        {"cid": str(customer_id), "stage": stage},
+    )

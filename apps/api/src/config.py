@@ -62,6 +62,20 @@ class Settings(BaseSettings):
     # Default quotation validity window (days) when the builder doesn't set one.
     QUOTE_VALIDITY_DAYS: int = 15
 
+    # Supabase Storage bucket for generated PDFs (quotes, receipts). Private;
+    # customer-facing links are short-lived signed URLs, never public.
+    DOCUMENTS_BUCKET: str = "documents"
+    # Feature flag: send the quote PDF to the CUSTOMER over WhatsApp. Held false
+    # until WA-MEDIA-SPIKE + Meta Business Verification clear (STATE.md). When
+    # false, /send still advances status + notifies staff, but skips the
+    # customer document/template send (the public approval link still works).
+    WA_MEDIA_ENABLED: bool = False
+    # Default advance % expected when an order is created from an approved quote.
+    DEFAULT_ADVANCE_PCT: int = 50
+    # Send a receipt to the customer over WhatsApp on payment. Held false until
+    # the client confirms the policy (STATE.md open questions).
+    SEND_RECEIPTS_TO_CUSTOMER: bool = False
+
     # Supabase project URL + service-role key — used by the worker to fetch the
     # private face-crop for the salesperson arrival alert. If either is unset the
     # alert gracefully falls back to text-only (no photo).
