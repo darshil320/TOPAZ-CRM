@@ -19,10 +19,22 @@ from ..repositories import order_repo as repo
 from ..repositories import payment_repo
 from ..repositories import quotation_repo
 from ..services import gst, numbering, order_status
-from .deps import require_dashboard_key
+from . import authz
+from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", dependencies=[Depends(require_dashboard_key)])
+
+
+async def _authorize_order(session, caller_uid: str, order_id: UUID):
+    """Resolve caller + assert write access to the order's customer. 404 if none.
+    Returns the Caller."""
+    caller = await authz.resolve_caller(session, caller_uid)
+    customer_id = await repo.order_customer_id(session, order_id)
+    if customer_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    await authz.assert_can_write_customer(session, caller, customer_id)
+    return caller
 
 
 class OrderItemIn(BaseModel):
@@ -87,12 +99,18 @@ def _compute(items: list[OrderItemIn], discount: Decimal, place_of_supply: str):
 
 
 @router.post("/from-quote/{quotation_id}", status_code=status.HTTP_201_CREATED)
-async def create_from_quote(quotation_id: UUID) -> dict:
+async def create_from_quote(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     settings = get_settings()
     async with make_task_session() as session:
+        caller = await authz.resolve_caller(session, caller_uid)
+        src_customer = await quotation_repo.quotation_customer_id(session, quotation_id)
+        if src_customer is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+        await authz.assert_can_write_customer(session, caller, src_customer)
         order_no = await numbering.allocate(session, "ORD")
         order_id = await repo.create_from_quote(
-            session, quotation_id, order_no=order_no, advance_pct=settings.DEFAULT_ADVANCE_PCT
+            session, quotation_id, order_no=order_no, advance_pct=settings.DEFAULT_ADVANCE_PCT,
+            salesperson_id=UUID(caller.salesperson_id),
         )
         if order_id is None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -105,13 +123,15 @@ async def create_from_quote(quotation_id: UUID) -> dict:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_order(req: OrderCreate) -> dict:
+async def create_order(req: OrderCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
     async with make_task_session() as session:
+        caller = await authz.resolve_caller(session, caller_uid)
+        await authz.assert_can_write_customer(session, caller, str(req.customer_id))
         order_no = await numbering.allocate(session, "ORD")
         order_id = await repo.create_order(
             session, order_no=order_no, customer_id=req.customer_id, totals=totals, items=items,
-            salesperson_id=req.salesperson_id, expected_delivery_date=req.expected_delivery_date,
+            salesperson_id=UUID(caller.salesperson_id), expected_delivery_date=req.expected_delivery_date,
             notes=req.notes,
         )
         result = await repo.get_order(session, order_id)
@@ -122,8 +142,10 @@ async def create_order(req: OrderCreate) -> dict:
 
 
 @router.patch("/{order_id}/status")
-async def patch_status(order_id: UUID, req: StatusPatch) -> dict:
+async def patch_status(order_id: UUID, req: StatusPatch,
+                       caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with make_task_session() as session:
+        await _authorize_order(session, caller_uid, order_id)
         current = await repo.get_status(session, order_id)
         if current is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
@@ -145,11 +167,11 @@ async def patch_status(order_id: UUID, req: StatusPatch) -> dict:
 
 
 @router.post("/{order_id}/schedule")
-async def set_schedule(order_id: UUID, req: ScheduleReplace) -> dict:
+async def set_schedule(order_id: UUID, req: ScheduleReplace,
+                       caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Replace an order's unpaid payment schedule (paid rows are preserved)."""
     async with make_task_session() as session:
-        if await repo.get_status(session, order_id) is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        await _authorize_order(session, caller_uid, order_id)
         rows = [
             payment_repo.ScheduleRow(label=r.label, due_date=r.due_date, amount=r.amount)
             for r in req.rows
@@ -160,8 +182,10 @@ async def set_schedule(order_id: UUID, req: ScheduleReplace) -> dict:
 
 
 @router.patch("/{order_id}")
-async def patch_order(order_id: UUID, req: OrderPatch) -> dict:
+async def patch_order(order_id: UUID, req: OrderPatch,
+                      caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with make_task_session() as session:
+        await _authorize_order(session, caller_uid, order_id)
         ok = await repo.patch_order(
             session, order_id, expected_delivery_date=req.expected_delivery_date, notes=req.notes
         )

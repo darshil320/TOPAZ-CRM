@@ -11,9 +11,10 @@ The FastAPI write layer uses the service-role DB connection, so **RLS does not
 protect writes — the API is the whole authorization boundary.**
 - [x] **CRITICAL-1** — payments restricted to accounts/owner/admin in the API (fixed, `payments.py`).
 - [x] **CRITICAL-2** — over-payment TOCTOU closed with `SELECT … FOR UPDATE` (fixed).
-- [ ] **HIGH-3** — caller identity (`recorded_by`/`created_by`/`salesperson_id`) is currently trusted from the request body. Before go-live, forward the caller's Supabase JWT to the API and derive identity server-side (or cross-check against a session id). Until then the refund/override gate is only as strong as the dashboard server action.
-- [ ] **HIGH-4** — orders/quotations writes don't re-check customer assignment server-side (RLS bypassed on this path). Add an assignment check for non-owner/admin before go-live, or accept that any dashboard-key holder can write any customer's quote/order (owner-run showroom may accept this short-term — record the decision).
-- [ ] **LOW** — add basic rate limiting on public + dashboard-key routes (defense-in-depth).
+- [x] **HIGH-3** — caller identity now derived from a **verified Supabase JWT** (`deps.get_caller_uid` + `api/authz.resolve_caller`), not the request body. Dashboard server actions forward the access token (`lib/apiAuth.ts`). Requires `SUPABASE_JWT_SECRET` set (routes fail closed with 503 if unset). Proven by `test_authz_empirical`.
+- [x] **HIGH-4** — orders/quotations/payments writes now re-check role + customer assignment server-side (`authz.assert_can_write_customer`): owner/admin any, salesperson only assigned, others 403.
+- [ ] **LOW** — add basic rate limiting on public + dashboard-key routes (defense-in-depth). Still open.
+- [ ] Re-run the security-reviewer on the JWT change before go-live (verify audience/expiry handling, and that every write route carries the identity dep).
 
 ## 2. Manual / external gates (cannot be verified headless)
 - [ ] `playwright install --with-deps chromium` on the API image; render one real quote PDF (bytes > 10KB).
@@ -24,7 +25,7 @@ protect writes — the API is the whole authorization boundary.**
 ## 3. Environment
 - [ ] **Staging Supabase project created** (still pending per STATE.md) — migrations land here first.
 - [ ] Apply migrations **0011–0020** to staging; verify enum + `allocate_number` + views; run `pgtest.sh` parity.
-- [ ] API env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DOCUMENTS_BUCKET=documents`, `WA_MEDIA_ENABLED`, `DEFAULT_ADVANCE_PCT`, `SEND_RECEIPTS_TO_CUSTOMER`, `DASHBOARD_API_KEY`.
+- [ ] API env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, **`SUPABASE_JWT_SECRET`** (required — write routes 503 without it), `DOCUMENTS_BUCKET=documents`, `WA_MEDIA_ENABLED`, `DEFAULT_ADVANCE_PCT`, `SEND_RECEIPTS_TO_CUSTOMER`, `DASHBOARD_API_KEY`.
 - [ ] Dashboard env: `TOPAZ_API_URL`, `NEXT_PUBLIC_API_URL`, `DASHBOARD_API_KEY`, `NEXT_PUBLIC_HOME_STATE=GJ`.
 - [ ] Private `documents` Storage bucket created; access is signed-URL only.
 - [ ] Beat schedule live (payment reminders 10:00 IST).

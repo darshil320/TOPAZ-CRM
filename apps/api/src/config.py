@@ -83,6 +83,13 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str | None = None
     FACE_CROP_BUCKET: str = "face-crops"
 
+    # Supabase project JWT secret (HS256) — used to VERIFY the caller's access
+    # token forwarded by dashboard server actions on money/write routes, so the
+    # API derives identity + role from a verified token instead of trusting a
+    # body field (§ security-review HIGH-3/HIGH-4). If unset, identity-gated
+    # routes fail closed (503).
+    SUPABASE_JWT_SECRET: str | None = None
+
     @field_validator("DATABASE_URL")
     @classmethod
     def require_asyncpg_scheme(cls, v: str) -> str:

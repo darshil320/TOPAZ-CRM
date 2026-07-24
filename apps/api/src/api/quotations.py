@@ -18,7 +18,8 @@ from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import quotation_repo as repo
 from ..services import gst, numbering
-from .deps import require_dashboard_key
+from . import authz
+from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/quotations", dependencies=[Depends(require_dashboard_key)])
@@ -90,14 +91,16 @@ def _default_valid_until(supplied: date | None) -> date:
 # ─── endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_quotation(req: QuoteCreate) -> dict:
+async def create_quotation(req: QuoteCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
     async with make_task_session() as session:
+        caller = await authz.resolve_caller(session, caller_uid)
+        await authz.assert_can_write_customer(session, caller, str(req.customer_id))
         quote_no = await numbering.allocate(session, "QTN")
         quotation_id = await repo.create_quotation(
             session, quote_no=quote_no, customer_id=req.customer_id, totals=totals, items=items,
             place_of_supply=req.place_of_supply, valid_until=_default_valid_until(req.valid_until),
-            terms=req.terms, notes=req.notes, created_by=req.created_by,
+            terms=req.terms, notes=req.notes, created_by=UUID(caller.salesperson_id),
         )
         result = await repo.get_quotation(session, quotation_id)
         await session.commit()
@@ -105,10 +108,22 @@ async def create_quotation(req: QuoteCreate) -> dict:
     return result
 
 
+async def _authorize(session, caller_uid: str, quotation_id: UUID) -> None:
+    """Resolve the caller and assert they may write this quotation's customer.
+    404 if the quotation doesn't exist."""
+    caller = await authz.resolve_caller(session, caller_uid)
+    customer_id = await repo.quotation_customer_id(session, quotation_id)
+    if customer_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")
+    await authz.assert_can_write_customer(session, caller, customer_id)
+
+
 @router.put("/{quotation_id}")
-async def update_quotation(quotation_id: UUID, req: QuoteUpdate) -> dict:
+async def update_quotation(quotation_id: UUID, req: QuoteUpdate,
+                           caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
     async with make_task_session() as session:
+        await _authorize(session, caller_uid, quotation_id)
         ok = await repo.update_draft(
             session, quotation_id, totals=totals, items=items,
             place_of_supply=req.place_of_supply, valid_until=req.valid_until,
@@ -123,8 +138,9 @@ async def update_quotation(quotation_id: UUID, req: QuoteUpdate) -> dict:
 
 
 @router.post("/{quotation_id}/revise", status_code=status.HTTP_201_CREATED)
-async def revise_quotation(quotation_id: UUID) -> dict:
+async def revise_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with make_task_session() as session:
+        await _authorize(session, caller_uid, quotation_id)
         new_quote_no = await numbering.allocate(session, "QTN")
         new_id = await repo.clone_for_revision(session, quotation_id, new_quote_no=new_quote_no)
         if new_id is None:
@@ -136,8 +152,9 @@ async def revise_quotation(quotation_id: UUID) -> dict:
 
 
 @router.delete("/{quotation_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_quotation(quotation_id: UUID) -> None:
+async def delete_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> None:
     async with make_task_session() as session:
+        await _authorize(session, caller_uid, quotation_id)
         ok = await repo.soft_delete_draft(session, quotation_id)
         if not ok:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -146,10 +163,11 @@ async def delete_quotation(quotation_id: UUID) -> None:
 
 
 @router.post("/{quotation_id}/send", status_code=status.HTTP_202_ACCEPTED)
-async def send_quotation(quotation_id: UUID) -> dict:
+async def send_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Render (if needed) + WhatsApp the quote to the customer, advancing it to
     'sent'. Draft-only; the render + send + status flip happen in the worker."""
     async with make_task_session() as session:
+        await _authorize(session, caller_uid, quotation_id)
         current = await repo.get_status(session, quotation_id)
     if current is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found")

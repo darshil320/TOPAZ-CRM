@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { apiHeaders } from "@/lib/apiAuth";
 
 // Order writes route through FastAPI (§19-G); reads go direct to Supabase (RLS).
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
@@ -26,7 +27,7 @@ export async function createOrderFromQuote(quotationId: string): Promise<Result>
     const resp = await fetch(`${ORDERS_API}/from-quote/${quotationId}`, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(),
     });
     if (!resp.ok) return { error: await readError(resp) };
     const order = await resp.json();
@@ -48,7 +49,7 @@ export async function patchOrderStatus(
     const resp = await fetch(`${ORDERS_API}/${orderId}/status`, {
       method: "PATCH",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(true),
       body: JSON.stringify({ status: nextStatus, reason: reason ?? null }),
     });
     if (!resp.ok) return { error: await readError(resp) };

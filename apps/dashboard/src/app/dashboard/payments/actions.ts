@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { apiHeaders } from "@/lib/apiAuth";
 
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
@@ -34,26 +34,15 @@ export async function recordPayment(
   if (!DASHBOARD_API_KEY) return { error: "Payments API not configured — set DASHBOARD_API_KEY" };
   if (!(Number(input.amount) > 0)) return { error: "Amount must be greater than 0" };
   try {
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-    const { data: sp } = await supabase
-      .from("salespersons")
-      .select("id")
-      .eq("auth_uid", user.id)
-      .eq("active", true)
-      .single();
-    if (!sp) return { error: "No active salesperson record" };
-
     // paid_at as an ISO datetime (midday local to avoid TZ date-flips).
     const paidAtIso = new Date(`${input.paidAt}T12:00:00`).toISOString();
 
+    // The recorder's identity + role are derived server-side from the forwarded
+    // access token — not sent in the body (security-review HIGH-3).
     const resp = await fetch(`${API_BASE}/api/payments`, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(true),
       body: JSON.stringify({
         order_id: input.orderId,
         kind: input.kind,
@@ -62,7 +51,6 @@ export async function recordPayment(
         paid_at: paidAtIso,
         reference: input.reference?.trim() || null,
         notes: input.notes?.trim() || null,
-        recorded_by: sp.id,
         override_overpay: Boolean(input.overrideOverpay),
       }),
     });

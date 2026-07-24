@@ -169,6 +169,12 @@ async def get_status(session: AsyncSession, order_id: UUID) -> str | None:
     return row[0] if row else None
 
 
+async def order_customer_id(session: AsyncSession, order_id: UUID) -> str | None:
+    result = await session.execute(text("SELECT customer_id FROM orders WHERE id = :id"), {"id": str(order_id)})
+    row = result.first()
+    return str(row[0]) if row else None
+
+
 async def set_status(
     session: AsyncSession, order_id: UUID, *, from_status: str, to_status: str, reason: str | None = None
 ) -> bool:

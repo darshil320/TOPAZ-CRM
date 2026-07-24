@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { apiHeaders } from "@/lib/apiAuth";
 import type { QuotePayload } from "./types";
 
 // Reads go straight to Supabase under RLS; only side-effecting writes route
@@ -74,7 +75,7 @@ export async function createQuote(payload: QuotePayload): Promise<QuoteResult> {
     const resp = await fetch(QUOTES_API, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(true),
       body: JSON.stringify({
         customer_id: payload.customer_id,
         items: payload.items,
@@ -107,7 +108,7 @@ export async function updateQuote(id: string, payload: QuotePayload): Promise<Qu
     const resp = await fetch(`${QUOTES_API}/${id}`, {
       method: "PUT",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "Content-Type": "application/json", "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(true),
       body: JSON.stringify({
         items: payload.items,
         discount: payload.discount || "0",
@@ -133,7 +134,7 @@ export async function reviseQuote(id: string): Promise<QuoteResult> {
     const resp = await fetch(`${QUOTES_API}/${id}/revise`, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(),
     });
     if (!resp.ok) return { error: await readError(resp) };
 
@@ -152,7 +153,7 @@ export async function sendQuote(id: string): Promise<QuoteResult> {
     const resp = await fetch(`${QUOTES_API}/${id}/send`, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(),
     });
     // 202 Accepted: render + WhatsApp send happen in the worker; 409 if not a draft.
     if (!resp.ok) return { error: await readError(resp) };
@@ -171,7 +172,7 @@ export async function deleteQuote(id: string): Promise<{ error: string | null }>
     const resp = await fetch(`${QUOTES_API}/${id}`, {
       method: "DELETE",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "API-Key": DASHBOARD_API_KEY },
+      headers: await apiHeaders(),
     });
     // 204 No Content on success; 409 when the quotation is no longer a draft.
     if (!resp.ok) return { error: await readError(resp) };

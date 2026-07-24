@@ -240,6 +240,14 @@ async def clone_for_revision(
     return new_id
 
 
+async def quotation_customer_id(session: AsyncSession, quotation_id: UUID) -> str | None:
+    result = await session.execute(
+        text("SELECT customer_id FROM quotations WHERE id = :id"), {"id": str(quotation_id)}
+    )
+    row = result.first()
+    return str(row[0]) if row else None
+
+
 async def get_status(session: AsyncSession, quotation_id: UUID) -> str | None:
     result = await session.execute(
         text("SELECT status FROM quotations WHERE id = :id"), {"id": str(quotation_id)}
