@@ -37,7 +37,7 @@ Status values: todo / in-progress / done / verified (gates green + user demo pas
 
 ## Discoveries for later modules
 <!-- things found mid-build that affect future modules -->
-- (none yet)
+- 2026-07-24 · security follow-up (pre-existing, NOT 2A scope): `api/auth.py:link_salesperson` writes `salespersons.auth_uid` from a body-supplied `auth_uid` gated only by the shared DASHBOARD_API_KEY (not a verified token) — the one identity-linkage path still trusting a body field. Flagged by the JWT re-review. Tighten in a future pass. Also still open: LOW rate-limiting on public + dashboard-key routes.
 
 ## Open questions for client (Hemant) — blocks marked modules
 - Product catalog / price list exists? (02; free-text lines work without it)

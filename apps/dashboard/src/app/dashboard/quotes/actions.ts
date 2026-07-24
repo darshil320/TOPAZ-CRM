@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { apiHeaders } from "@/lib/apiAuth";
 import type { QuotePayload } from "./types";
 
@@ -47,31 +46,13 @@ function validatePayload(payload: QuotePayload): string | null {
   return null;
 }
 
-/** Resolve the signed-in user's active salesperson id, or null. */
-async function currentSalespersonId(): Promise<string | null> {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from("salespersons")
-    .select("id")
-    .eq("auth_uid", user.id)
-    .eq("active", true)
-    .single();
-  return data?.id ?? null;
-}
-
 export async function createQuote(payload: QuotePayload): Promise<QuoteResult> {
   if (!DASHBOARD_API_KEY) return { error: "Quotations API not configured — set DASHBOARD_API_KEY" };
   const invalid = validatePayload(payload);
   if (invalid) return { error: invalid };
 
   try {
-    const createdBy = await currentSalespersonId();
-    if (!createdBy) return { error: "Not authenticated" };
-
+    // created_by is derived server-side from the forwarded token (not sent here).
     const resp = await fetch(QUOTES_API, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -84,7 +65,6 @@ export async function createQuote(payload: QuotePayload): Promise<QuoteResult> {
         valid_until: payload.valid_until,
         terms: payload.terms,
         notes: payload.notes,
-        created_by: createdBy,
       }),
     });
     if (!resp.ok) return { error: await readError(resp) };

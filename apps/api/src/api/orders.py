@@ -57,7 +57,7 @@ class OrderCreate(BaseModel):
     items: list[OrderItemIn] = Field(min_length=1)
     discount: Decimal = Field(default=Decimal(0), ge=0)
     place_of_supply: str = "GJ"
-    salesperson_id: UUID | None = None
+    # (salesperson_id is derived from the verified caller token, not the body.)
     expected_delivery_date: date | None = None
     notes: str | None = None
 

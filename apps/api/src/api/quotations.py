@@ -50,7 +50,7 @@ class QuoteCreate(BaseModel):
     valid_until: date | None = None
     terms: str | None = None
     notes: str | None = None
-    created_by: UUID | None = None
+    # (created_by is derived from the verified caller token, not the body.)
 
 
 class QuoteUpdate(BaseModel):
