@@ -7,7 +7,7 @@ Update at END of every session. This file is the cross-session memory.
 | # | Module | Status | Session notes |
 |---|---|---|---|
 | 01 | foundation (migrations 0011-0019, doc_series, GST engine) | done | gates green (111 pytest incl. 24 GST goldens, numbering concurrency, payments immutability, outstanding view); not pushed to prod |
-| 02 | quotations-api | in-progress | BACKEND done: quotation_repo + /api/quotations router (create/update/revise/delete) + shared deps.require_dashboard_key + 4 empirical tests green (totals==golden, revise chain, draft-only 409, soft-delete). UI PENDING: quotes list/builder/detail pages + actions.ts + tsc. |
+| 02 | quotations-api | done | BACKEND (prior session): quotation_repo + /api/quotations router + deps + 4 empirical tests green. UI (this session): quotes list + QuoteBuilder (create/edit) + detail (items/totals/revision chain) + actions.ts (create/update/revise/delete → FastAPI, 10s timeout, API-Key). Client GST mirror `lib/gst.ts` matches gst.py goldens (3500→140/140/3780 intra; 280 inter; 350-disc→126/126/3402). types.ts extended (products/quotations/quotation_items). Nav item added. tsc clean. |
 | 03 | quote-pdf-send-approval | todo | |
 | 04 | orders-pipeline | todo | |
 | 05 | payments | todo | |

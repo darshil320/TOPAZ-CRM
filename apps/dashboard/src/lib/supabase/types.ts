@@ -583,6 +583,220 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          active: boolean
+          base_price: number | null
+          category: string | null
+          created_at: string
+          gst_rate: number
+          hsn: string
+          id: string
+          name: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          base_price?: number | null
+          category?: string | null
+          created_at?: string
+          gst_rate?: number
+          hsn?: string
+          id?: string
+          name: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          base_price?: number | null
+          category?: string | null
+          created_at?: string
+          gst_rate?: number
+          hsn?: string
+          id?: string
+          name?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quotations: {
+        Row: {
+          approval_token: string
+          approved_at: string | null
+          approved_ip: string | null
+          cgst: number
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          discount_amount: number
+          grand_total: number
+          id: string
+          igst: number
+          notes: string | null
+          pdf_key: string | null
+          place_of_supply: string
+          quote_no: string
+          revision_no: number
+          revision_of: string | null
+          sgst: number
+          status: string
+          subtotal: number
+          taxable_value: number
+          terms: string | null
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          approval_token?: string
+          approved_at?: string | null
+          approved_ip?: string | null
+          cgst?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          discount_amount?: number
+          grand_total?: number
+          id?: string
+          igst?: number
+          notes?: string | null
+          pdf_key?: string | null
+          place_of_supply?: string
+          quote_no: string
+          revision_no?: number
+          revision_of?: string | null
+          sgst?: number
+          status?: string
+          subtotal?: number
+          taxable_value?: number
+          terms?: string | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          approval_token?: string
+          approved_at?: string | null
+          approved_ip?: string | null
+          cgst?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          discount_amount?: number
+          grand_total?: number
+          id?: string
+          igst?: number
+          notes?: string | null
+          pdf_key?: string | null
+          place_of_supply?: string
+          quote_no?: string
+          revision_no?: number
+          revision_of?: string | null
+          sgst?: number
+          status?: string
+          subtotal?: number
+          taxable_value?: number
+          terms?: string | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "salespersons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_revision_of_fkey"
+            columns: ["revision_of"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotation_items: {
+        Row: {
+          customization: string | null
+          description: string
+          dimensions: string | null
+          fabric: string | null
+          gst_rate: number
+          hsn: string
+          id: string
+          line_total: number
+          material: string | null
+          polish: string | null
+          product_id: string | null
+          qty: number
+          quotation_id: string
+          sort: number
+          unit: string | null
+          unit_price: number
+        }
+        Insert: {
+          customization?: string | null
+          description: string
+          dimensions?: string | null
+          fabric?: string | null
+          gst_rate: number
+          hsn: string
+          id?: string
+          line_total: number
+          material?: string | null
+          polish?: string | null
+          product_id?: string | null
+          qty: number
+          quotation_id: string
+          sort?: number
+          unit?: string | null
+          unit_price: number
+        }
+        Update: {
+          customization?: string | null
+          description?: string
+          dimensions?: string | null
+          fabric?: string | null
+          gst_rate?: number
+          hsn?: string
+          id?: string
+          line_total?: number
+          material?: string | null
+          polish?: string | null
+          product_id?: string | null
+          qty?: number
+          quotation_id?: string
+          sort?: number
+          unit?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       salespersons: {
         Row: {
           active: boolean
