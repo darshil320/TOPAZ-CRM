@@ -40,18 +40,29 @@ Untouched: `apps/edge`, recognition pipeline, kiosk, enrollment/consent flow.
 
 ## Migration ledger
 
-| Mig | Contents | Module |
-|---|---|---|
-| 0007 | role CHECK expansion + `is_role(text[])` RLS helper | 01 |
-| 0008 | `doc_series` + `allocate_number()` | 01 |
-| 0009 | `products` (optional catalog) | 01 |
-| 0010 | `quotations`, `quotation_items` | 01 |
-| 0011 | `orders`, `order_items` | 01 |
-| 0012 | `payments`, `payment_schedules`, `order_outstanding` view | 01 |
-| 0013 | pipeline_stage enum expansion + data migration; `documents` registry | 01 |
-| 0014 | `workshops` | 08 |
-| 0015 | `production_stage_defs` + seed, `order_item_assignments`, `production_events`, stage triggers | 08/09 |
-| 0016 | `media` polymorphic | 08 |
+**RENUMBERED 2026-07-22:** Phase 1 M5/M6B consumed 0007–0010 (unclaimed_queue,
+customer_alerts_muted, customer_interest_summary, alerts) after this doc was first
+written. Prod/repo migration head = **0010**. Phase 2 therefore starts at **0011**.
+The pipeline enum change is split across two files (0018/0019): a value added to an
+enum cannot be USED in the same transaction that ADDed it, and Supabase wraps each
+migration file in one transaction. See EXECUTION_PLAN_2A_2B §0.1/§0.2.
+
+| Mig | Contents | Module | Status |
+|---|---|---|---|
+| 0011 | role CHECK expansion + `is_role(text[])` RLS helper | 01 | built |
+| 0012 | `doc_series` + `allocate_number()` | 01 | built |
+| 0013 | `products` (optional catalog) | 01 | built |
+| 0014 | `quotations`, `quotation_items` (+ shared `audit_status_change` trigger) | 01 | built |
+| 0015 | `orders`, `order_items` (pure 2A — no production cols) | 01 | built |
+| 0016 | `payments` (immutable), `payment_schedules`, `order_outstanding` view (security_invoker) | 01 | built |
+| 0017 | `documents` registry | 01 | built |
+| 0018 | pipeline_stage: ADD VALUE ×8 (own transaction) | 01 | built |
+| 0019 | pipeline_stage: data migration old→new + default | 01 | built |
+| 0020 | RLS phase-2a completion + `app_settings` | 06 | todo |
+| 0021 | `workshops` | 08 | todo |
+| 0022 | `production_stage_defs` + seed, `order_item_assignments`, `production_events`, stage triggers | 08/09 | todo |
+| 0023 | `media` polymorphic | 08 | todo |
+| 0024 | realtime publication (production_events) — only if needed | 11 | todo |
 
 ## Build order (one module = one session)
 
