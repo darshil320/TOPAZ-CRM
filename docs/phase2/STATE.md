@@ -7,7 +7,7 @@ Update at END of every session. This file is the cross-session memory.
 | # | Module | Status | Session notes |
 |---|---|---|---|
 | 01 | foundation (migrations 0011-0019, doc_series, GST engine) | done | gates green (111 pytest incl. 24 GST goldens, numbering concurrency, payments immutability, outstanding view); not pushed to prod |
-| 02 | quotations-api | todo | |
+| 02 | quotations-api | in-progress | BACKEND done: quotation_repo + /api/quotations router (create/update/revise/delete) + shared deps.require_dashboard_key + 4 empirical tests green (totals==golden, revise chain, draft-only 409, soft-delete). UI PENDING: quotes list/builder/detail pages + actions.ts + tsc. |
 | 03 | quote-pdf-send-approval | todo | |
 | 04 | orders-pipeline | todo | |
 | 05 | payments | todo | |
