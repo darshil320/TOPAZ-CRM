@@ -514,3 +514,25 @@ insert into app_settings (key, value) values
     ('schedule_presets', '[{"label":"Advance","pct":50},{"label":"Before delivery","pct":40},{"label":"On installation","pct":10}]'::jsonb)
 on conflict (key) do nothing;
 
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 0021_messages_realtime.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Topaz CRM — 0021 · publish messages INSERTs to realtime so the dashboard
+-- conversation thread updates live (0010 added only alerts). Guarded: safe if
+-- the publication is absent or already carries the table.
+do $$
+begin
+    if not exists (
+        select 1 from pg_publication_tables
+        where pubname = 'supabase_realtime'
+          and schemaname = 'public'
+          and tablename = 'messages'
+    ) then
+        execute 'alter publication supabase_realtime add table messages';
+    end if;
+exception
+    when undefined_object then
+        null;  -- publication not present in this environment; realtime configured elsewhere
+end $$;
