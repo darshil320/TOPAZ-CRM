@@ -126,7 +126,7 @@ export default function ConversationThread({
               <div key={msg.id} className={`flex flex-col ${isOut ? "items-end" : "items-start"}`}>
                 <div
                   className={[
-                    "max-w-[85%] sm:max-w-[75%] px-4 py-3 text-xs leading-relaxed shadow-2xs transition-all",
+                    "max-w-[90%] sm:max-w-[75%] px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs leading-relaxed shadow-2xs transition-all break-words",
                     isOut
                       ? isRejected
                         ? "bg-slate-100 text-slate-400 border border-slate-200 rounded-2xl rounded-tr-xs line-through"
@@ -140,41 +140,43 @@ export default function ConversationThread({
                 </div>
 
                 {/* Footer status badges */}
-                <div className={`flex items-center gap-2 mt-1.5 px-1 ${isOut ? "flex-row-reverse" : "flex-row"}`}>
-                  <span className="text-[10px] font-semibold text-slate-400">{formatTime(msg.created_at)}</span>
+                <div className={`flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5 px-1 ${isOut ? "flex-row-reverse" : "flex-row"}`}>
+                  <span className="text-[10px] font-semibold text-slate-400 shrink-0">{formatTime(msg.created_at)}</span>
 
                   {isDraft && (
-                    <div className="flex items-center gap-1.5 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded-full shadow-2xs">
-                      <span className="text-[10px] font-bold text-amber-800">
+                    <div className="flex flex-wrap items-center gap-1.5 bg-amber-100/90 border border-amber-300 px-2 py-1 rounded-xl shadow-2xs">
+                      <span className="text-[10px] font-bold text-amber-900 whitespace-nowrap">
                         AI Draft Pending
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(msg.id)}
-                        disabled={isPending}
-                        className="px-2 py-0.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 text-[10px] font-extrabold transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        Approve &amp; Send
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleReject(msg.id)}
-                        disabled={isPending}
-                        className="px-2 py-0.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 text-[10px] font-extrabold transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(msg.id)}
+                          disabled={isPending}
+                          className="px-2 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReject(msg.id)}
+                          disabled={isPending}
+                          className="px-2 py-0.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   {msg.draft_status === "approved" && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
                       Sent ✓✓
                     </span>
                   )}
 
                   {isRejected && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full shrink-0">
                       Rejected
                     </span>
                   )}

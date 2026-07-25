@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, useMemo, useDeferredValue } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { sendReply, approveDraft, rejectDraft } from "../actions";
@@ -99,12 +99,15 @@ export default function WhatsAppFullView({
   const supabaseRef = useRef(createClient());
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Deferred search query for 60fps typing responsiveness
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   // Auto-scroll to bottom whenever messages change or initial load
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Real-time Supabase Subscription
+  // Real-time Supabase Subscription with instant deduplication
   useEffect(() => {
     const supabase = supabaseRef.current;
     const channel = supabase
@@ -120,8 +123,14 @@ export default function WhatsAppFullView({
         (payload) => {
           const newMsg = payload.new as Message;
           setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
+            // Replace any optimistic message matching the content or id
+            const exists = prev.some((m) => m.id === newMsg.id);
+            if (exists) return prev;
+            // Filter out optimistic temporary messages with same content
+            const filtered = prev.filter(
+              (m) => !(m.id.startsWith("temp-") && m.content === newMsg.content)
+            );
+            return [...filtered, newMsg];
           });
         }
       )
@@ -183,18 +192,39 @@ export default function WhatsAppFullView({
   function handleSend(e?: React.FormEvent) {
     if (e) e.preventDefault();
     const text = replyText.trim();
-    if (!text || isPending) return;
+    if (!text) return;
     if (!customer.wa_id) {
       showToast("No WhatsApp number registered for this customer");
       return;
     }
+
+    // ⚡ INSTANT OPTIMISTIC MESSAGE INSERTION (0ms latency perception)
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: Message = {
+      id: tempId,
+      content: text,
+      direction: "outbound",
+      sender_type: "salesperson",
+      draft_status: null,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, tempMsg]);
     setReplyText("");
     setShowEmojiPicker(false);
     setShowAttachMenu(false);
 
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+
     startTransition(async () => {
       const { error } = await sendReply(customerId, customer.wa_id!, text);
-      if (error) showToast(`Send failed: ${error}`);
+      if (error) {
+        showToast(`Send failed: ${error}`);
+        // Revert optimistic message if send failed
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      }
     });
   }
 
@@ -211,11 +241,28 @@ export default function WhatsAppFullView({
     setIsRecording(false);
     if (send && recordingTime > 0) {
       const text = `🎤 Audio Note (${recordingTime}s)`;
+      
+      // ⚡ INSTANT OPTIMISTIC AUDIO NOTE
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: Message = {
+        id: tempId,
+        content: text,
+        direction: "outbound",
+        sender_type: "salesperson",
+        draft_status: null,
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, tempMsg]);
       setReplyText("");
+
       startTransition(async () => {
         if (customer.wa_id) {
           const { error } = await sendReply(customerId, customer.wa_id, text);
-          if (error) showToast(`Audio send failed: ${error}`);
+          if (error) {
+            showToast(`Audio send failed: ${error}`);
+            setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          }
         }
       });
     }
@@ -231,19 +278,24 @@ export default function WhatsAppFullView({
         .toUpperCase()
     : "?";
 
-  const filteredMessages = searchQuery.trim()
-    ? messages.filter((m) =>
-        m.content.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : messages;
+  // Optimized filtered messages using deferred search query
+  const filteredMessages = useMemo(() => {
+    if (!deferredSearchQuery.trim()) return messages;
+    return messages.filter((m) =>
+      m.content.toLowerCase().includes(deferredSearchQuery.toLowerCase())
+    );
+  }, [messages, deferredSearchQuery]);
 
-  const groupedMessages = groupMessagesByDate(filteredMessages);
+  // Memoized date grouping to prevent recalculating on every re-render
+  const groupedMessages = useMemo(() => {
+    return groupMessagesByDate(filteredMessages);
+  }, [filteredMessages]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] sm:h-[calc(100vh-3rem)] max-w-6xl mx-auto rounded-2xl sm:rounded-3xl border border-slate-300/80 shadow-2xl overflow-hidden bg-[#efeae2] relative font-sans text-slate-900">
+    <div className="fixed inset-0 z-[100] flex flex-col h-[100dvh] w-screen bg-[#efeae2] font-sans text-slate-900 overflow-hidden">
       {/* Toast Alert */}
       {toast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-3 flex items-center gap-2">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[110] bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-3 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           {toast}
         </div>
@@ -630,7 +682,7 @@ export default function WhatsAppFullView({
               onChange={(e) => {
                 setReplyText(e.target.value);
                 e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
               }}
               placeholder={
                 customer.wa_id
@@ -639,7 +691,7 @@ export default function WhatsAppFullView({
               }
               disabled={!customer.wa_id}
               rows={1}
-              className="flex-1 text-sm font-medium border border-slate-300/80 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 resize-none transition-all bg-white placeholder:text-slate-400 disabled:opacity-50 min-h-[44px] max-h-[140px] shadow-2xs"
+              className="flex-1 text-sm font-medium leading-normal border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 resize-none transition-all bg-white placeholder:text-slate-400 disabled:opacity-50 min-h-[42px] max-h-[120px] shadow-2xs"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

@@ -84,20 +84,20 @@ export default async function CustomerPage({ params }: Props) {
       </div>
 
       {/* Hero Header Card */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-extrabold text-base shadow-md shadow-blue-500/20 shrink-0">
+          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-extrabold text-sm sm:text-base shadow-md shadow-blue-500/20 shrink-0 mt-0.5 sm:mt-0">
               {initials}
             </div>
 
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-medium text-slate-900 tracking-tight truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight break-words">
                   {customer.name ?? "Unknown Customer"}
                 </h1>
                 <span
-                  className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                  className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
                     customer.handler_mode === "ai"
                       ? "bg-purple-100 text-purple-800 border border-purple-200"
                       : "bg-blue-100 text-blue-800 border border-blue-200"
@@ -107,10 +107,10 @@ export default async function CustomerPage({ params }: Props) {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500 font-medium">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5 text-xs text-slate-500 font-medium">
                 {customer.phone && (
                   <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                     {customer.phone}
@@ -126,10 +126,10 @@ export default async function CustomerPage({ params }: Props) {
           </div>
 
           {/* Header Action Buttons */}
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <Link
               href="/dashboard/quotes/new"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -141,32 +141,34 @@ export default async function CustomerPage({ params }: Props) {
       </div>
 
       {/* 2-Column Split Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Left Column: Communication & Meeting Notes (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-5 sm:space-y-6">
           {/* WhatsApp Communication Panel */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col" style={{ height: 540 }}>
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
+            <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-slate-100 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 bg-slate-50/70">
               <Link
                 href={`/dashboard/customers/${id}/whatsapp`}
-                className="flex items-center gap-2 group hover:opacity-80 transition-all"
+                prefetch={true}
+                className="flex items-center gap-2 group hover:opacity-80 transition-all min-w-0"
                 title="Open Full WhatsApp View"
               >
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors flex items-center gap-1.5 truncate">
                   WhatsApp Live Communication
-                  <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                   </svg>
                 </h3>
               </Link>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto shrink-0">
                 {customer.wa_id && (
-                  <span className="text-xs font-mono font-semibold text-slate-400">+{customer.wa_id}</span>
+                  <span className="text-[11px] sm:text-xs font-mono font-semibold text-slate-400 truncate">+{customer.wa_id}</span>
                 )}
                 <Link
                   href={`/dashboard/customers/${id}/whatsapp`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-700 text-[11px] font-bold transition-all shadow-2xs active:scale-95"
+                  prefetch={true}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-700 text-[11px] font-bold transition-all shadow-2xs active:scale-95 shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
