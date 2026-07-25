@@ -30,7 +30,7 @@ fi
 echo "== 2/3 Deleting DB rows (FK-safe order) =="
 # table:filter-column (pipeline_stages has no id column — PK is customer_id)
 for SPEC in messages:id followups:id customer_assignments:id visits:id \
-            face_embeddings:id conversations:id coverage_requests:id \
+            face_embeddings:id conversations:id coverage_r\equests:id \
             pipeline_stages:customer_id customers:id consents:id; do
   T="${SPEC%%:*}"; COL="${SPEC##*:}"
   CODE=$(curl -s -m 30 -o /dev/null -w "%{http_code}" -X DELETE \
