@@ -4,6 +4,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import ConversationThread from "./ConversationThread";
 import StageSelect from "./StageSelect";
+import { orderStatusChip } from "../../orders/status";
+import { formatINR } from "@/lib/format";
 import AddCollaboratorForm from "./AddCollaboratorForm";
 import MuteAlertsToggle from "./MuteAlertsToggle";
 import InterestSummary from "./InterestSummary";
@@ -41,6 +43,7 @@ export default async function CustomerPage({ params }: Props) {
     { data: customer },
     { data: visits },
     { data: messages },
+    { data: orders },
     { data: stageRow },
     { data: meetingNotes },
     teamResult,
@@ -49,6 +52,7 @@ export default async function CustomerPage({ params }: Props) {
     supabase.from("customers").select("*").eq("id", id).single(),
     supabase.from("visits").select("id, match_band, occurred_at, photo_key").eq("customer_id", id).order("occurred_at", { ascending: false }).limit(5),
     supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: false }).limit(30),
+    supabase.from("orders").select("id, order_no, status, grand_total, created_at").eq("customer_id", id).order("created_at", { ascending: false }).limit(20),
     supabase.from("pipeline_stages").select("stage").eq("customer_id", id).single(),
     supabase.from("conversations").select("id, notes, budget, products, stage_at_time, created_at, salespersons(name)").eq("customer_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("customer_assignments").select("id, role, salespersons!salesperson_id(id, name)").eq("customer_id", id).eq("active", true),
@@ -65,6 +69,17 @@ export default async function CustomerPage({ params }: Props) {
   const addableSalespersons = (activeSalespersons ?? [])
     .filter((s: any) => !assignedIds.has(s.id))
     .map((s: any) => ({ id: s.id as string, name: s.name as string }));
+
+  // Outstanding per order (view keyed by order_id) — fetched after the orders
+  // resolve so we can scope the query to just this customer's orders.
+  const orderRows = orders ?? [];
+  const orderIds = orderRows.map((o: any) => o.id);
+  const { data: outstandingRows } = orderIds.length
+    ? await supabase.from("order_outstanding").select("order_id, outstanding").in("order_id", orderIds)
+    : { data: [] };
+  const outstandingByOrder = new Map<string, number>(
+    (outstandingRows ?? []).map((r: any) => [r.order_id as string, Number(r.outstanding)]),
+  );
 
   const currentStage = stageRow?.stage ?? "inquiry";
   const initials = customer.name
@@ -210,6 +225,52 @@ export default async function CustomerPage({ params }: Props) {
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Pipeline Stage</h3>
             <StageSelect customerId={id} currentStage={currentStage} />
           </div>
+
+          {/* Orders & Production Status */}
+          {orderRows.length > 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Orders &amp; Production</h3>
+              <div className="divide-y divide-slate-100">
+                {orderRows.map((o: any) => {
+                  const chip = orderStatusChip(o.status);
+                  const outstanding = outstandingByOrder.get(o.id);
+                  return (
+                    <Link
+                      key={o.id}
+                      href={`/dashboard/orders/${o.id}`}
+                      className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 group"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors truncate">
+                            {o.order_no}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${chip.color}`}>
+                            {chip.label}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          {" · "}
+                          {formatINR(o.grand_total)}
+                        </span>
+                      </div>
+                      {outstanding !== undefined && outstanding > 0 && (
+                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                          {formatINR(outstanding)} due
+                        </span>
+                      )}
+                      {outstanding !== undefined && outstanding <= 0 && (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                          Paid
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Interest & Preference Summary */}
           <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
