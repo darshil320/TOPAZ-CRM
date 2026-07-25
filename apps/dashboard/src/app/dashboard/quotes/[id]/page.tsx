@@ -105,12 +105,12 @@ export default async function QuoteDetailPage({ params }: Props) {
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Revision History</p>
           <div className="space-y-1.5 text-sm">
             {parent && (
-              <Link href={`/dashboard/quotes/${parent.id}`} className="block text-blue-600 hover:underline">
+              <Link href={`/dashboard/quotes/${parent.id}`} className="block text-acc hover:opacity-80 font-mono font-medium">
                 ← Revised from {parent.quote_no} (Rev {parent.revision_no})
               </Link>
             )}
             {(children ?? []).map((c) => (
-              <Link key={c.id} href={`/dashboard/quotes/${c.id}`} className="block text-blue-600 hover:underline">
+              <Link key={c.id} href={`/dashboard/quotes/${c.id}`} className="block text-acc hover:opacity-80 font-mono font-medium">
                 → Revised to {c.quote_no} (Rev {c.revision_no}) · {statusChip(c.status).label}
               </Link>
             ))}
@@ -210,8 +210,8 @@ export default async function QuoteDetailPage({ params }: Props) {
 function TotalRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <dt className={muted ? "text-slate-400" : "text-slate-500"}>{label}</dt>
-      <dd className={muted ? "text-slate-500" : "text-slate-700"}>{value}</dd>
+      <dt className={muted ? "text-t3" : "text-t2"}>{label}</dt>
+      <dd className={muted ? "text-t3 font-mono tabular-nums" : "text-t1 font-mono tabular-nums font-semibold"}>{value}</dd>
     </div>
   );
 }

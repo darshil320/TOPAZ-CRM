@@ -50,7 +50,18 @@ export default async function AppShell({ children }: { children: ReactNode }) {
         (p): PresenceEntry => ({ id: p.id, name: p.name, initials: initialsOf(p.name) }),
       )}
       unreadCount={unreadCount ?? 0}
-      mobileNav={<MobileNav role={role} />}
+      mobileNav={
+        <MobileNav
+          role={role}
+          user={{
+            name: salesperson.name ?? "Salesperson",
+            email: user?.email ?? "",
+            initials: initialsOf(salesperson.name),
+            role,
+            available: salesperson.available ?? false,
+          }}
+        />
+      }
       mobileBrand={<MobileBrand />}
     >
       <VisitAlertBanner salespersonId={salesperson.id} />

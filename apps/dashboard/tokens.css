@@ -84,7 +84,7 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--t1); }
 * { box-sizing: border-box; }
 body { font-family: var(--f); -webkit-font-smoothing: antialiased; text-wrap: pretty; }
 a { color: var(--acc); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a:hover { text-decoration: none; }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 

@@ -69,7 +69,7 @@ export default async function OrderDetailPage({ params }: Props) {
               {quote && (
                 <span className="text-slate-400">
                   {" · Source: "}
-                  <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-blue-600 hover:underline font-bold">
+                  <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-acc hover:opacity-80 font-mono font-semibold">
                     {quote.quote_no}
                   </Link>
                 </span>
@@ -276,9 +276,9 @@ export default async function OrderDetailPage({ params }: Props) {
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "green" | "amber" }) {
   const color = tone === "green" ? "text-green-700" : tone === "amber" ? "text-amber-700" : "text-slate-900";
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-1 text-base font-bold ${color}`}>{value}</p>
+    <div className="rounded-card border border-ln bg-sf p-4 shadow-sh">
+      <p className="text-label-sm uppercase text-t3">{label}</p>
+      <p className={`mt-1 text-base font-bold font-mono tabular-nums ${color}`}>{value}</p>
     </div>
   );
 }
@@ -286,8 +286,8 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "gr
 function TotalRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex justify-between">
-      <dt className={muted ? "text-slate-400" : "text-slate-500"}>{label}</dt>
-      <dd className={muted ? "text-slate-500" : "text-slate-700"}>{value}</dd>
+      <dt className={muted ? "text-t3" : "text-t2"}>{label}</dt>
+      <dd className={muted ? "text-t3 font-mono tabular-nums" : "text-t1 font-mono tabular-nums font-semibold"}>{value}</dd>
     </div>
   );
 }
