@@ -7,11 +7,11 @@ import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
 // Read-only WhatsApp template registry. Meta approval status is tracked manually
 // until we wire the Meta template-status API (2B). Reflects STATE.md.
 const TEMPLATES = [
-  { name: "topaz_welcome", use: "Kiosk welcome", status: "approved" },
-  { name: "topaz_followup", use: "Visit follow-up", status: "approved" },
-  { name: "quote_sent", use: "Quote link (outside 24h)", status: "pending" },
-  { name: "quote_approved_confirm", use: "Approval confirmation", status: "pending" },
-  { name: "payment_due", use: "Payment reminder", status: "pending" },
+  { name: "topaz_welcome", use: "Kiosk welcome message", status: "approved" },
+  { name: "topaz_followup", use: "Visit follow-up message", status: "approved" },
+  { name: "quote_sent", use: "Quote link (outside 24h window)", status: "pending" },
+  { name: "quote_approved_confirm", use: "Approval confirmation message", status: "pending" },
+  { name: "payment_due", use: "Payment reminder dispatch", status: "pending" },
 ];
 
 function num(v: unknown, fallback: number): number {
@@ -37,45 +37,55 @@ export default async function AdminPage() {
     send_receipts_to_customer: settingsMap.get("send_receipts_to_customer") === true,
   };
 
-  const card = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
-  const heading = "mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400";
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-lg font-bold text-slate-900">Admin</h1>
+    <div className="space-y-6 max-w-5xl">
+      {/* Page Title */}
+      <div className="border-b border-slate-200/80 pb-4">
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Admin</h1>
+        <p className="text-xs font-medium text-slate-500 mt-1">
+          Manage product catalog, commercial quotation settings, and messaging templates.
+        </p>
+      </div>
 
-      <div className={card}>
-        <p className={heading}>Products / Catalog</p>
+      {/* Product Catalog Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
         <ProductAdmin products={(products ?? []) as AdminProduct[]} />
       </div>
 
-      <div className={card}>
-        <p className={heading}>Quote &amp; Payment Settings</p>
+      {/* Settings Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
         <SettingsAdmin initial={settings} />
       </div>
 
-      <div className={card}>
-        <p className={heading}>WhatsApp Templates</p>
-        <div className="divide-y divide-slate-100">
+      {/* WhatsApp Templates Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-base font-extrabold text-slate-900">WhatsApp Message Templates</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Meta API template status for automated customer communication dispatches.
+          </p>
+        </div>
+
+        <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-2xl overflow-hidden bg-slate-50/50">
           {TEMPLATES.map((t) => (
-            <div key={t.name} className="flex items-center justify-between py-2 text-sm">
-              <div>
-                <span className="font-medium text-slate-800">{t.name}</span>
-                <span className="ml-2 text-xs text-slate-400">{t.use}</span>
+            <div key={t.name} className="flex items-center justify-between p-3.5 bg-white hover:bg-slate-50 transition-colors">
+              <div className="flex flex-col">
+                <span className="font-mono text-xs font-bold text-slate-800">{t.name}</span>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5">{t.use}</span>
               </div>
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  t.status === "approved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                  t.status === "approved"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
                 }`}
               >
+                <span className={`w-1.5 h-1.5 rounded-full ${t.status === "approved" ? "bg-emerald-500" : "bg-amber-500"}`} />
                 {t.status}
               </span>
             </div>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
-          Submit pending templates in WhatsApp Manager; delivery outside the 24h window needs approval.
-        </p>
       </div>
     </div>
   );
