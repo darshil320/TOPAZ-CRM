@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronsUpDown, Search } from "lucide-react";
+import KbdChip from "@/components/ui/KbdChip";
 import NavGroups from "./NavGroups";
 import AccountMenu, { type AccountMenuUser } from "./AccountMenu";
 import type { Role } from "@/components/nav-config";
@@ -43,8 +44,8 @@ export default function Sidebar({
           </span>
           <span className="flex-1 min-w-0">
             <span className="block truncate text-ui font-semibold tracking-[-.012em] text-t1">Topaz CRM</span>
-            <span className="block truncate text-[11px] font-medium text-t3 capitalize">
-              {role} workspace · Surat
+            <span className="block truncate text-[11px] font-medium text-t3">
+              {role === "owner" ? "Owner" : "Sales"} workspace · Surat
             </span>
           </span>
           <ChevronsUpDown className="w-[13px] h-[13px] text-t3 shrink-0" strokeWidth={2} />
@@ -59,7 +60,7 @@ export default function Sidebar({
         >
           <Search className="w-3.5 h-3.5" strokeWidth={2} />
           <span className="flex-1 text-left text-[12.5px] font-450">Search or jump to…</span>
-          <span className="text-[10.5px] font-medium font-mono bg-sf3 rounded-kbd px-[5px] py-[2px]">⌘K</span>
+          <KbdChip>⌘K</KbdChip>
         </button>
       )}
 
@@ -67,13 +68,13 @@ export default function Sidebar({
 
       {/* Presence — hide entirely if no one is on the floor */}
       {!collapsed && presence.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-ln">
-          <div className="flex items-center gap-1.5 mb-2">
+        <div className="mt-3 pt-3 border-t border-ln shrink-0">
+          <div className="flex items-center gap-1.5 mb-2 px-1">
             <span className="w-1.5 h-1.5 rounded-full bg-pos animate-[livePulse_2.4s_ease-out_infinite]" />
             <span className="text-label uppercase text-t3">On the floor</span>
             <span className="ml-auto text-[11px] font-medium font-mono text-t3">{presence.length}</span>
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 max-h-[140px] overflow-y-auto pr-1">
             {presence.map((p) => (
               <div key={p.id} className="flex items-center gap-2.5 px-1 py-[5px] rounded-sm hover:bg-sf3">
                 <span className="w-[22px] h-[22px] rounded-full bg-sf3 flex items-center justify-center text-[9.5px] font-semibold font-mono text-t2 shrink-0">

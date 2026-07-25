@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronUp, ChevronDown, User, SlidersHorizontal, UserCog, Moon, Sun, HelpCircle, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
+import { Popover, PopoverPanel } from "@/components/ui/Popover";
 
 export interface AccountMenuUser {
   name: string;
@@ -39,7 +40,7 @@ function MenuRow({
     >
       <span className="text-t3 shrink-0 [&>svg]:w-[14.5px] [&>svg]:h-[14.5px]">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
-      {trailing && <span className="text-meta text-t3 font-mono">{trailing}</span>}
+      {trailing && <span className="text-[10px] font-medium font-mono text-t3">{trailing}</span>}
     </button>
   );
 }
@@ -53,26 +54,9 @@ export default function AccountMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [theme, setThemeState] = useState<Theme>("light");
-  const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => setThemeState(getStoredTheme()), []);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -81,7 +65,7 @@ export default function AccountMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative border-t border-ln pt-2.5">
+    <Popover open={open} onClose={() => setOpen(false)} className="border-t border-ln pt-2.5 mt-auto shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -115,9 +99,7 @@ export default function AccountMenu({
       </button>
 
       {open && (
-        <div
-          className="absolute bottom-[52px] left-0 w-[244px] bg-sf rounded-pop shadow-shp p-[5px] animate-popIn z-50"
-        >
+        <PopoverPanel className="absolute bottom-[52px] left-0 w-[244px]">
           <div className="px-2.5 pt-1.5 pb-2.5 border-b border-ln2 mb-1">
             <div className="truncate text-ui font-semibold text-t1">{user.name}</div>
             <div className="truncate text-[11.5px] font-450 text-t3">{user.email}</div>
@@ -137,8 +119,8 @@ export default function AccountMenu({
           <div className="h-px bg-ln2 mx-1.5 my-1" />
 
           <MenuRow icon={<LogOut />} label="Sign out" onClick={handleSignOut} />
-        </div>
+        </PopoverPanel>
       )}
-    </div>
+    </Popover>
   );
 }
