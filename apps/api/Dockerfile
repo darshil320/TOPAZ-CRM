@@ -15,5 +15,8 @@ RUN pip install --no-cache-dir /app/packages/shared
 COPY apps/api /app/apps/api
 RUN pip install --no-cache-dir /app/apps/api
 
+# Install headless Chromium for PDF rendering (quote/receipt PDFs)
+RUN playwright install --with-deps chromium
+
 WORKDIR /app/apps/api
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
