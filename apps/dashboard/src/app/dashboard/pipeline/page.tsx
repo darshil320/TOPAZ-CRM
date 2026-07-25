@@ -39,10 +39,14 @@ export default async function PipelinePage() {
   const columns = BOARD_STAGES.map((s) => ({ stage: s, label: STAGE_LABELS[s] ?? s }));
 
   return (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-lg font-bold text-slate-900">Pipeline Board</h1>
-        <p className="mt-0.5 text-sm text-slate-500">Drag a customer between stages · {cards.length} in pipeline</p>
+    /* Override the layout's max-w-5xl so the kanban can scroll freely */
+    <div className="-mx-4 sm:-mx-6 px-4 sm:px-6">
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-slate-900">Pipeline Board</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Drag cards between stages (desktop) · tap to expand (mobile) ·{" "}
+          <span className="font-semibold text-slate-700">{cards.length}</span> in pipeline
+        </p>
       </div>
       <PipelineBoard columns={columns} cards={cards} />
     </div>
