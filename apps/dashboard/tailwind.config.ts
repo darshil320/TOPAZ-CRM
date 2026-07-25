@@ -45,7 +45,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "var(--font-plus-jakarta)",
+          "var(--font-inter)",
           "-apple-system",
           "BlinkMacSystemFont",
           '"Segoe UI"',
