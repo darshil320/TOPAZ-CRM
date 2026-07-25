@@ -5,6 +5,8 @@ import { computeLineTotal } from "@/lib/gst";
 import { formatINR } from "@/lib/format";
 import type { LineDraft, ProductOption } from "./types";
 
+import Button from "@/components/ui/Button";
+
 interface Props {
   lines: LineDraft[];
   products: ProductOption[];
@@ -15,8 +17,8 @@ interface Props {
 }
 
 const FIELD =
-  "w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
-const LABEL = "block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1";
+  "w-full rounded-md border border-ln bg-sf px-3 py-1.5 text-ui text-t1 placeholder-t3 focus:border-acc focus:outline-none transition-all";
+const LABEL = "block text-caption font-semibold text-t2 mb-1";
 
 export default function LineItemsEditor({
   lines,
@@ -34,21 +36,21 @@ export default function LineItemsEditor({
         const lineTotal = computeLineTotal(Number(line.qty) || 0, Number(line.unit_price) || 0);
         const isOpen = Boolean(expanded[line.key]);
         return (
-          <div key={line.key} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">Item {index + 1}</span>
+          <div key={line.key} className="rounded-card border border-ln bg-sf2 p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-caption font-semibold text-t1">Item {index + 1}</span>
               <button
                 type="button"
                 onClick={() => onRemove(line.key)}
                 disabled={lines.length === 1}
-                className="text-xs font-medium text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="text-caption font-semibold text-warn hover:opacity-80 disabled:opacity-40 transition-opacity"
               >
                 Remove
               </button>
             </div>
 
             {products.length > 0 && (
-              <div className="mb-2">
+              <div>
                 <label className={LABEL}>From catalog (optional)</label>
                 <select
                   value={line.product_id ?? ""}
@@ -68,7 +70,7 @@ export default function LineItemsEditor({
               </div>
             )}
 
-            <div className="mb-2">
+            <div>
               <label className={LABEL}>Description</label>
               <input
                 type="text"
@@ -89,7 +91,7 @@ export default function LineItemsEditor({
                   step="any"
                   value={line.qty}
                   onChange={(e) => onUpdate(line.key, { qty: e.target.value })}
-                  className={FIELD}
+                  className={`${FIELD} font-mono`}
                 />
               </div>
               <div className="col-span-1">
@@ -111,7 +113,7 @@ export default function LineItemsEditor({
                   step="any"
                   value={line.unit_price}
                   onChange={(e) => onUpdate(line.key, { unit_price: e.target.value })}
-                  className={FIELD}
+                  className={`${FIELD} font-mono`}
                 />
               </div>
               <div className="col-span-1">
@@ -121,7 +123,7 @@ export default function LineItemsEditor({
                   value={line.hsn}
                   placeholder="9403"
                   onChange={(e) => onUpdate(line.key, { hsn: e.target.value })}
-                  className={FIELD}
+                  className={`${FIELD} font-mono`}
                 />
               </div>
               <div className="col-span-1">
@@ -134,12 +136,12 @@ export default function LineItemsEditor({
                   step="any"
                   value={line.gst_rate}
                   onChange={(e) => onUpdate(line.key, { gst_rate: e.target.value })}
-                  className={FIELD}
+                  className={`${FIELD} font-mono`}
                 />
               </div>
               <div className="col-span-1 flex flex-col justify-end">
                 <label className={LABEL}>Line total</label>
-                <div className="rounded-lg border border-transparent px-2.5 py-1.5 text-sm font-semibold text-slate-900">
+                <div className="rounded-md border border-ln bg-sf px-2.5 py-1.5 text-ui font-mono font-bold text-t1">
                   {formatINR(lineTotal)}
                 </div>
               </div>
@@ -148,29 +150,29 @@ export default function LineItemsEditor({
             <button
               type="button"
               onClick={() => setExpanded((prev) => ({ ...prev, [line.key]: !prev[line.key] }))}
-              className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="text-caption font-semibold text-t1 hover:text-acc transition-colors"
             >
               {isOpen ? "Hide" : "Add"} furniture details
             </button>
 
             {isOpen && (
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="pt-2 border-t border-ln grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(
                   [
                     ["dimensions", "Dimensions", "e.g. 84\" x 36\" x 32\""],
-                    ["material", "Material", "e.g. Sheesham wood"],
-                    ["fabric", "Fabric", "e.g. Suede, colour grey"],
-                    ["polish", "Polish", "e.g. Walnut matte"],
-                    ["customization", "Customization", "e.g. Extra storage drawer"],
+                    ["material", "Material", "e.g. Teak wood frame"],
+                    ["fabric", "Fabric / Leather", "e.g. Velvet Royal Blue"],
+                    ["polish", "Polish / Finish", "e.g. Walnut Matte"],
+                    ["customization", "Customization", "e.g. Extra soft foam cushion"],
                   ] as const
-                ).map(([field, lbl, ph]) => (
-                  <div key={field}>
-                    <label className={LABEL}>{lbl}</label>
+                ).map(([key, labelText, placeholder]) => (
+                  <div key={key}>
+                    <label className={LABEL}>{labelText}</label>
                     <input
                       type="text"
-                      value={line[field]}
-                      placeholder={ph}
-                      onChange={(e) => onUpdate(line.key, { [field]: e.target.value })}
+                      value={line[key] ?? ""}
+                      placeholder={placeholder}
+                      onChange={(e) => onUpdate(line.key, { [key]: e.target.value })}
                       className={FIELD}
                     />
                   </div>
@@ -181,13 +183,9 @@ export default function LineItemsEditor({
         );
       })}
 
-      <button
-        type="button"
-        onClick={onAdd}
-        className="w-full rounded-xl border border-dashed border-slate-300 py-2.5 text-sm font-medium text-slate-500 hover:border-blue-400 hover:text-blue-600"
-      >
-        + Add another item
-      </button>
+      <Button type="button" variant="secondary" onClick={onAdd} className="w-full justify-center">
+        + Add Line Item
+      </Button>
     </div>
   );
 }

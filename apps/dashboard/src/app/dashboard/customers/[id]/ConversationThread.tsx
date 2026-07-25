@@ -30,12 +30,14 @@ export default function ConversationThread({
   const [replyText, setReplyText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supabaseRef = useRef(createClient());
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function ConversationThread({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `customer_id=eq.${customerId}` },
-        (payload) => setMessages((prev) => [...prev, payload.new as Message]),
+        (payload: { new: Message }) => setMessages((prev) => [...prev, payload.new]),
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -105,7 +107,7 @@ export default function ConversationThread({
       )}
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+      <div ref={feedRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full py-16 text-center">
             <p className="text-body font-semibold text-t1">No WhatsApp messages yet</p>
@@ -183,7 +185,6 @@ export default function ConversationThread({
             );
           })
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input Bar */}

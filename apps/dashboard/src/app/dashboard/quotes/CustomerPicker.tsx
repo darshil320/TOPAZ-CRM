@@ -34,7 +34,7 @@ export default function CustomerPicker({ customers, value, onChange, disabled = 
 
   if (disabled) {
     return (
-      <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+      <div className="w-full rounded-md border border-ln bg-sf2 px-3 py-2 text-ui font-medium text-t1">
         {selected ? label(selected) : "—"}
       </div>
     );
@@ -52,10 +52,10 @@ export default function CustomerPicker({ customers, value, onChange, disabled = 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 hover:border-slate-400"
+          className="flex w-full items-center justify-between rounded-md border border-ln bg-sf px-3 py-2 text-left text-ui text-t1 hover:border-acc/40 transition-colors"
         >
-          <span className="truncate">{label(selected)}</span>
-          <span className="ml-2 text-xs text-blue-600">Change</span>
+          <span className="truncate font-medium">{label(selected)}</span>
+          <span className="ml-2 text-caption font-semibold text-acc">Change</span>
         </button>
       ) : (
         <input
@@ -72,14 +72,14 @@ export default function CustomerPicker({ customers, value, onChange, disabled = 
             // Delay so an option click registers before the list unmounts.
             blurTimer.current = setTimeout(() => setOpen(false), 150);
           }}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full rounded-md border border-ln bg-sf px-3 py-2 text-ui text-t1 placeholder-t3 focus:border-acc focus:outline-none transition-all"
         />
       )}
 
       {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-card border border-ln bg-sf shadow-shp">
           {filtered.length === 0 ? (
-            <p className="px-3 py-2.5 text-sm text-slate-400">No matching customers</p>
+            <p className="px-3 py-2.5 text-caption text-t3">No matching customers</p>
           ) : (
             filtered.map((c) => (
               <button
@@ -90,10 +90,10 @@ export default function CustomerPicker({ customers, value, onChange, disabled = 
                   if (blurTimer.current) clearTimeout(blurTimer.current);
                   pick(c);
                 }}
-                className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50"
+                className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-sf2 transition-colors border-b border-ln2 last:border-0"
               >
-                <span className="text-sm text-slate-900">{label(c)}</span>
-                {c.phone && c.name && <span className="text-xs text-slate-400">{c.phone}</span>}
+                <span className="text-ui font-semibold text-t1">{label(c)}</span>
+                {c.phone && c.name && <span className="text-caption font-mono text-t3">{c.phone}</span>}
               </button>
             ))
           )}
