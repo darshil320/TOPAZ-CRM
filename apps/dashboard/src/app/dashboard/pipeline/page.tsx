@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
 import PipelineBoard, { type BoardCard } from "./PipelineBoard";
 import { BOARD_STAGES, STAGE_LABELS } from "./stages";
 
@@ -39,15 +40,11 @@ export default async function PipelinePage() {
   const columns = BOARD_STAGES.map((s) => ({ stage: s, label: STAGE_LABELS[s] ?? s }));
 
   return (
-    /* Override the layout's max-w-5xl so the kanban can scroll freely */
-    <div className="-mx-4 sm:-mx-6 px-4 sm:px-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-slate-900">Pipeline Board</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Drag cards between stages (desktop) · tap to expand (mobile) ·{" "}
-          <span className="font-semibold text-slate-700">{cards.length}</span> in pipeline
-        </p>
-      </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="Pipeline Board"
+        subtitle={`Drag cards between stages (desktop) · tap to expand (mobile) · ${cards.length} in pipeline`}
+      />
       <PipelineBoard columns={columns} cards={cards} />
     </div>
   );

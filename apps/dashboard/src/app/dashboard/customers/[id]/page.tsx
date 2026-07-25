@@ -2,10 +2,14 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { Card } from "@/components/ui/Card";
+import SectionHeader from "@/components/ui/SectionHeader";
+import { buttonVariants } from "@/components/ui/Button";
+import Pill from "@/components/ui/Pill";
 import ConversationThread from "./ConversationThread";
 import StageSelect from "./StageSelect";
 import { orderStatusChip } from "../../orders/status";
-import { formatINR } from "@/lib/format";
+import { formatINR, formatDate } from "@/lib/format";
 import AddCollaboratorForm from "./AddCollaboratorForm";
 import MuteAlertsToggle from "./MuteAlertsToggle";
 import InterestSummary from "./InterestSummary";
@@ -15,12 +19,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type Props = { params: Promise<{ id: string }> };
-
-const BAND_CONFIG: Record<string, { label: string; color: string }> = {
-  REPEAT: { label: "Repeat Visit", color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
-  UNCERTAIN: { label: "Uncertain", color: "bg-amber-50 text-amber-800 border-amber-200" },
-  NEW: { label: "New Visitor", color: "bg-slate-100 text-slate-700 border-slate-200" },
-};
 
 export default async function CustomerPage({ params }: Props) {
   const { id } = await params;
@@ -70,8 +68,6 @@ export default async function CustomerPage({ params }: Props) {
     .filter((s: any) => !assignedIds.has(s.id))
     .map((s: any) => ({ id: s.id as string, name: s.name as string }));
 
-  // Outstanding per order (view keyed by order_id) — fetched after the orders
-  // resolve so we can scope the query to just this customer's orders.
   const orderRows = orders ?? [];
   const orderIds = orderRows.map((o: any) => o.id);
   const { data: outstandingRows } = orderIds.length
@@ -82,15 +78,12 @@ export default async function CustomerPage({ params }: Props) {
   );
 
   const currentStage = stageRow?.stage ?? "inquiry";
-  const initials = customer.name
-    ? customer.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
-    : "?";
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      {/* Back Navigation & Breadcrumb */}
+    <div className="space-y-6 max-w-7xl mx-auto pb-8">
+      {/* Back Navigation */}
       <div className="flex items-center justify-between">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-caption font-semibold text-t3 hover:text-t1 transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
@@ -99,98 +92,59 @@ export default async function CustomerPage({ params }: Props) {
       </div>
 
       {/* Hero Header Card */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
+      <Card className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-extrabold text-sm sm:text-base shadow-md shadow-blue-500/20 shrink-0 mt-0.5 sm:mt-0">
-              {initials}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-title font-semibold text-t1 tracking-tight">
+                {customer.name ?? "Unknown Customer"}
+              </h1>
+              <Pill tone={customer.handler_mode === "ai" ? "pos" : "neutral"} dot={false}>
+                {customer.handler_mode === "ai" ? "AI Mode" : "Human Salesperson"}
+              </Pill>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight break-words">
-                  {customer.name ?? "Unknown Customer"}
-                </h1>
-                <span
-                  className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
-                    customer.handler_mode === "ai"
-                      ? "bg-purple-100 text-purple-800 border border-purple-200"
-                      : "bg-blue-100 text-blue-800 border border-blue-200"
-                  }`}
-                >
-                  {customer.handler_mode === "ai" ? "AI Assistant Mode" : "Human Salesperson"}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-caption text-t2 font-medium">
+              {customer.phone && (
+                <span className="font-mono">{customer.phone}</span>
+              )}
+              {customer.primary_interest && (
+                <span className="bg-sf2 text-t1 font-medium px-2 py-0.5 rounded-kbd text-[11px] border border-ln">
+                  {customer.primary_interest}
                 </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5 text-xs text-slate-500 font-medium">
-                {customer.phone && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    {customer.phone}
-                  </span>
-                )}
-                {customer.primary_interest && (
-                  <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md text-[11px]">
-                    {customer.primary_interest}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Header Action Buttons */}
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <Link
               href="/dashboard/quotes/new"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
+              className={buttonVariants({ variant: "primary" })}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
               Create Quotation
             </Link>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* 2-Column Split Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column: Communication & Meeting Notes (7 cols) */}
-        <div className="lg:col-span-7 space-y-5 sm:space-y-6">
+        <div className="lg:col-span-7 space-y-5">
           {/* WhatsApp Communication Panel */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
-            <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-slate-100 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 bg-slate-50/70">
+          <Card className="p-0 overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
+            <div className="px-4 py-3 border-b border-ln flex items-center justify-between bg-sf2">
               <Link
                 href={`/dashboard/customers/${id}/whatsapp`}
                 prefetch={true}
-                className="flex items-center gap-2 group hover:opacity-80 transition-all min-w-0"
-                title="Open Full WhatsApp View"
+                className="flex items-center gap-2 hover:opacity-80 transition-all min-w-0"
               >
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors flex items-center gap-1.5 truncate">
-                  WhatsApp Live Communication
-                  <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
-                </h3>
+                <span className="w-2 h-2 rounded-full bg-pos animate-pulse shrink-0" />
+                <span className="text-section font-semibold text-t1 truncate">WhatsApp Live Communication</span>
               </Link>
-              <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto shrink-0">
-                {customer.wa_id && (
-                  <span className="text-[11px] sm:text-xs font-mono font-semibold text-slate-400 truncate">+{customer.wa_id}</span>
-                )}
-                <Link
-                  href={`/dashboard/customers/${id}/whatsapp`}
-                  prefetch={true}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-700 text-[11px] font-bold transition-all shadow-2xs active:scale-95 shrink-0"
-                >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
-                  </svg>
-                  Full WhatsApp Mode
-                </Link>
-              </div>
+              {customer.wa_id && (
+                <span className="text-caption font-mono text-t3 truncate">+{customer.wa_id}</span>
+              )}
             </div>
 
             <ConversationThread
@@ -198,11 +152,11 @@ export default async function CustomerPage({ params }: Props) {
               waId={customer.wa_id ?? null}
               initialMessages={[...(messages ?? [])].reverse() as { id: string; content: string; direction: "outbound" | "inbound"; sender_type: string; draft_status: string | null; created_at: string }[]}
             />
-          </div>
+          </Card>
 
           {/* Meeting Notes Log */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Visit Notes &amp; Meeting Logs</h3>
+          <Card className="space-y-3">
+            <SectionHeader label="Visit Notes & Meeting Logs" />
             <MeetingNotes
               customerId={id}
               initialNotes={(meetingNotes ?? []).map((n: any) => ({
@@ -215,22 +169,22 @@ export default async function CustomerPage({ params }: Props) {
                 salespersons: Array.isArray(n.salespersons) ? (n.salespersons[0] ?? null) : n.salespersons,
               })) as MeetingNote[]}
             />
-          </div>
+          </Card>
         </div>
 
         {/* Right Column: Pipeline Intelligence Sidebar (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-5">
           {/* Pipeline Stage Select */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Pipeline Stage</h3>
+          <Card className="space-y-3">
+            <SectionHeader label="Pipeline Stage" />
             <StageSelect customerId={id} currentStage={currentStage} />
-          </div>
+          </Card>
 
           {/* Orders & Production Status */}
           {orderRows.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Orders &amp; Production</h3>
-              <div className="divide-y divide-slate-100">
+            <Card className="space-y-3">
+              <SectionHeader label="Orders & Production" />
+              <div className="divide-y divide-ln2">
                 {orderRows.map((o: any) => {
                   const chip = orderStatusChip(o.status);
                   const outstanding = outstandingByOrder.get(o.id);
@@ -238,105 +192,81 @@ export default async function CustomerPage({ params }: Props) {
                     <Link
                       key={o.id}
                       href={`/dashboard/orders/${o.id}`}
-                      className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 group"
+                      className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 hover:opacity-80 transition-opacity"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors truncate">
-                            {o.order_no}
-                          </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${chip.color}`}>
+                          <span className="text-ui font-semibold font-mono text-t1 truncate">{o.order_no}</span>
+                          <Pill tone={o.status === "installed" || o.status === "closed" ? "pos" : "neutral"} dot={false}>
                             {chip.label}
-                          </span>
+                          </Pill>
                         </div>
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          {new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                          {" · "}
-                          {formatINR(o.grand_total)}
+                        <span className="text-caption text-t3 font-mono">
+                          {formatDate(o.created_at)} · {formatINR(o.grand_total)}
                         </span>
                       </div>
-                      {outstanding !== undefined && outstanding > 0 && (
-                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                          {formatINR(outstanding)} due
-                        </span>
-                      )}
-                      {outstanding !== undefined && outstanding <= 0 && (
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                          Paid
-                        </span>
+                      {outstanding !== undefined && (
+                        <Pill tone={outstanding > 0 ? "warn" : "pos"} dot={false}>
+                          {outstanding > 0 ? `${formatINR(outstanding)} due` : "Paid"}
+                        </Pill>
                       )}
                     </Link>
                   );
                 })}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Interest & Preference Summary */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Interest &amp; Intent Summary</h3>
+          <Card className="space-y-3">
+            <SectionHeader label="Interest & Intent Summary" />
             <InterestSummary customerId={id} initialSummary={customer.interest_summary ?? null} />
-          </div>
+          </Card>
 
           {/* Assigned Representative & Team */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Assigned Representatives</h3>
+          <Card className="space-y-3">
+            <SectionHeader label="Assigned Representatives" />
             {teamLoadFailed ? (
-              <p className="text-xs font-semibold text-rose-600">Failed to load assigned team — refresh the page.</p>
+              <p className="text-caption text-warn">Failed to load assigned team — refresh the page.</p>
             ) : teamRows.length === 0 ? (
-              <p className="text-xs text-slate-400 font-medium">Unclaimed — no salesperson assigned yet.</p>
+              <p className="text-caption text-t3">Unclaimed — no salesperson assigned yet.</p>
             ) : (
-              <div className="flex flex-wrap gap-2 mb-2">
+              <div className="flex flex-wrap gap-1.5 mb-2">
                 {teamRows.map((t: any) => (
-                  <span
-                    key={t.id}
-                    className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                      t.role === "primary"
-                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                        : "bg-slate-100 text-slate-700 border-slate-200"
-                    }`}
-                  >
+                  <Pill key={t.id} tone={t.role === "primary" ? "pos" : "neutral"} dot={false}>
                     {t.salespersons?.name ?? "Unknown"} · {t.role}
-                  </span>
+                  </Pill>
                 ))}
               </div>
             )}
             {isOwner && (
               <AddCollaboratorForm customerId={id} options={addableSalespersons} />
             )}
-          </div>
+          </Card>
 
           {/* Visit History Log */}
           {(visits ?? []).length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Showroom Visit History</h3>
-              <div className="divide-y divide-slate-100">
-                {(visits ?? []).map((v) => {
-                  const bandCfg = BAND_CONFIG[v.match_band] ?? BAND_CONFIG.NEW;
-                  return (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
-                    >
-                      <span className="text-xs font-semibold text-slate-700">
-                        {new Date(v.occurred_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${bandCfg.color}`}>
-                        {bandCfg.label}
-                      </span>
-                    </div>
-                  );
-                })}
+            <Card className="space-y-3">
+              <SectionHeader label="Showroom Visit History" />
+              <div className="divide-y divide-ln2">
+                {(visits ?? []).map((v) => (
+                  <div key={v.id} className="flex items-center justify-between py-2 text-caption first:pt-0 last:pb-0">
+                    <span className="font-mono text-t2">{formatDate(v.occurred_at)}</span>
+                    <Pill tone="neutral" dot={false}>
+                      {v.match_band}
+                    </Pill>
+                  </div>
+                ))}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Owner Arrival Alerts */}
           {isOwner && (
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Arrival Alerts</h3>
+            <Card className="space-y-3">
+              <SectionHeader label="Arrival Alerts" />
               <MuteAlertsToggle customerId={id} initialMuted={Boolean(customer.alerts_muted)} />
-            </div>
+            </Card>
           )}
         </div>
       </div>

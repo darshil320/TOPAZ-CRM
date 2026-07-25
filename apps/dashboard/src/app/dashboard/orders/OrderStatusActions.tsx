@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
 import { patchOrderStatus } from "./actions";
 import { NEXT_TRANSITIONS, REASON_REQUIRED } from "./status";
 
@@ -12,7 +13,7 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
 
   const transitions = NEXT_TRANSITIONS[status] ?? [];
   if (transitions.length === 0) {
-    return <p className="text-sm text-slate-400">No further actions for a {status} order.</p>;
+    return <p className="text-caption text-t3">No further actions for a {status} order.</p>;
   }
 
   const move = (to: string) => {
@@ -35,34 +36,23 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
         {transitions.map((t) => {
           const danger = t.to === "cancelled";
           return (
-            <button
+            <Button
               key={t.to}
-              type="button"
+              variant={danger ? "secondary" : "primary"}
               onClick={() => move(t.to)}
               disabled={isPending}
-              className={
-                danger
-                  ? "inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 px-4 py-2.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-60 shadow-2xs"
-                  : "inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-60 shadow-sm shadow-blue-500/20"
-              }
+              className={danger ? "border-warn/30 text-warn hover:bg-warnS" : undefined}
             >
-              {isPending ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Working...
-                </span>
-              ) : (
-                t.label
-              )}
-            </button>
+              {isPending ? "Working..." : t.label}
+            </Button>
           );
         })}
       </div>
-      {error && <p className="text-xs font-bold text-rose-600 mt-1">{error}</p>}
+      {error && <p className="text-caption font-semibold text-warn mt-1">{error}</p>}
     </div>
   );
 }

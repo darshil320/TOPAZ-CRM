@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
 import { formatINR, formatDate } from "@/lib/format";
+import { Card, StatCard, StatCardGrid } from "@/components/ui/Card";
+import SectionHeader from "@/components/ui/SectionHeader";
+import ListRow from "@/components/ui/ListRow";
+import Pill from "@/components/ui/Pill";
 import { orderStatusChip } from "../status";
 import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
@@ -45,9 +49,9 @@ export default async function OrderDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
-      {/* Back Link & Uncarded Executive Page Header */}
+      {/* Back Link & Page Header */}
       <div className="space-y-3">
-        <Link href="/dashboard/orders" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+        <Link href="/dashboard/orders" className="inline-flex items-center gap-1.5 text-caption font-semibold text-t3 hover:text-t1 transition-colors">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
@@ -56,18 +60,18 @@ export default async function OrderDetailPage({ params }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{order.order_no}</h1>
-              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${chip.color}`}>
+              <h1 className="text-title text-t1 font-bold tracking-tight">{order.order_no}</h1>
+              <Pill tone={order.status === "installed" || order.status === "closed" ? "pos" : order.status === "cancelled" ? "warn" : "neutral"} dot={false}>
                 {chip.label}
-              </span>
+              </Pill>
             </div>
-            <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
-              Customer: <span className="text-slate-800 font-bold">{customer?.name ?? "Unknown"}</span>
-              {customer?.phone && <span className="text-slate-400"> ({customer.phone})</span>}
-              <span className="text-slate-400"> · Created {formatDate(order.created_at)}</span>
-              {order.expected_delivery_date && <span className="text-slate-400"> · Expected Delivery: {formatDate(order.expected_delivery_date)}</span>}
+            <p className="mt-1 text-body text-t2">
+              Customer: <span className="text-t1 font-semibold">{customer?.name ?? "Unknown"}</span>
+              {customer?.phone && <span className="text-t3 font-mono"> ({customer.phone})</span>}
+              <span className="text-t3"> · Created {formatDate(order.created_at)}</span>
+              {order.expected_delivery_date && <span className="text-t3"> · Expected Delivery: {formatDate(order.expected_delivery_date)}</span>}
               {quote && (
-                <span className="text-slate-400">
+                <span className="text-t3">
                   {" · Source: "}
                   <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-acc hover:opacity-80 font-mono font-semibold">
                     {quote.quote_no}
@@ -80,66 +84,52 @@ export default async function OrderDetailPage({ params }: Props) {
       </div>
 
       {/* Order Status & Transition Actions */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-3">
-        <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Order Status Actions</h3>
+      <Card className="space-y-3">
+        <SectionHeader label="Order Status Actions" />
         <OrderStatusActions orderId={order.id} status={order.status} />
-      </div>
+      </Card>
 
-      {/* Financial Metrics Summary (3-card Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Order Total</p>
-          <p className="text-xl sm:text-2xl font-black text-slate-900">{formatINR(order.grand_total)}</p>
-        </div>
-        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Paid</p>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700">{formatINR(paid)}</p>
-        </div>
-        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
-            Outstanding Balance
-          </p>
-          <p className={`text-xl sm:text-2xl font-black ${Number(outstanding) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
-            {formatINR(outstanding)}
-          </p>
-        </div>
-      </div>
+      {/* Financial Metrics Summary (StatCardGrid) */}
+      <StatCardGrid>
+        <StatCard label="Order Total" value={formatINR(order.grand_total)} />
+        <StatCard label="Total Paid" value={formatINR(paid)} />
+        <StatCard label="Outstanding Balance" value={formatINR(outstanding)} />
+      </StatCardGrid>
 
       {/* Invoice Items Card */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-0">
-        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ordered Items &amp; Tax Breakdown</h3>
-          <span className="text-xs font-bold text-slate-400">{(items ?? []).length} items</span>
+      <Card className="p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-ln flex items-center justify-between">
+          <SectionHeader label="Ordered Items & Tax Breakdown" total={`${(items ?? []).length} items`} />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
+          <table className="w-full text-left text-body">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/40 text-[10px] uppercase font-bold text-slate-400">
-                <th className="px-5 py-3">Item Description</th>
-                <th className="px-5 py-3 text-right">Amount</th>
+              <tr className="border-b border-ln text-label-sm uppercase text-t3">
+                <th className="px-4 py-2.5 font-semibold">Item Description</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ln2">
               {(items ?? []).map((it) => {
                 const specs = [it.dimensions, it.material, it.fabric, it.polish, it.customization].filter(Boolean);
                 return (
-                  <tr key={it.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-5 py-3.5 space-y-1">
-                      <p className="font-bold text-slate-900 text-sm">{it.description}</p>
+                  <tr key={it.id} className="hover:bg-sf2 transition-colors">
+                    <td className="px-4 py-3 space-y-1">
+                      <p className="font-semibold text-t1 text-nav">{it.description}</p>
                       {specs.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {specs.map((spc, idx) => (
-                            <span key={idx} className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                            <span key={idx} className="bg-sf3 text-t2 text-[10px] font-medium px-2 py-0.5 rounded-kbd">
                               {spc}
                             </span>
                           ))}
                         </div>
                       )}
-                      <p className="text-[11px] text-slate-400 font-medium">
+                      <p className="text-caption text-t3 font-mono">
                         {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
                     </td>
-                    <td className="px-5 py-3.5 text-right font-black text-slate-900 text-sm align-top">
+                    <td className="px-4 py-3 text-right font-semibold font-mono text-t1 align-top">
                       {formatINR(it.line_total)}
                     </td>
                   </tr>
@@ -149,8 +139,8 @@ export default async function OrderDetailPage({ params }: Props) {
           </table>
         </div>
         {/* Total calculation footer */}
-        <div className="border-t border-slate-100 bg-slate-50/40 p-5">
-          <dl className="ml-auto max-w-xs space-y-1.5 text-xs sm:text-sm">
+        <div className="border-t border-ln p-4 bg-sf2">
+          <dl className="ml-auto max-w-xs space-y-1.5 text-body">
             <TotalRow label="Subtotal" value={formatINR(order.subtotal)} />
             {Number(order.discount_amount) > 0 && <TotalRow label="Discount" value={`− ${formatINR(order.discount_amount)}`} />}
             <TotalRow label="Taxable Value" value={formatINR(order.taxable_value)} />
@@ -162,42 +152,42 @@ export default async function OrderDetailPage({ params }: Props) {
             ) : (
               <TotalRow label="IGST" value={formatINR(order.igst)} muted />
             )}
-            <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 font-black text-sm sm:text-base text-slate-900">
+            <div className="mt-2 flex justify-between border-t border-ln pt-2 font-semibold text-nav text-t1">
               <dt>Grand Total</dt>
-              <dd className="text-blue-600">{formatINR(order.grand_total)}</dd>
+              <dd className="text-acc font-mono">{formatINR(order.grand_total)}</dd>
             </div>
           </dl>
         </div>
-      </div>
+      </Card>
 
       {/* Payment Schedule (if any) */}
       {(schedule ?? []).length > 0 && (
-        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Payment Schedule</h3>
-          <div className="divide-y divide-slate-100">
+        <Card className="space-y-3">
+          <SectionHeader label="Payment Schedule" />
+          <div className="divide-y divide-ln2">
             {(schedule ?? []).map((s) => (
-              <div key={s.id} className="flex items-center justify-between py-2.5 text-xs sm:text-sm first:pt-0 last:pb-0">
-                <span className="font-medium text-slate-700">{s.label ?? "Instalment"} · Due {formatDate(s.due_date)}</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900">{formatINR(s.amount)}</span>
-                  <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${s.status === "paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+              <div key={s.id} className="flex items-center justify-between py-2.5 text-body first:pt-0 last:pb-0">
+                <span className="font-medium text-t2">{s.label ?? "Instalment"} · Due {formatDate(s.due_date)}</span>
+                <span className="flex items-center gap-2 font-mono">
+                  <span className="font-semibold text-t1">{formatINR(s.amount)}</span>
+                  <Pill tone={s.status === "paid" ? "pos" : "warn"} dot={false}>
                     {s.status}
-                  </span>
+                  </Pill>
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Recorded Payments & Receipts */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+      <Card className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ln2 pb-3">
           <div>
-            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Payment History &amp; Receipts</h3>
-            <p className="text-[11px] font-medium text-slate-400 mt-0.5">
-              {(payments ?? []).length} payment receipt{(payments ?? []).length === 1 ? "" : "s"} issued
-            </p>
+            <SectionHeader
+              label="Payment History & Receipts"
+              total={`${(payments ?? []).length} payment receipt${(payments ?? []).length === 1 ? "" : "s"} issued`}
+            />
           </div>
           {order.status !== "cancelled" && (
             <RecordPaymentForm orderId={order.id} defaultDate={new Date().toISOString().slice(0, 10)} />
@@ -205,69 +195,51 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
 
         {(payments ?? []).length === 0 ? (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
-            <p className="text-xs font-bold text-slate-600">No payments recorded yet</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Record advance or milestone payments above.</p>
+          <div className="rounded-card border border-ln bg-sf2 p-6 text-center">
+            <p className="text-caption font-semibold text-t2">No payments recorded yet</p>
+            <p className="text-caption text-t3 mt-0.5">Record advance or milestone payments above.</p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {(payments ?? []).map((p) => (
-              <div
+              <ListRow
                 key={p.id}
-                className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs ${
-                      p.kind === "refund"
-                        ? "bg-rose-50 text-rose-600 border border-rose-100"
-                        : "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                    }`}
-                  >
-                    {p.kind === "refund" ? "↩" : "✓"}
+                primary={
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono">{p.receipt_no}</span>
+                    <Pill tone={p.kind === "refund" ? "warn" : "pos"} dot={false}>
+                      {p.kind}
+                    </Pill>
+                    <Pill tone="neutral" dot={false}>
+                      {p.mode}
+                    </Pill>
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs sm:text-sm font-bold text-slate-900">{p.receipt_no}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200/80 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider">
-                        {p.kind}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-extrabold uppercase tracking-wider">
-                        {p.mode}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-                      Paid on {formatDate(p.paid_at)} {p.reference ? `· Ref: ${p.reference}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className={`text-xs sm:text-sm font-black ${p.kind === "refund" ? "text-rose-600" : "text-emerald-700"}`}>
-                    {p.kind === "refund" ? "− " : "+"}{formatINR(p.amount)}
-                  </span>
-                </div>
-              </div>
+                }
+                secondary={`Paid on ${formatDate(p.paid_at)} ${p.reference ? `· Ref: ${p.reference}` : ""}`}
+                trailing={`${p.kind === "refund" ? "− " : "+"}${formatINR(p.amount)}`}
+                trailingTone={p.kind === "refund" ? "warn" : "pos"}
+              />
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Audit Log Timeline */}
       {(timeline ?? []).length > 0 && (
-        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Order Timeline</h3>
-          <div className="space-y-3">
+        <Card className="space-y-3">
+          <SectionHeader label="Order Timeline" />
+          <div className="space-y-2.5">
             {(timeline ?? []).map((t, i) => (
-              <div key={i} className="flex items-start gap-3 text-xs sm:text-sm">
-                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-4 ring-blue-50" />
+              <div key={i} className="flex items-start gap-3 text-caption">
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-acc" />
                 <div>
-                  <span className="font-semibold text-slate-800">{t.action}</span>
-                  <span className="ml-2 text-xs text-slate-400 font-medium">{formatDate(t.changed_at)}</span>
+                  <span className="font-semibold text-t1">{t.action}</span>
+                  <span className="ml-2 text-caption text-t3 font-mono">{formatDate(t.changed_at)}</span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

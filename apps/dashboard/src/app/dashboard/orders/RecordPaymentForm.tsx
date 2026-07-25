@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, X } from "lucide-react";
+import Button, { IconButton } from "@/components/ui/Button";
 import { recordPayment } from "../payments/actions";
 
 const KINDS = ["advance", "stage", "final", "refund"];
 const MODES = ["cash", "upi", "bank", "cheque", "card"];
 const FIELD =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[16px] sm:text-xs text-slate-900 font-medium focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs";
+  "w-full rounded-md border border-ln bg-sf2 px-3 py-2 text-[12.5px] text-t1 font-medium focus:border-acc focus:bg-sf focus:outline-none transition-all";
 
 export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: string; defaultDate: string }) {
   const router = useRouter();
@@ -38,37 +40,27 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        + Record Payment
-      </button>
+      <Button variant="primary" onClick={() => setOpen(true)}>
+        <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+        <span>Record Payment</span>
+      </Button>
 
       {open && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-sf rounded-pop border border-ln shadow-shp max-w-lg w-full p-6 space-y-4 my-8 animate-popIn">
+            <div className="flex items-center justify-between border-b border-ln2 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900">Record Payment</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Log a customer payment or refund entry</p>
+                <h3 className="text-section font-semibold text-t1">Record Payment</h3>
+                <p className="text-caption text-t3 mt-0.5">Log a customer payment or refund entry</p>
               </div>
-              <button
-                type="button"
-                onClick={() => { setOpen(false); setError(null); }}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center font-bold text-base transition-colors"
-              >
-                &times;
-              </button>
+              <IconButton onClick={() => { setOpen(false); setError(null); }}>
+                <X className="w-4 h-4" />
+              </IconButton>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Amount (₹)</label>
+                <label className="mb-1 block text-caption font-semibold text-t2">Amount (₹)</label>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -76,13 +68,13 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
                   step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className={FIELD}
+                  className={`${FIELD} font-mono`}
                   placeholder="e.g. 15000"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Date Paid</label>
+                <label className="mb-1 block text-caption font-semibold text-t2">Date Paid</label>
                 <input
                   type="date"
                   value={paidAt}
@@ -91,7 +83,7 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Payment Type</label>
+                <label className="mb-1 block text-caption font-semibold text-t2">Payment Type</label>
                 <select value={kind} onChange={(e) => setKind(e.target.value)} className={FIELD}>
                   {KINDS.map((k) => (
                     <option key={k} value={k}>
@@ -101,7 +93,7 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Payment Mode</label>
+                <label className="mb-1 block text-caption font-semibold text-t2">Payment Mode</label>
                 <select value={mode} onChange={(e) => setMode(e.target.value)} className={FIELD}>
                   {MODES.map((m) => (
                     <option key={m} value={m}>
@@ -113,7 +105,7 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-700">Reference / UTR (optional)</label>
+              <label className="mb-1 block text-caption font-semibold text-t2">Reference / UTR (optional)</label>
               <input
                 type="text"
                 value={reference}
@@ -124,30 +116,29 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
             </div>
 
             {kind === "refund" && (
-              <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-2xl">
+              <p className="text-caption text-warn bg-warnS border border-warn/20 px-3 py-2 rounded-md">
                 ⚠️ Refunds require owner/admin rights (enforced server-side).
               </p>
             )}
 
-            {error && <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-3 rounded-2xl">{error}</p>}
+            {error && <p className="text-caption text-warn bg-warnS border border-warn/20 p-3 rounded-md">{error}</p>}
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
-              <button
-                type="button"
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-ln2">
+              <Button
+                variant="secondary"
                 onClick={() => { setOpen(false); setError(null); }}
                 disabled={isPending}
-                className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+
+              <Button
+                variant="primary"
                 onClick={submit}
                 disabled={isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-60"
               >
                 {isPending ? "Recording..." : "Save Payment"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
