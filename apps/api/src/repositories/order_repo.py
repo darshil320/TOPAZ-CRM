@@ -104,8 +104,22 @@ async def create_from_quote(
 ) -> UUID | None:
     """Copy an APPROVED quotation into a new confirmed order (header totals +
     items copied verbatim). advance_expected = grand_total * advance_pct%,
-    rounded half-up. None if the quote is missing or not approved."""
+    rounded half-up. None if the quote is missing or not approved.
+
+    Idempotent: if an order already exists for this quotation it is returned as-is
+    rather than creating a duplicate. This makes client retries (e.g. after a
+    network/timeout on a slow first request) safe — one quote yields one order.
+    A partial unique index on orders(quotation_id) (migration 0022) is the DB-level
+    backstop for the concurrent-request race this check can't cover alone."""
     from decimal import ROUND_HALF_UP
+
+    existing = await session.execute(
+        text("SELECT id FROM orders WHERE quotation_id = :id ORDER BY created_at LIMIT 1"),
+        {"id": str(quotation_id)},
+    )
+    existing_row = existing.first()
+    if existing_row is not None:
+        return existing_row[0]
 
     q = await session.execute(
         text("SELECT * FROM quotations WHERE id = :id"), {"id": str(quotation_id)}

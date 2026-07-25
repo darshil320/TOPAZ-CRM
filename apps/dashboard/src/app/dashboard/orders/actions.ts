@@ -7,7 +7,11 @@ import { apiHeaders } from "@/lib/apiAuth";
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 const ORDERS_API = `${API_BASE}/api/orders`;
-const TIMEOUT_MS = 10_000;
+// Order-from-quote copies quote header + all line items; on a cold API instance
+// this can exceed a tight 10s budget. A client abort here used to leave the
+// server to finish anyway, and (pre-idempotency) each retry created a duplicate
+// order — so give the request real headroom.
+const TIMEOUT_MS = 30_000;
 
 type Result = { error: string | null; id?: string };
 

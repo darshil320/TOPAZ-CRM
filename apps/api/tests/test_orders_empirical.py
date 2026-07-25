@@ -78,6 +78,30 @@ def test_from_quote_requires_approved_and_copies_totals():
     run(scenario())
 
 
+def test_from_quote_is_idempotent():
+    """A second create_from_quote for the same quote returns the SAME order —
+    no duplicate — so client retries after a timeout are safe (regression)."""
+    async def scenario():
+        engine = create_async_engine(_async_url(), connect_args={"ssl": False})
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as s:
+                cust = await _customer(s)
+                qi, _, totals = _items_totals()
+                qid = await quotation_repo.create_quotation(
+                    s, quote_no=f"QTN-{uuid4().hex[:8]}", customer_id=cust, totals=totals, items=qi)
+                await s.execute(text("update quotations set status='approved' where id=:id"), {"id": str(qid)})
+                first = await order_repo.create_from_quote(s, qid, order_no=f"ORD-{uuid4().hex[:8]}", advance_pct=50)
+                second = await order_repo.create_from_quote(s, qid, order_no=f"ORD-{uuid4().hex[:8]}", advance_pct=50)
+                assert first is not None and second == first
+                count = await s.execute(
+                    text("select count(*) from orders where quotation_id=:id"), {"id": str(qid)})
+                assert count.scalar_one() == 1
+                await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())
+
+
 def test_manual_order_totals_match_golden():
     async def scenario():
         engine = create_async_engine(_async_url(), connect_args={"ssl": False})
