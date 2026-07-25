@@ -4,13 +4,13 @@
  * blocking on Supabase round-trips.
  */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-t3/15 ${className}`} />;
+  return <div className={`animate-pulse rounded-md bg-slate-200/90 dark:bg-sf3/90 ${className}`} />;
 }
 
 /** A generic list of card-shaped skeleton rows. */
 export function SkeletonCardList({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
