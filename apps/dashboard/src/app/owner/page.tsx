@@ -1,31 +1,14 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import OwnerPipelineClient, { type OwnerCustomer } from "./OwnerPipelineClient";
 
-const STAGES = [
-  "inquiry",
-  "contacted",
-  "visit_scheduled",
-  "walk_in",
-  "design_discussion",
-  "quotation_sent",
-  "negotiation",
-  "order_confirmed",
-  "lost",
-] as const;
-type Stage = (typeof STAGES)[number];
-
-const STAGE_CONFIG: Record<Stage, { label: string; dot: string; accent: string }> = {
-  inquiry:           { label: "Inquiry",         dot: "bg-slate-400",   accent: "border-slate-200 bg-slate-50/80" },
-  contacted:         { label: "Contacted",       dot: "bg-blue-500",    accent: "border-blue-200 bg-blue-50/80" },
-  visit_scheduled:   { label: "Visit Scheduled", dot: "bg-indigo-500",  accent: "border-indigo-200 bg-indigo-50/80" },
-  walk_in:           { label: "Walk-in",         dot: "bg-cyan-500",    accent: "border-cyan-200 bg-cyan-50/80" },
-  design_discussion: { label: "Design",          dot: "bg-violet-500",  accent: "border-violet-200 bg-violet-50/80" },
-  quotation_sent:    { label: "Quote Sent",      dot: "bg-amber-500",   accent: "border-amber-200 bg-amber-50/80" },
-  negotiation:       { label: "Negotiation",     dot: "bg-orange-500",  accent: "border-orange-200 bg-orange-50/80" },
-  order_confirmed:   { label: "Order Confirmed", dot: "bg-green-500",   accent: "border-green-200 bg-green-50/80" },
-  lost:              { label: "Lost",            dot: "bg-red-400",     accent: "border-red-200 bg-red-50/80" },
-};
+function ageInDays(iso: string | null): number {
+  if (!iso) return 0;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return 0;
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
+}
 
 export default async function OwnerPage() {
   const sp = await getCurrentSalesperson();
@@ -33,82 +16,76 @@ export default async function OwnerPage() {
   if (!isOwnerRole(sp)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
+  
+  // Fetch pipeline stages joined with customers and active primary assignments
   const { data: rows } = await supabase
     .from("pipeline_stages")
-    .select("stage, customer_id, customers(id, name, phone, primary_interest)");
+    .select(`
+      stage,
+      updated_at,
+      customers (
+        id,
+        name,
+        phone,
+        budget_range,
+        primary_interest,
+        customer_assignments (
+          role,
+          active,
+          salespersons (
+            id,
+            name
+          )
+        )
+      )
+    `)
+    .order("updated_at", { ascending: false });
 
-  const byStage = STAGES.reduce(
-    (acc, s) => ({ ...acc, [s]: [] as any[] }),
-    {} as Record<Stage, any[]>,
-  );
-  for (const row of rows ?? []) {
-    byStage[row.stage as Stage]?.push(row.customers);
-  }
+  const initialCustomers: OwnerCustomer[] = (rows ?? [])
+    .map((r: any) => {
+      const c = Array.isArray(r.customers) ? r.customers[0] : r.customers;
+      if (!c || !c.id) return null;
 
-  const total = Object.values(byStage).reduce((s, arr) => s + arr.length, 0);
+      // Extract assigned salesperson from active primary assignment
+      const assignments = Array.isArray(c.customer_assignments)
+        ? c.customer_assignments
+        : c.customer_assignments
+        ? [c.customer_assignments]
+        : [];
+
+      const primaryAssignment = assignments.find(
+        (a: any) => a.active && a.role === "primary"
+      );
+      const spObj = Array.isArray(primaryAssignment?.salespersons)
+        ? primaryAssignment.salespersons[0]
+        : primaryAssignment?.salespersons;
+
+      return {
+        id: c.id,
+        name: c.name ?? "Unknown Customer",
+        phone: c.phone ?? null,
+        budgetRange: c.budget_range ?? null,
+        primaryInterest: c.primary_interest ?? null,
+        stage: r.stage,
+        updatedAt: r.updated_at,
+        ageDays: ageInDays(r.updated_at),
+        assignedSalesperson: spObj?.name ?? null,
+      };
+    })
+    .filter((c): c is OwnerCustomer => c !== null);
 
   return (
-    <div>
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-slate-900">Pipeline</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{total} customer{total !== 1 ? "s" : ""} across all stages</p>
+    <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/80 pb-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Executive Pipeline</h1>
+          <p className="text-xs text-slate-500 mt-1 font-medium">
+            Real-time multi-stage funnel oversight · {initialCustomers.length} active deal{initialCustomers.length !== 1 ? "s" : ""}
+          </p>
+        </div>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 scrollbar-hide sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-3 lg:grid-cols-9 sm:overflow-visible">
-        {STAGES.map((stage) => {
-          const cfg = STAGE_CONFIG[stage];
-          const customers = byStage[stage];
-          return (
-            <div
-              key={stage}
-              className={`snap-start shrink-0 w-[80%] min-w-[220px] sm:w-auto sm:min-w-0 rounded-2xl border overflow-hidden flex flex-col ${cfg.accent}`}
-            >
-              {/* Column header */}
-              <div className="px-3.5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                  <span className="text-xs font-bold text-slate-700 tracking-tight">{cfg.label}</span>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-400 bg-white/80 border border-slate-200/80 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                  {customers.length}
-                </span>
-              </div>
-
-              {/* Cards */}
-              <div className="p-2 space-y-1.5 flex-1 min-h-[120px]">
-                {customers.length === 0 && (
-                  <div className="flex items-center justify-center h-16 text-xs text-slate-300 font-medium">
-                    Empty
-                  </div>
-                )}
-                {customers.map((c: any) => (
-                  <a
-                    key={c?.id}
-                    href={`/dashboard/customers/${c?.id}`}
-                    className="block bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2.5 transition-all group shadow-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
-                        <span className="text-[9px] font-bold text-white">
-                          {c?.name ? c.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase() : "?"}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate leading-tight">
-                          {c?.name ?? "Unknown"}
-                        </p>
-                        {c?.primary_interest && (
-                          <p className="text-[10px] text-slate-400 truncate mt-0.5">{c.primary_interest}</p>
-                        )}
-                      </div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <OwnerPipelineClient initialCustomers={initialCustomers} />
     </div>
   );
 }
