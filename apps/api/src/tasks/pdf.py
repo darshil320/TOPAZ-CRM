@@ -39,7 +39,11 @@ async def _render_and_store(quotation_id: UUID) -> str | None:
         customer = await _load_customer(session, UUID(str(quote["customer_id"])))
 
         html = quote_html.render_quote_html(quote, customer)
-        pdf_bytes = pdf_engine.render_html_to_pdf(html)
+        # render_html_to_pdf uses Playwright's SYNC API, which refuses to run
+        # inside a running asyncio loop (this coroutine runs under asyncio.run).
+        # Offload to a worker thread — it has no event loop, so the sync API is
+        # valid there. Keeps the engine sync + import-light (CLAUDE.md).
+        pdf_bytes = await asyncio.to_thread(pdf_engine.render_html_to_pdf, html)
 
         key = f"quotes/{quote['quote_no']}-r{quote.get('revision_no', 1)}.pdf"
         upload_bytes(settings.DOCUMENTS_BUCKET, key, pdf_bytes, "application/pdf")

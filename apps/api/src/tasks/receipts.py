@@ -40,7 +40,9 @@ async def _render(payment_id: UUID) -> str | None:
         )).mappings().first()
 
         html = receipt_html.render_receipt_html(dict(pay), dict(order), dict(customer))
-        pdf_bytes = pdf_engine.render_html_to_pdf(html)
+        # Sync Playwright can't run inside this asyncio.run loop — offload to a
+        # thread (no event loop there). See tasks/pdf.py for the full rationale.
+        pdf_bytes = await asyncio.to_thread(pdf_engine.render_html_to_pdf, html)
         key = f"receipts/{pay['receipt_no']}.pdf"
         upload_bytes(settings.DOCUMENTS_BUCKET, key, pdf_bytes, "application/pdf")
 
