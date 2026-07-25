@@ -126,23 +126,43 @@ export default function ConversationThread({
               <div key={msg.id} className={`flex flex-col ${isOut ? "items-end" : "items-start"}`}>
                 <div
                   className={[
-                    "max-w-[90%] sm:max-w-[75%] px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs leading-relaxed shadow-2xs transition-all break-words",
+                    "relative max-w-[90%] sm:max-w-[78%] px-3 py-2 text-[13px] sm:text-sm leading-snug shadow-2xs transition-all",
                     isOut
                       ? isRejected
-                        ? "bg-slate-100 text-slate-400 border border-slate-200 rounded-2xl rounded-tr-xs line-through"
+                        ? "bg-slate-100 text-slate-400 border border-slate-200 rounded-2xl rounded-tr-none line-through"
                         : isDraft
-                        ? "bg-amber-50/90 text-amber-950 border border-amber-300/80 rounded-2xl rounded-tr-xs shadow-sm"
-                        : "bg-blue-600 text-white rounded-2xl rounded-tr-xs shadow-sm font-medium"
-                      : "bg-white text-slate-800 border border-slate-200/90 rounded-2xl rounded-tl-xs shadow-2xs font-medium",
+                        ? "bg-amber-50/90 text-amber-950 border border-amber-300/80 rounded-2xl rounded-tr-none shadow-sm"
+                        : "bg-[#d9fdd3] text-[#111b21] rounded-2xl rounded-tr-none shadow-2xs font-normal"
+                      : "bg-white text-[#111b21] border border-slate-200/90 rounded-2xl rounded-tl-none shadow-2xs font-normal",
                   ].join(" ")}
                 >
-                  {msg.content}
+                  <div className="relative break-words whitespace-pre-wrap text-[13px] sm:text-sm font-sans text-[#111b21] leading-normal">
+                    <span>{msg.content}</span>
+                    <span className="inline-flex items-center gap-1 float-right ml-3.5 mt-1 -mb-0.5 text-[10px] font-medium text-slate-500/90 select-none">
+                      <span>{formatTime(msg.created_at)}</span>
+                      {isOut && !isDraft && !isRejected && (
+                        <svg
+                          className="w-4 h-3.5 text-[#53bdeb] inline-block shrink-0 -mr-0.5"
+                          viewBox="0 0 18 13"
+                          fill="none"
+                          aria-label="Delivered / Read"
+                        >
+                          <path
+                            d="M17.394 1.342a.857.857 0 0 0-1.213 0l-9.106 9.106-3.882-3.882a.857.857 0 1 0-1.213 1.213l4.489 4.488a.857.857 0 0 0 1.212 0l9.713-9.712a.857.857 0 0 0 0-1.213z"
+                            fill="currentColor"
+                          />
+                          <path
+                            d="M12.536 1.342a.857.857 0 0 0-1.213 0l-6.07 6.07a.857.857 0 1 0 1.213 1.213l6.07-6.07a.857.857 0 0 0 0-1.213z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Footer status badges */}
+                {/* AI Draft Actions & Badges */}
                 <div className={`flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5 px-1 ${isOut ? "flex-row-reverse" : "flex-row"}`}>
-                  <span className="text-[10px] font-semibold text-slate-400 shrink-0">{formatTime(msg.created_at)}</span>
-
                   {isDraft && (
                     <div className="flex flex-wrap items-center gap-1.5 bg-amber-100/90 border border-amber-300 px-2 py-1 rounded-xl shadow-2xs">
                       <span className="text-[10px] font-bold text-amber-900 whitespace-nowrap">
@@ -171,7 +191,7 @@ export default function ConversationThread({
 
                   {msg.draft_status === "approved" && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                      Sent ✓✓
+                      AI Approved &amp; Sent
                     </span>
                   )}
 

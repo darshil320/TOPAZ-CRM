@@ -468,29 +468,39 @@ export default function WhatsAppFullView({
                   >
                     <div
                       className={[
-                        "relative max-w-[88%] sm:max-w-[70%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm transition-all",
+                        "relative max-w-[88%] sm:max-w-[70%] px-3 py-2 text-[13px] sm:text-sm leading-snug shadow-2xs transition-all",
                         isOut
                           ? isRejected
                             ? "bg-slate-200 text-slate-500 border border-slate-300 rounded-2xl rounded-tr-none line-through"
                             : isDraft
                             ? "bg-amber-100 text-amber-950 border border-amber-300 rounded-2xl rounded-tr-none shadow-md"
                             : "bg-[#d9fdd3] text-[#111b21] rounded-2xl rounded-tr-none shadow-2xs font-normal"
-                          : "bg-white text-[#111b21] border border-slate-200 rounded-2xl rounded-tl-none shadow-2xs font-normal",
+                          : "bg-white text-[#111b21] border border-slate-200/80 rounded-2xl rounded-tl-none shadow-2xs font-normal",
                       ].join(" ")}
                     >
-                      {/* Message Text */}
-                      <div className="whitespace-pre-wrap break-words pr-12 text-sm sm:text-xs font-sans">
-                        {msg.content}
-                      </div>
-
-                      {/* Time and Status Ticks embedded bottom right */}
-                      <div className="absolute bottom-1 right-2.5 flex items-center gap-1 text-[10px] font-semibold text-slate-500 select-none">
-                        <span>{formatTime(msg.created_at)}</span>
-                        {isOut && !isDraft && !isRejected && (
-                          <span className="text-sky-600 font-extrabold" title="Delivered">
-                            ✓✓
-                          </span>
-                        )}
+                      {/* Message Content & Inline Float Timestamp */}
+                      <div className="relative break-words whitespace-pre-wrap text-[13px] sm:text-sm font-sans text-[#111b21] leading-normal">
+                        <span>{msg.content}</span>
+                        <span className="inline-flex items-center gap-1 float-right ml-3.5 mt-1 -mb-0.5 text-[10px] font-medium text-slate-500/90 select-none">
+                          <span>{formatTime(msg.created_at)}</span>
+                          {isOut && !isDraft && !isRejected && (
+                            <svg
+                              className="w-4 h-3.5 text-[#53bdeb] inline-block shrink-0 -mr-0.5"
+                              viewBox="0 0 18 13"
+                              fill="none"
+                              aria-label="Read / Delivered"
+                            >
+                              <path
+                                d="M17.394 1.342a.857.857 0 0 0-1.213 0l-9.106 9.106-3.882-3.882a.857.857 0 1 0-1.213 1.213l4.489 4.488a.857.857 0 0 0 1.212 0l9.713-9.712a.857.857 0 0 0 0-1.213z"
+                                fill="currentColor"
+                              />
+                              <path
+                                d="M12.536 1.342a.857.857 0 0 0-1.213 0l-6.07 6.07a.857.857 0 1 0 1.213 1.213l6.07-6.07a.857.857 0 0 0 0-1.213z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          )}
+                        </span>
                       </div>
                     </div>
 
@@ -612,7 +622,7 @@ export default function WhatsAppFullView({
       )}
 
       {/* WHATSAPP INPUT FOOTER BAR */}
-      <footer className="bg-[#f0f2f5] p-3 sm:px-4 flex items-end gap-2 shrink-0 border-t border-slate-200/80 z-20">
+      <footer className="bg-[#f0f2f5] px-2 sm:px-4 py-2.5 flex items-center gap-1 sm:gap-2 shrink-0 border-t border-slate-200/80 z-20 pb-safe">
         {/* Emoji Button */}
         <button
           type="button"
@@ -620,7 +630,7 @@ export default function WhatsAppFullView({
             setShowEmojiPicker(!showEmojiPicker);
             setShowAttachMenu(false);
           }}
-          className={`p-2.5 rounded-full transition-colors shrink-0 ${
+          className={`p-2 rounded-full transition-colors shrink-0 ${
             showEmojiPicker ? "text-emerald-700 bg-emerald-100" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/70"
           }`}
           title="Emojis"
@@ -637,7 +647,7 @@ export default function WhatsAppFullView({
             setShowAttachMenu(!showAttachMenu);
             setShowEmojiPicker(false);
           }}
-          className={`p-2.5 rounded-full transition-colors shrink-0 ${
+          className={`p-2 rounded-full transition-colors shrink-0 ${
             showAttachMenu ? "text-emerald-700 bg-emerald-100" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/70"
           }`}
           title="Attach File"
@@ -649,32 +659,32 @@ export default function WhatsAppFullView({
 
         {/* Recording Active Bar or Input Textarea */}
         {isRecording ? (
-          <div className="flex-1 bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 flex items-center justify-between animate-pulse">
-            <div className="flex items-center gap-2 text-red-600 font-bold text-xs">
-              <span className="w-3 h-3 rounded-full bg-red-600 animate-ping" />
-              Recording Audio Note... ({recordingTime}s)
+          <div className="flex-1 bg-red-50 border border-red-200 rounded-2xl px-3 sm:px-4 py-2 flex items-center justify-between animate-pulse min-w-0">
+            <div className="flex items-center gap-2 text-red-600 font-bold text-xs truncate">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0" />
+              Recording... ({recordingTime}s)
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => stopVoiceRecording(false)}
-                className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs font-bold"
+                className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs font-bold"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => stopVoiceRecording(true)}
-                className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs"
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs"
               >
-                Send Audio
+                Send
               </button>
             </div>
           </div>
         ) : (
           <form
             onSubmit={handleSend}
-            className="flex-1 flex items-end gap-2"
+            className="flex-1 flex items-center gap-1.5 sm:gap-2 min-w-0"
           >
             <textarea
               ref={textareaRef}
@@ -691,7 +701,7 @@ export default function WhatsAppFullView({
               }
               disabled={!customer.wa_id}
               rows={1}
-              className="flex-1 text-sm font-medium leading-normal border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 resize-none transition-all bg-white placeholder:text-slate-400 disabled:opacity-50 min-h-[42px] max-h-[120px] shadow-2xs"
+              className="flex-1 text-[16px] sm:text-sm font-medium leading-normal border border-slate-200/90 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 resize-none transition-all bg-white placeholder:text-slate-400 disabled:opacity-50 min-h-[42px] max-h-[120px] shadow-2xs min-w-0"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -705,7 +715,7 @@ export default function WhatsAppFullView({
               <button
                 type="submit"
                 disabled={isPending || !customer.wa_id}
-                className="w-11 h-11 bg-[#008069] hover:bg-[#006e5a] disabled:opacity-40 text-white rounded-full flex items-center justify-center transition-all shrink-0 shadow-md active:scale-95"
+                className="w-10 h-10 sm:w-11 sm:h-11 bg-[#008069] hover:bg-[#006e5a] disabled:opacity-40 text-white rounded-full flex items-center justify-center transition-all shrink-0 shadow-md active:scale-95"
                 title="Send Message"
               >
                 {isPending ? (
@@ -721,7 +731,7 @@ export default function WhatsAppFullView({
                 type="button"
                 onClick={startVoiceRecording}
                 disabled={!customer.wa_id}
-                className="w-11 h-11 bg-[#008069] hover:bg-[#006e5a] disabled:opacity-40 text-white rounded-full flex items-center justify-center transition-all shrink-0 shadow-md active:scale-95"
+                className="w-10 h-10 sm:w-11 sm:h-11 bg-[#008069] hover:bg-[#006e5a] disabled:opacity-40 text-white rounded-full flex items-center justify-center transition-all shrink-0 shadow-md active:scale-95"
                 title="Hold to record audio note"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

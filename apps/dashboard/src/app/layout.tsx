@@ -23,10 +23,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   // `cover` is required for the env(safe-area-inset-*) padding on the mobile
   // bottom nav to take effect on notched / home-indicator devices.
   viewportFit: "cover",
-  themeColor: "#2563eb",
+  themeColor: "#008069",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
