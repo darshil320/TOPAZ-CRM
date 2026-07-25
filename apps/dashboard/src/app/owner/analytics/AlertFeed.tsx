@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+import Pill from "@/components/ui/Pill";
+
 export type AlertItem = {
   id: string;
   type: string;
@@ -11,13 +13,6 @@ export type AlertItem = {
   created_at: string;
   customer_id: string;
   customer_name: string | null;
-};
-
-const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  intent_call: { label: "Wants a call", color: "bg-red-100 text-red-700 border-red-200" },
-  intent_visit: { label: "Plans to visit", color: "bg-blue-100 text-blue-700 border-blue-200" },
-  confusion: { label: "Needs help", color: "bg-amber-100 text-amber-700 border-amber-200" },
-  buying_signal: { label: "Buying signal", color: "bg-green-100 text-green-700 border-green-200" },
 };
 
 function relativeTime(iso: string): string {
@@ -63,9 +58,9 @@ export default function AlertFeed({ initialAlerts }: { initialAlerts: AlertItem[
 
   if (alerts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-sm font-medium text-slate-600">No triggers yet</p>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <p className="text-body font-semibold text-t1">No triggers yet</p>
+        <p className="text-caption text-t3 mt-1">
           Intent signals from customer replies (call / visit / buying / confusion) appear here live.
         </p>
       </div>
@@ -73,34 +68,31 @@ export default function AlertFeed({ initialAlerts }: { initialAlerts: AlertItem[
   }
 
   return (
-    <ul className="divide-y divide-slate-100">
-      {alerts.map((alert) => {
-        const cfg = TYPE_CONFIG[alert.type] ?? { label: alert.type, color: "bg-slate-100 text-slate-600 border-slate-200" };
-        return (
-          <li key={alert.id} className="py-3 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${cfg.color}`}>
-                  {cfg.label}
-                </span>
-                <span className="text-sm font-medium text-slate-800 truncate">
-                  {alert.customer_name ?? "Customer"}
-                </span>
-                <span className="text-[11px] text-slate-400">{relativeTime(alert.created_at)}</span>
-              </div>
-              {alert.detail && (
-                <p className="text-xs text-slate-500 mt-1 truncate">“{alert.detail}”</p>
-              )}
+    <ul className="divide-y divide-ln2">
+      {alerts.map((alert) => (
+        <li key={alert.id} className="py-2.5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Pill tone={alert.type === "intent_call" || alert.type === "confusion" ? "warn" : "pos"} dot={false}>
+                {alert.type.replace("_", " ")}
+              </Pill>
+              <span className="text-ui font-semibold text-t1 truncate">
+                {alert.customer_name ?? "Customer"}
+              </span>
+              <span className="text-caption font-mono text-t3">{relativeTime(alert.created_at)}</span>
             </div>
-            <Link
-              href={`/dashboard/customers/${alert.customer_id}`}
-              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700"
-            >
-              View →
-            </Link>
-          </li>
-        );
-      })}
+            {alert.detail && (
+              <p className="text-caption text-t2 mt-1 truncate">“{alert.detail}”</p>
+            )}
+          </div>
+          <Link
+            href={`/dashboard/customers/${alert.customer_id}`}
+            className="shrink-0 text-caption font-semibold text-t1 hover:text-acc transition-colors"
+          >
+            View →
+          </Link>
+        </li>
+      ))}
     </ul>
   );
 }

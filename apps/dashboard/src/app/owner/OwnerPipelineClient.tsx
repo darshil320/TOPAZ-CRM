@@ -179,11 +179,11 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
       </StatCardGrid>
 
       {/* Control Bar: Search, Stage Filter & View Mode Switcher */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="bg-sf rounded-card p-3 border border-ln shadow-sh flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2">
           {/* Search Input */}
           <div className="relative flex-1 max-w-xs">
-            <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 text-t3 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -191,7 +191,7 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
               placeholder="Search customer, interest, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full pl-9 pr-3 py-1.5 bg-sf2 border border-ln rounded-md text-ui text-t1 placeholder-t3 focus:outline-none focus:border-acc transition-all"
             />
           </div>
 
@@ -199,7 +199,7 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
           <select
             value={selectedStage}
             onChange={(e) => setSelectedStage(e.target.value)}
-            className="py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            className="py-1.5 px-3 bg-sf2 border border-ln rounded-md text-ui text-t1 font-medium focus:outline-none focus:border-acc transition-all"
           >
             <option value="all">All Stages ({totalCount})</option>
             {STAGES.map((s) => (
@@ -211,14 +211,14 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
         </div>
 
         {/* View Toggle */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl shrink-0 self-end sm:self-auto">
+        <div className="flex items-center bg-sf2 border border-ln p-0.5 rounded-md shrink-0 self-end sm:self-auto">
           <button
             type="button"
             onClick={() => setView("board")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-caption font-semibold transition-all ${
               view === "board"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-sf text-t1 shadow-sh border border-ln"
+                : "text-t3 hover:text-t1"
             }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -229,10 +229,10 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-caption font-semibold transition-all ${
               view === "table"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-sf text-t1 shadow-sh border border-ln"
+                : "text-t3 hover:text-t1"
             }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -254,100 +254,79 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
               return (
                 <div
                   key={stage}
-                  className={`w-72 sm:w-80 shrink-0 rounded-2xl border ${theme.colBg} border-t-4 ${theme.borderTop} shadow-sm flex flex-col transition-all`}
+                  className="w-72 sm:w-80 shrink-0 rounded-card border border-ln bg-sf2 shadow-sh flex flex-col transition-all"
                 >
                   {/* Column Header */}
-                  <div className="p-3.5 border-b border-slate-200/60 flex items-center justify-between bg-white/70 backdrop-blur-sm rounded-t-xl">
+                  <div className="p-3 border-b border-ln flex items-center justify-between bg-sf rounded-t-card">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`w-2.5 h-2.5 rounded-full ${theme.dot} shrink-0`} />
-                      <span className="text-xs font-bold text-slate-800 truncate">
+                      <span className={`w-2 h-2 rounded-full ${theme.dot} shrink-0`} />
+                      <span className="text-ui font-semibold text-t1 truncate">
                         {theme.label}
                       </span>
                     </div>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${theme.badgeBg} ${theme.badgeText} shrink-0`}>
+                    <Pill tone="neutral" dot={false}>
                       {stageCustomers.length}
-                    </span>
+                    </Pill>
                   </div>
 
                   {/* Cards Area */}
                   <div className="p-2.5 space-y-2.5 min-h-[160px] max-h-[calc(100vh-280px)] overflow-y-auto">
                     {stageCustomers.length === 0 ? (
-                      <div className="h-24 border-2 border-dashed border-slate-200/80 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
+                      <div className="h-24 border border-dashed border-ln rounded-card flex items-center justify-center text-caption text-t3">
                         No customers in stage
                       </div>
                     ) : (
                       stageCustomers.map((c) => {
-                        const initials = c.name
-                          ? c.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .slice(0, 2)
-                              .join("")
-                              .toUpperCase()
-                          : "?";
-
                         const isStale = c.ageDays >= STALE_DAYS;
 
                         return (
                           <div
                             key={c.id}
-                            className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group"
+                            className="bg-sf rounded-card border border-ln p-3.5 shadow-sh hover:border-accL transition-all group"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <Link
                                 href={`/dashboard/customers/${c.id}`}
-                                className="flex items-center gap-2.5 min-w-0 group/link"
+                                className="min-w-0 flex-1 group/link"
                               >
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-sm">
-                                  {initials}
-                                </div>
-                                <div className="min-w-0">
-                                  <h4 className="text-xs font-bold text-slate-900 group-hover/link:text-blue-600 transition-colors truncate">
-                                    {c.name}
-                                  </h4>
-                                  {c.phone && (
-                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                                      {c.phone}
-                                    </p>
-                                  )}
-                                </div>
+                                <h4 className="text-ui font-semibold text-t1 group-hover/link:text-acc transition-colors truncate">
+                                  {c.name}
+                                </h4>
+                                {c.phone && (
+                                  <p className="text-caption font-mono text-t3 truncate mt-0.5">
+                                    {c.phone}
+                                  </p>
+                                )}
                               </Link>
 
                               {isStale && (
-                                <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200/80 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                <Pill tone="warn" dot={true}>
                                   {c.ageDays}d
-                                </span>
+                                </Pill>
                               )}
                             </div>
 
                             {/* Details Tags */}
-                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                            <div className="mt-3 pt-2 border-t border-ln2 flex flex-wrap items-center gap-1.5">
                               {c.primaryInterest && (
-                                <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md truncate max-w-[140px]">
+                                <span className="text-[10.5px] font-medium bg-sf2 border border-ln px-2 py-0.5 rounded-kbd text-t2 truncate max-w-[140px]">
                                   {c.primaryInterest}
                                 </span>
                               )}
 
                               {c.budgetRange && (
-                                <span className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                                <span className="text-[10.5px] font-mono bg-sf3 px-2 py-0.5 rounded-kbd text-t2">
                                   ₹{c.budgetRange}
                                 </span>
                               )}
                             </div>
 
                             {/* Footer info: Salesperson & Time */}
-                            <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400">
-                              <span className="flex items-center gap-1 truncate max-w-[150px]">
-                                <svg className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                <span className="truncate font-medium text-slate-600">
-                                  {c.assignedSalesperson ?? "Unassigned"}
-                                </span>
+                            <div className="mt-2 flex items-center justify-between text-caption text-t3">
+                              <span className="truncate font-medium text-t2">
+                                {c.assignedSalesperson ?? "Unassigned"}
                               </span>
-
-                              <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                              <span className="font-mono text-t3 shrink-0">
                                 {c.ageDays === 0 ? "Today" : `${c.ageDays}d ago`}
                               </span>
                             </div>
@@ -365,11 +344,11 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
 
       {/* ── View 2: EXECUTIVE TABLE VIEW ── */}
       {view === "table" && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="bg-sf rounded-card border border-ln shadow-sh overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-ui">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr className="bg-sf2 border-b border-ln text-caption font-semibold text-t3 uppercase tracking-wider">
                   <th className="py-3 px-4">Customer</th>
                   <th className="py-3 px-4">Primary Interest</th>
                   <th className="py-3 px-4">Budget</th>
@@ -379,10 +358,10 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-ln2">
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400 text-sm font-medium">
+                    <td colSpan={7} className="py-8 text-center text-t3 text-caption">
                       No matching pipeline customers found.
                     </td>
                   </tr>
@@ -392,59 +371,54 @@ export default function OwnerPipelineClient({ initialCustomers }: Props) {
                     const isStale = c.ageDays >= STALE_DAYS;
 
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-semibold text-slate-900">
-                          <Link href={`/dashboard/customers/${c.id}`} className="hover:text-blue-600 transition-colors">
+                      <tr key={c.id} className="hover:bg-sf2 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-t1">
+                          <Link href={`/dashboard/customers/${c.id}`} className="hover:text-acc transition-colors">
                             {c.name}
                           </Link>
-                          {c.phone && <p className="text-[11px] font-normal text-slate-400">{c.phone}</p>}
+                          {c.phone && <p className="text-caption font-mono text-t3">{c.phone}</p>}
                         </td>
 
                         <td className="py-3 px-4">
                           {c.primaryInterest ? (
-                            <span className="inline-block bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md text-[11px] font-medium">
+                            <span className="bg-sf2 border border-ln text-t2 px-2 py-0.5 rounded-kbd text-[11px] font-medium">
                               {c.primaryInterest}
                             </span>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-t3">—</span>
                           )}
                         </td>
 
-                        <td className="py-3 px-4 font-medium text-slate-600">
-                          {c.budgetRange ? `₹${c.budgetRange}` : <span className="text-slate-300">—</span>}
+                        <td className="py-3 px-4 font-mono text-t2">
+                          {c.budgetRange ? `₹${c.budgetRange}` : <span className="text-t3">—</span>}
                         </td>
 
-                        <td className="py-3 px-4 font-medium text-slate-700">
-                          {c.assignedSalesperson ?? <span className="text-slate-400 italic">Unassigned</span>}
+                        <td className="py-3 px-4 font-medium text-t2">
+                          {c.assignedSalesperson ?? <span className="text-t3 italic">Unassigned</span>}
                         </td>
 
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${theme.badgeBg} ${theme.badgeText}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+                          <Pill tone="neutral" dot={true}>
                             {theme.label}
-                          </span>
+                          </Pill>
                         </td>
 
-                        <td className="py-3 px-4 text-right font-medium">
+                        <td className="py-3 px-4 text-right font-mono text-caption">
                           {isStale ? (
-                            <span className="inline-flex items-center gap-1 text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-md text-[11px]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                              {c.ageDays}d (Stale)
-                            </span>
+                            <Pill tone="warn" dot={true}>
+                              {c.ageDays}d Stale
+                            </Pill>
                           ) : (
-                            <span className="text-slate-600">{c.ageDays === 0 ? "Today" : `${c.ageDays}d`}</span>
+                            <span className="text-t2">{c.ageDays === 0 ? "Today" : `${c.ageDays}d`}</span>
                           )}
                         </td>
 
                         <td className="py-3 px-4 text-right">
                           <Link
                             href={`/dashboard/customers/${c.id}`}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                            className="text-caption font-semibold text-t1 hover:text-acc transition-colors"
                           >
                             View
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                            </svg>
                           </Link>
                         </td>
                       </tr>

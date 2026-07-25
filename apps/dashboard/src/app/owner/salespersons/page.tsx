@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
+import { Card } from "@/components/ui/Card";
+import Pill from "@/components/ui/Pill";
 import AddSalespersonForm from "./AddSalespersonForm";
 import ActiveToggle from "./ActiveToggle";
 
@@ -15,53 +18,53 @@ export default async function SalespersonsPage() {
     .select("id, name, whatsapp, role, active, auth_uid, created_at")
     .order("created_at", { ascending: true });
 
+  const total = (salespersons ?? []).length;
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">Salespersons</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{(salespersons ?? []).length} total</p>
-      </div>
+      <PageHeader
+        title="Salespersons"
+        subtitle={`${total} total`}
+      />
 
       <AddSalespersonForm />
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm whitespace-nowrap">
+      <Card className="p-0 overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[560px] text-ui whitespace-nowrap">
           <thead>
-            <tr className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-              <th className="px-5 py-3">Name</th>
-              <th className="px-5 py-3">WhatsApp</th>
-              <th className="px-5 py-3">Role</th>
-              <th className="px-5 py-3">Linked</th>
-              <th className="px-5 py-3">Status</th>
+            <tr className="text-left text-caption font-semibold text-t3 uppercase tracking-wider border-b border-ln bg-sf2">
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">WhatsApp</th>
+              <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">Linked</th>
+              <th className="px-4 py-3">Status</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-ln2">
             {(salespersons ?? []).map((s) => (
-              <tr key={s.id} className="border-b border-slate-50 last:border-0">
-                <td className="px-5 py-3 font-medium text-slate-900">{s.name}</td>
-                <td className="px-5 py-3 text-slate-600">{s.whatsapp}</td>
-                <td className="px-5 py-3">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    s.role === "owner" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                  }`}>
+              <tr key={s.id} className="hover:bg-sf2 transition-colors">
+                <td className="px-4 py-3 font-semibold text-t1">{s.name}</td>
+                <td className="px-4 py-3 text-t2 font-mono">{s.whatsapp}</td>
+                <td className="px-4 py-3">
+                  <Pill tone={s.role === "owner" ? "warn" : "neutral"} dot={false}>
                     {s.role}
-                  </span>
+                  </Pill>
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-4 py-3">
                   {s.auth_uid ? (
-                    <span className="text-xs text-green-600 font-medium">Yes</span>
+                    <span className="text-caption text-pos font-medium">Yes</span>
                   ) : (
-                    <span className="text-xs text-slate-400">Awaiting first login</span>
+                    <span className="text-caption text-t3">Awaiting first login</span>
                   )}
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-4 py-3">
                   <ActiveToggle salespersonId={s.id} initialActive={s.active} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }

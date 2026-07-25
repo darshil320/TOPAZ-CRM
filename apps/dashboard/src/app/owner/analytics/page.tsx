@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
+import { Card, StatCard, StatCardGrid } from "@/components/ui/Card";
+import SectionHeader from "@/components/ui/SectionHeader";
 import {
   countByStage,
   conversionRate,
@@ -91,81 +94,77 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Analytics</h1>
-        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">Conversion, daily sales, and live intent triggers</p>
-      </div>
+      <PageHeader
+        title="Analytics"
+        subtitle="Conversion, daily sales, and live intent triggers"
+      />
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <StatCardGrid>
         {kpis.map((k) => (
-          <div key={k.label} className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm space-y-1">
-            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{k.label}</p>
-            <p className="text-xl sm:text-2xl font-black text-slate-900">{k.value}</p>
-            <p className="text-[11px] font-medium text-slate-400">{k.sub}</p>
-          </div>
+          <StatCard key={k.label} label={k.label} value={k.value} />
         ))}
-      </div>
+      </StatCardGrid>
 
       {estValue > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-baseline justify-between gap-3">
+        <Card className="flex items-baseline justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Est. won value</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Best-effort, parsed from logged budgets — not billed order value</p>
+            <SectionHeader label="Est. won value" />
+            <p className="text-caption text-t3 mt-0.5">Best-effort, parsed from logged budgets — not billed order value</p>
           </div>
-          <p className="text-2xl font-bold text-green-600">{formatINR(estValue)}</p>
-        </div>
+          <p className="text-2xl font-bold font-mono text-pos">{formatINR(estValue)}</p>
+        </Card>
       )}
 
       {/* Conversion funnel */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-4">Pipeline Funnel</p>
+      <Card className="space-y-4">
+        <SectionHeader label="Pipeline Funnel" />
         <div className="space-y-3">
           {FUNNEL.map((f) => {
             const value = counts[f.key];
             return (
               <div key={f.key} className="flex items-center gap-3">
-                <span className="w-20 shrink-0 text-xs font-medium text-slate-600">{f.label}</span>
-                <div className="flex-1 h-6 bg-slate-50 rounded-lg overflow-hidden">
+                <span className="w-24 shrink-0 text-caption font-medium text-t2">{f.label}</span>
+                <div className="flex-1 h-5 bg-sf2 rounded-md overflow-hidden">
                   <div
-                    className={`h-full ${f.bar} rounded-lg transition-all`}
+                    className={`h-full ${f.bar} rounded-md transition-all`}
                     style={{ width: `${Math.max(value === 0 ? 0 : 6, (value / maxFunnel) * 100)}%` }}
                   />
                 </div>
-                <span className="w-8 shrink-0 text-right text-sm font-semibold text-slate-700 tabular-nums">{value}</span>
+                <span className="w-8 shrink-0 text-right text-caption font-mono font-semibold text-t1 tabular-nums">{value}</span>
               </div>
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* Daily won trend */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-4">Won Deals — Last 14 Days</p>
-        <div className="flex items-end justify-between gap-1 h-28">
+      <Card className="space-y-4">
+        <SectionHeader label="Won Deals — Last 14 Days" />
+        <div className="flex items-end justify-between gap-1 h-28 pt-2">
           {daily.map((d) => (
             <div key={d.date} className="flex-1 flex flex-col items-center gap-1 min-w-0 group">
-              <span className="text-[10px] font-semibold text-slate-500 tabular-nums">{d.count > 0 ? d.count : ""}</span>
+              <span className="text-caption font-mono text-t3 tabular-nums">{d.count > 0 ? d.count : ""}</span>
               <div className="w-full flex items-end justify-center h-20">
                 <div
-                  className="w-full max-w-[18px] bg-green-500/80 group-hover:bg-green-500 rounded-t-md transition-all"
+                  className="w-full max-w-[18px] bg-pos/80 group-hover:bg-pos rounded-t-md transition-all"
                   style={{ height: `${d.count === 0 ? 2 : (d.count / maxDaily) * 100}%` }}
                 />
               </div>
-              <span className="text-[9px] text-slate-400 truncate w-full text-center leading-tight">{d.label}</span>
+              <span className="text-[9px] font-mono text-t3 truncate w-full text-center leading-tight">{d.label}</span>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Live trigger / alert feed */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Live Triggers &amp; Alerts</p>
+      <Card className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-pos animate-pulse" />
+          <SectionHeader label="Live Triggers & Alerts" />
         </div>
         <AlertFeed initialAlerts={initialAlerts} />
-      </div>
+      </Card>
     </div>
   );
 }

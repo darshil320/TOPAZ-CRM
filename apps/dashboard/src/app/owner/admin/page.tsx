@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
+import { Card } from "@/components/ui/Card";
+import SectionHeader from "@/components/ui/SectionHeader";
+import Pill from "@/components/ui/Pill";
 import ProductAdmin, { type AdminProduct } from "./ProductAdmin";
 import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
 
@@ -39,54 +43,42 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
-      {/* Uncarded Standard Page Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">System Admin</h1>
-        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
-          Manage product catalog, commercial quotation settings, and messaging templates
-        </p>
-      </div>
+      <PageHeader
+        title="System Admin"
+        subtitle="Manage product catalog, commercial quotation settings, and messaging templates"
+      />
 
       {/* Product Catalog Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
+      <Card>
         <ProductAdmin products={(products ?? []) as AdminProduct[]} />
-      </div>
+      </Card>
 
       {/* Settings Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
+      <Card>
         <SettingsAdmin initial={settings} />
-      </div>
+      </Card>
 
       {/* WhatsApp Templates Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm space-y-4">
-        <div>
-          <h3 className="text-base font-extrabold text-slate-900">WhatsApp Message Templates</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Meta API template status for automated customer communication dispatches.
-          </p>
-        </div>
+      <Card className="space-y-4">
+        <SectionHeader label="WhatsApp Message Templates" />
+        <p className="text-caption text-t3 -mt-2">
+          Meta API template status for automated customer communication dispatches.
+        </p>
 
-        <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-2xl overflow-hidden bg-slate-50/50">
+        <div className="divide-y divide-ln2 border border-ln rounded-card overflow-hidden bg-sf2">
           {TEMPLATES.map((t) => (
-            <div key={t.name} className="flex items-center justify-between p-3.5 bg-white hover:bg-slate-50 transition-colors">
+            <div key={t.name} className="flex items-center justify-between p-3.5 bg-sf hover:bg-sf2 transition-colors">
               <div className="flex flex-col">
-                <span className="font-mono text-xs font-bold text-slate-800">{t.name}</span>
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5">{t.use}</span>
+                <span className="font-mono text-ui font-semibold text-t1">{t.name}</span>
+                <span className="text-caption text-t3 mt-0.5">{t.use}</span>
               </div>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
-                  t.status === "approved"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${t.status === "approved" ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <Pill tone={t.status === "approved" ? "pos" : "neutral"} dot={true}>
                 {t.status}
-              </span>
+              </Pill>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
