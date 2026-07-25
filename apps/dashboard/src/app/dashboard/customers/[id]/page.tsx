@@ -9,6 +9,9 @@ import MuteAlertsToggle from "./MuteAlertsToggle";
 import InterestSummary from "./InterestSummary";
 import MeetingNotes, { type MeetingNote } from "./MeetingNotes";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Props = { params: Promise<{ id: string }> };
 
 const BAND_CONFIG: Record<string, { label: string; color: string }> = {
