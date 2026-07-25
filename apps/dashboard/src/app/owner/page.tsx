@@ -17,8 +17,8 @@ export default async function OwnerPage() {
 
   const supabase = await createServerSupabaseClient();
   
-  // Fetch pipeline stages joined with customers and active primary assignments
-  const { data: rows } = await supabase
+  // Explicit FK constraint name required by PostgREST due to dual FKs (salesperson_id & added_by)
+  const { data: rows, error } = await supabase
     .from("pipeline_stages")
     .select(`
       stage,
@@ -32,7 +32,7 @@ export default async function OwnerPage() {
         customer_assignments (
           role,
           active,
-          salespersons (
+          salespersons!customer_assignments_salesperson_id_fkey (
             id,
             name
           )
@@ -40,6 +40,10 @@ export default async function OwnerPage() {
       )
     `)
     .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("Owner pipeline query error:", error);
+  }
 
   const initialCustomers: OwnerCustomer[] = (rows ?? [])
     .map((r: any) => {
