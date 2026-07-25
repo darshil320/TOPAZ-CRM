@@ -45,11 +45,21 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
+          "var(--font-plus-jakarta)",
           "-apple-system",
           "BlinkMacSystemFont",
           '"Segoe UI"',
           "Roboto",
           "sans-serif",
+        ],
+        mono: [
+          "var(--font-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "monospace",
         ],
       },
     },
