@@ -9,7 +9,6 @@ import ClaimButton from "./ClaimButton";
 export default async function WalkinsPage() {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (isOwnerRole(sp)) redirect("/owner");
 
   const supabase = await createServerSupabaseClient();
   const [{ data: mine }, { data: customers }] = await Promise.all([

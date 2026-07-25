@@ -133,18 +133,20 @@ export default async function CustomerPage({ params }: Props) {
         <div className="lg:col-span-7 space-y-5">
           {/* WhatsApp Communication Panel */}
           <Card className="p-0 overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
-            <div className="px-4 py-3 border-b border-ln flex items-center justify-between bg-sf2">
+            <div className="px-4 py-2.5 border-b border-ln flex items-center justify-between gap-2 bg-sf2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-pos animate-pulse shrink-0" />
+                <span className="text-section font-semibold text-t1 truncate">WhatsApp Live Communication</span>
+              </div>
+              
               <Link
                 href={`/dashboard/customers/${id}/whatsapp`}
                 prefetch={true}
-                className="flex items-center gap-2 hover:opacity-80 transition-all min-w-0"
+                className="shrink-0 text-caption font-semibold text-t1 hover:text-acc transition-colors flex items-center gap-1.5 bg-sf border border-ln px-3 py-1 rounded-md shadow-sh active:scale-95"
               >
-                <span className="w-2 h-2 rounded-full bg-pos animate-pulse shrink-0" />
-                <span className="text-section font-semibold text-t1 truncate">WhatsApp Live Communication</span>
+                <span>Full WhatsApp Mode</span>
+                <span className="font-mono">→</span>
               </Link>
-              {customer.wa_id && (
-                <span className="text-caption font-mono text-t3 truncate">+{customer.wa_id}</span>
-              )}
             </div>
 
             <ConversationThread
