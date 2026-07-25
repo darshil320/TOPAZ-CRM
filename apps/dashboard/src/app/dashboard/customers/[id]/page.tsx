@@ -48,7 +48,7 @@ export default async function CustomerPage({ params }: Props) {
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).single(),
     supabase.from("visits").select("id, match_band, occurred_at, photo_key").eq("customer_id", id).order("occurred_at", { ascending: false }).limit(5),
-    supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: true }).limit(30),
+    supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: false }).limit(30),
     supabase.from("pipeline_stages").select("stage").eq("customer_id", id).single(),
     supabase.from("conversations").select("id, notes, budget, products, stage_at_time, created_at, salespersons(name)").eq("customer_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("customer_assignments").select("id, role, salespersons!salesperson_id(id, name)").eq("customer_id", id).eq("active", true),
@@ -159,7 +159,7 @@ export default async function CustomerPage({ params }: Props) {
             <ConversationThread
               customerId={id}
               waId={customer.wa_id ?? null}
-              initialMessages={(messages ?? []) as { id: string; content: string; direction: "outbound" | "inbound"; sender_type: string; draft_status: string | null; created_at: string }[]}
+              initialMessages={[...(messages ?? [])].reverse() as { id: string; content: string; direction: "outbound" | "inbound"; sender_type: string; draft_status: string | null; created_at: string }[]}
             />
           </div>
 
