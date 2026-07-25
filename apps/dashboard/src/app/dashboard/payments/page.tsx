@@ -21,8 +21,6 @@ export default async function PaymentsPage() {
   const [{ data: todayPays }, { data: outstanding }, { data: orders }] = await Promise.all([
     supabase.from("payments").select("amount, kind, paid_at").gte("paid_at", startOfToday.toISOString()),
     supabase.from("order_outstanding").select("order_id, outstanding"),
-    // Explicit ordering so the 500-row cap is deterministic (newest first) rather
-    // than dropping arbitrary rows as the table grows (code-review MEDIUM).
     supabase
       .from("orders")
       .select("id, order_no, created_at, status, customers(name)")
@@ -61,58 +59,148 @@ export default async function PaymentsPage() {
   const totalOutstanding = openOrders.reduce((s, o) => s + o.due, 0);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-lg font-bold text-slate-900">Payments</h1>
-        <p className="mt-0.5 text-sm text-slate-500">Collections &amp; outstanding</p>
-      </div>
-
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Collected today" value={formatINR(collectedToday)} tone="green" />
-        <Stat label="Outstanding 0-7d" value={formatINR(buckets["0-7"])} />
-        <Stat label="Outstanding 8-30d" value={formatINR(buckets["8-30"])} tone="amber" />
-        <Stat label="Outstanding 30+d" value={formatINR(buckets["30+"])} tone="red" />
-      </div>
-
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-700">Open balances</p>
-        <p className="text-sm text-slate-500">{formatINR(totalOutstanding)} total</p>
-      </div>
-
-      {openOrders.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
-          Nothing outstanding — all orders are paid up.
+    <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments &amp; Collections</h1>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 font-medium">Real-time revenue collections, open balances, and aging tracking</p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {openOrders.map((o) => (
-            <Link
-              key={o.id}
-              href={`/dashboard/orders/${o.id}`}
-              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 transition-colors hover:border-slate-300"
-            >
-              <div className="min-w-0">
-                <span className="text-sm font-semibold text-slate-900">{o.order_no}</span>
-                <p className="mt-0.5 truncate text-xs text-slate-500">
-                  {o.name} · {o.age}d old
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-semibold text-amber-700">{formatINR(o.due)}</span>
-            </Link>
-          ))}
+        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3.5 py-2 rounded-2xl text-emerald-800 text-xs font-extrabold self-start sm:self-auto shadow-2xs">
+          <span>Total Outstanding:</span>
+          <span className="text-emerald-700 font-black">{formatINR(totalOutstanding)}</span>
         </div>
-      )}
+      </div>
+
+      {/* 4 Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Collected Today"
+          value={formatINR(collectedToday)}
+          icon="🟢"
+          bg="bg-gradient-to-br from-emerald-50/90 via-teal-50/50 to-white"
+          border="border-emerald-200/90"
+          valueColor="text-emerald-700"
+        />
+        <StatCard
+          label="Outstanding 0-7D"
+          value={formatINR(buckets["0-7"])}
+          icon="⏱️"
+          bg="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white"
+          border="border-sky-200/90"
+          valueColor="text-sky-700"
+        />
+        <StatCard
+          label="Outstanding 8-30D"
+          value={formatINR(buckets["8-30"])}
+          icon="⚠️"
+          bg="bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-white"
+          border="border-amber-200/90"
+          valueColor="text-amber-700"
+        />
+        <StatCard
+          label="Outstanding 30+D"
+          value={formatINR(buckets["30+"])}
+          icon="🚨"
+          bg="bg-gradient-to-br from-rose-50/90 via-red-50/50 to-white"
+          border="border-rose-200/90"
+          valueColor="text-rose-700"
+        />
+      </div>
+
+      {/* Open Balances List Section */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Open Balances</h2>
+            <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+              {openOrders.length} Pending
+            </span>
+          </div>
+          <span className="text-xs font-bold text-slate-500">{formatINR(totalOutstanding)} total</span>
+        </div>
+
+        {openOrders.length === 0 ? (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2 font-bold text-lg">
+              ✓
+            </div>
+            <p className="text-xs font-bold text-slate-700">All orders fully paid!</p>
+            <p className="text-[11px] text-slate-400 mt-1">There are no outstanding balances at this time.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {openOrders.map((o) => {
+              const initials = o.name
+                ? o.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+                : "?";
+              return (
+                <Link
+                  key={o.id}
+                  href={`/dashboard/orders/${o.id}`}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 transition-all hover:border-amber-300 hover:shadow-md active:scale-[0.99] group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs">
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-amber-800 transition-colors truncate">
+                          {o.order_no}
+                        </span>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                          {o.age}d old
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-slate-500 font-medium">
+                        Customer: <span className="text-slate-800 font-semibold">{o.name}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-xs sm:text-sm font-black text-amber-700 block">
+                      {formatINR(o.due)}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-amber-600 transition-colors inline-flex items-center gap-0.5">
+                      View Order &rarr;
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "green" | "amber" | "red" }) {
-  const color =
-    tone === "green" ? "text-green-700" : tone === "amber" ? "text-amber-700" : tone === "red" ? "text-red-700" : "text-slate-900";
+function StatCard({
+  label,
+  value,
+  icon,
+  bg,
+  border,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  icon: string;
+  bg: string;
+  border: string;
+  valueColor: string;
+}) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-1 text-base font-bold ${color}`}>{value}</p>
+    <div className={`rounded-2xl border ${border} ${bg} p-4 sm:p-5 shadow-2xs transition-all hover:shadow-sm space-y-1.5`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{label}</p>
+        <span className="text-sm">{icon}</span>
+      </div>
+      <p className={`text-lg sm:text-2xl font-black tracking-tight ${valueColor}`}>{value}</p>
     </div>
   );
 }

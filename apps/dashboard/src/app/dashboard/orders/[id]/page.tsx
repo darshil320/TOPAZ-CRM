@@ -44,82 +44,127 @@ export default async function OrderDetailPage({ params }: Props) {
   const outstanding = out?.outstanding ?? order.grand_total;
 
   return (
-    <div className="space-y-4">
-      <Link href="/dashboard/orders" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700">
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Orders
-      </Link>
+    <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
+      {/* Back Link */}
+      <div className="flex items-center justify-between">
+        <Link href="/dashboard/orders" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Orders
+        </Link>
+      </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-base font-bold text-slate-900">{order.order_no}</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              {customer?.name ?? "Unknown"}
-              {customer?.phone && <span className="text-slate-400"> · {customer.phone}</span>}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Created {formatDate(order.created_at)}
-              {order.expected_delivery_date && ` · Expected ${formatDate(order.expected_delivery_date)}`}
-              {quote && (
-                <>
-                  {" · from "}
-                  <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-blue-600 hover:underline">
-                    {quote.quote_no}
-                  </Link>
-                </>
-              )}
-            </p>
+      {/* Hero Header Card */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-black text-sm sm:text-base shadow-md shadow-blue-500/20 shrink-0">
+              ORD
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{order.order_no}</h1>
+                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${chip.color}`}>
+                  {chip.label}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-600 font-medium">
+                Customer: <span className="text-slate-900 font-bold">{customer?.name ?? "Unknown"}</span>
+                {customer?.phone && <span className="text-slate-400 font-normal"> ({customer.phone})</span>}
+              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-400 font-medium">
+                <span>Created {formatDate(order.created_at)}</span>
+                {order.expected_delivery_date && <span>· Expected Delivery: {formatDate(order.expected_delivery_date)}</span>}
+                {quote && (
+                  <span>
+                    · Source:{" "}
+                    <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-blue-600 hover:underline font-bold">
+                      {quote.quote_no}
+                    </Link>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${chip.color}`}>{chip.label}</span>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</p>
+      {/* Order Status & Transition Actions */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
+        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Order Status Actions</h3>
         <OrderStatusActions orderId={order.id} status={order.status} />
       </div>
 
-      {/* Outstanding */}
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Order total" value={formatINR(order.grand_total)} />
-        <Stat label="Paid" value={formatINR(paid)} tone="green" />
-        <Stat label="Outstanding" value={formatINR(outstanding)} tone={Number(outstanding) > 0 ? "amber" : "green"} />
+      {/* Financial Metrics Summary (3-card Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-5 shadow-2xs space-y-1">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Order Total</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-900">{formatINR(order.grand_total)}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-white p-4 sm:p-5 shadow-2xs space-y-1">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Total Paid</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700">{formatINR(paid)}</p>
+        </div>
+        <div className={`rounded-2xl border ${Number(outstanding) > 0 ? "border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-white" : "border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-white"} p-4 sm:p-5 shadow-2xs space-y-1`}>
+          <p className={`text-[10px] font-extrabold uppercase tracking-wider ${Number(outstanding) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+            Outstanding Balance
+          </p>
+          <p className={`text-xl sm:text-2xl font-black ${Number(outstanding) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+            {formatINR(outstanding)}
+          </p>
+        </div>
       </div>
 
-      {/* Items */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Items</p>
+      {/* Invoice Items Card */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-0">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ordered Items &amp; Tax Breakdown</h3>
+          <span className="text-xs font-bold text-slate-400">{(items ?? []).length} items</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <tbody>
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/40 text-[10px] uppercase font-bold text-slate-400">
+                <th className="px-5 py-3">Item Description</th>
+                <th className="px-5 py-3 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
               {(items ?? []).map((it) => {
                 const specs = [it.dimensions, it.material, it.fabric, it.polish, it.customization].filter(Boolean);
                 return (
-                  <tr key={it.id} className="border-b border-slate-50 last:border-0">
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-slate-800">{it.description}</p>
-                      {specs.length > 0 && <p className="mt-0.5 text-xs text-slate-400">{specs.join(" · ")}</p>}
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} · {it.gst_rate}%
+                  <tr key={it.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-3.5 space-y-1">
+                      <p className="font-bold text-slate-900 text-sm">{it.description}</p>
+                      {specs.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {specs.map((spc, idx) => (
+                            <span key={idx} className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                              {spc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
                     </td>
-                    <td className="px-5 py-3 text-right font-medium text-slate-800">{formatINR(it.line_total)}</td>
+                    <td className="px-5 py-3.5 text-right font-black text-slate-900 text-sm align-top">
+                      {formatINR(it.line_total)}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        <div className="border-t border-slate-100 px-5 py-3">
-          <dl className="ml-auto max-w-xs space-y-1 text-sm">
+        {/* Total calculation footer */}
+        <div className="border-t border-slate-100 bg-slate-50/40 p-5">
+          <dl className="ml-auto max-w-xs space-y-1.5 text-xs sm:text-sm">
             <TotalRow label="Subtotal" value={formatINR(order.subtotal)} />
             {Number(order.discount_amount) > 0 && <TotalRow label="Discount" value={`− ${formatINR(order.discount_amount)}`} />}
-            <TotalRow label="Taxable" value={formatINR(order.taxable_value)} />
+            <TotalRow label="Taxable Value" value={formatINR(order.taxable_value)} />
             {intra ? (
               <>
                 <TotalRow label="CGST" value={formatINR(order.cgst)} muted />
@@ -128,25 +173,27 @@ export default async function OrderDetailPage({ params }: Props) {
             ) : (
               <TotalRow label="IGST" value={formatINR(order.igst)} muted />
             )}
-            <div className="mt-1 flex justify-between border-t border-slate-100 pt-1 font-bold text-slate-900">
-              <dt>Grand total</dt>
-              <dd>{formatINR(order.grand_total)}</dd>
+            <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 font-black text-sm sm:text-base text-slate-900">
+              <dt>Grand Total</dt>
+              <dd className="text-blue-600">{formatINR(order.grand_total)}</dd>
             </div>
           </dl>
         </div>
       </div>
 
-      {/* Payment schedule (read-only here; recording lives in the Payments module) */}
+      {/* Payment Schedule (if any) */}
       {(schedule ?? []).length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payment Schedule</p>
-          <div className="space-y-1.5">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Payment Schedule</h3>
+          <div className="divide-y divide-slate-100">
             {(schedule ?? []).map((s) => (
-              <div key={s.id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">{s.label ?? "Instalment"} · due {formatDate(s.due_date)}</span>
+              <div key={s.id} className="flex items-center justify-between py-2.5 text-xs sm:text-sm first:pt-0 last:pb-0">
+                <span className="font-medium text-slate-700">{s.label ?? "Instalment"} · Due {formatDate(s.due_date)}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-slate-800">{formatINR(s.amount)}</span>
-                  <span className="text-[11px] uppercase text-slate-400">{s.status}</span>
+                  <span className="font-bold text-slate-900">{formatINR(s.amount)}</span>
+                  <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${s.status === "paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                    {s.status}
+                  </span>
                 </span>
               </div>
             ))}
@@ -154,25 +201,27 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Recorded payments + record form */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payments</p>
+      {/* Recorded Payments */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Payment History &amp; Receipts</h3>
           {order.status !== "cancelled" && (
             <RecordPaymentForm orderId={order.id} defaultDate={new Date().toISOString().slice(0, 10)} />
           )}
         </div>
         {(payments ?? []).length === 0 ? (
-          <p className="text-sm text-slate-400">No payments recorded yet.</p>
+          <p className="text-xs font-medium text-slate-400 italic">No payments recorded yet.</p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {(payments ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">
-                  {p.receipt_no} · {p.kind} · {p.mode} · {formatDate(p.paid_at)}
-                </span>
-                <span className={p.kind === "refund" ? "text-red-600" : "text-slate-800"}>
-                  {p.kind === "refund" ? "− " : ""}{formatINR(p.amount)}
+              <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 text-xs sm:text-sm">
+                <div>
+                  <span className="font-bold text-slate-900">{p.receipt_no}</span>
+                  <span className="text-slate-500 font-medium"> · {p.kind} via {p.mode.toUpperCase()}</span>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">{formatDate(p.paid_at)}</p>
+                </div>
+                <span className={`font-black text-sm ${p.kind === "refund" ? "text-rose-600" : "text-emerald-700"}`}>
+                  {p.kind === "refund" ? "− " : "+"}{formatINR(p.amount)}
                 </span>
               </div>
             ))}
@@ -180,17 +229,17 @@ export default async function OrderDetailPage({ params }: Props) {
         )}
       </div>
 
-      {/* Timeline */}
+      {/* Audit Log Timeline */}
       {(timeline ?? []).length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Timeline</p>
-          <div className="space-y-2">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Order Timeline</h3>
+          <div className="space-y-3">
             {(timeline ?? []).map((t, i) => (
-              <div key={i} className="flex items-start gap-2.5 text-sm">
-                <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+              <div key={i} className="flex items-start gap-3 text-xs sm:text-sm">
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-4 ring-blue-50" />
                 <div>
-                  <span className="text-slate-700">{t.action}</span>
-                  <span className="ml-2 text-xs text-slate-400">{formatDate(t.changed_at)}</span>
+                  <span className="font-semibold text-slate-800">{t.action}</span>
+                  <span className="ml-2 text-xs text-slate-400 font-medium">{formatDate(t.changed_at)}</span>
                 </div>
               </div>
             ))}
