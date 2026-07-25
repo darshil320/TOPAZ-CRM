@@ -23,11 +23,6 @@ function formatDate(iso: string) {
   });
 }
 
-/**
- * Append-only per-visit meeting log (the `conversations` table). Each entry
- * captures what was discussed, optional budget + products, and the pipeline
- * stage at the time — the running history behind the one-line interest summary.
- */
 export default function MeetingNotes({
   customerId,
   initialNotes,
@@ -54,7 +49,6 @@ export default function MeetingNotes({
         setError(error);
       } else {
         setError(null);
-        // Optimistic prepend; server revalidate will reconcile.
         setNotes((prev) => [
           {
             id: `tmp-${prev.length}`,
@@ -76,64 +70,77 @@ export default function MeetingNotes({
 
   return (
     <div className="space-y-4">
-      {/* Add form */}
-      <div className="space-y-2">
+      {/* Add note card */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-2xs">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="What was discussed this visit? Preferences, objections, next step…"
+          placeholder="What was discussed this visit? Preferences, objections, next steps..."
           rows={2}
-          className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-slate-50 placeholder:text-slate-400"
+          className="w-full text-xs font-medium border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none bg-white placeholder:text-slate-400"
         />
-        <div className="flex flex-col sm:flex-row gap-2">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
-            placeholder="Budget (optional)"
-            className="flex-1 text-sm border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 placeholder:text-slate-400"
+            placeholder="Budget (e.g. 1.5L)"
+            className="text-xs font-medium border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white placeholder:text-slate-400"
           />
           <input
             value={products}
             onChange={(e) => setProducts(e.target.value)}
-            placeholder="Products, comma-separated (optional)"
-            className="flex-1 text-sm border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 placeholder:text-slate-400"
+            placeholder="Products (e.g. Sofa, Dining)"
+            className="text-xs font-medium border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white placeholder:text-slate-400"
           />
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center justify-between pt-1">
+          {error ? <span className="text-xs font-semibold text-rose-600">{error}</span> : <div />}
           <button
             type="button"
             onClick={handleAdd}
             disabled={!text.trim() || isPending}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
           >
-            {isPending ? "Adding…" : "Add note"}
+            {isPending ? "Saving..." : "Add Note"}
           </button>
-          {error && <span className="text-xs text-red-600">{error}</span>}
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline entries */}
       {notes.length === 0 ? (
-        <p className="text-sm text-slate-400">No meeting notes yet.</p>
+        <div className="py-6 text-center text-xs text-slate-400 font-medium">
+          No meeting notes recorded yet.
+        </div>
       ) : (
         <div className="space-y-3">
           {notes.map((n) => (
-            <div key={n.id} className="border-l-2 border-slate-200 pl-3 py-0.5">
-              <p className="text-sm text-slate-800 whitespace-pre-wrap">{n.notes}</p>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+            <div key={n.id} className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs space-y-2">
+              <p className="text-xs font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">{n.notes}</p>
+
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 {n.budget && (
-                  <span className="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full">₹ {n.budget}</span>
+                  <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">
+                    ₹ {n.budget}
+                  </span>
                 )}
                 {(n.products ?? []).map((p, i) => (
-                  <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p}</span>
+                  <span key={i} className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md">
+                    {p}
+                  </span>
                 ))}
                 {n.stage_at_time && (
-                  <span className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full">{n.stage_at_time}</span>
+                  <span className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                    {n.stage_at_time}
+                  </span>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">
-                {n.salespersons?.name ? `${n.salespersons.name} · ` : ""}{formatDate(n.created_at)}
-              </p>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold pt-1 border-t border-slate-100">
+                <span>{n.salespersons?.name ? `Logged by ${n.salespersons.name}` : "System Log"}</span>
+                <span>{formatDate(n.created_at)}</span>
+              </div>
             </div>
           ))}
         </div>
