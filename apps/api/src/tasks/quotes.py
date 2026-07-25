@@ -5,6 +5,15 @@ free-form inside the window, approved template outside. Customer DOCUMENT
 delivery is additionally gated by WA_MEDIA_ENABLED until WA-MEDIA-SPIKE + Meta
 Business Verification clear — until then the customer still gets the approval
 LINK (text/template), which is enough to view + approve.
+
+EXTERNAL CONTRACT — Meta-approved template names + NAMED params below MUST match
+the templates registered in WhatsApp Manager (WABA 1506116721198796) byte-for-byte.
+Renaming a template or reordering/renaming a param here without re-submitting the
+Meta template silently breaks every out-of-window send:
+  - quote_sent             (utility): customer_name, quote_no, link
+  - quote_approved_confirm (utility): customer_name, quote_no
+`payment_due` (utility: customer_name, amount, order_no, due_date) lives in
+services/templates.py — same contract applies there.
 """
 
 import asyncio
