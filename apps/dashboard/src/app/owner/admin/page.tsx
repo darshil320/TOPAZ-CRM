@@ -38,12 +38,12 @@ export default async function AdminPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Page Title */}
-      <div className="border-b border-slate-200/80 pb-4">
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Admin</h1>
-        <p className="text-xs font-medium text-slate-500 mt-1">
-          Manage product catalog, commercial quotation settings, and messaging templates.
+    <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
+      {/* Uncarded Standard Page Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">System Admin</h1>
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+          Manage product catalog, commercial quotation settings, and messaging templates
         </p>
       </div>
 

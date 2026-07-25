@@ -90,19 +90,19 @@ export default async function AnalyticsPage() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Analytics</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Conversion, daily sales, and live intent triggers</p>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Analytics</h1>
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">Conversion, daily sales, and live intent triggers</p>
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {kpis.map((k) => (
-          <div key={k.label} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">{k.label}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1.5">{k.value}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{k.sub}</p>
+          <div key={k.label} className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm space-y-1">
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{k.label}</p>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{k.value}</p>
+            <p className="text-[11px] font-medium text-slate-400">{k.sub}</p>
           </div>
         ))}
       </div>

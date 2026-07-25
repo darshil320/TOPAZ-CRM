@@ -45,54 +45,43 @@ export default async function OrderDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
-      {/* Back Link */}
-      <div className="flex items-center justify-between">
+      {/* Back Link & Uncarded Executive Page Header */}
+      <div className="space-y-3">
         <Link href="/dashboard/orders" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back to Orders
         </Link>
-      </div>
-
-      {/* Hero Header Card */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-black text-sm sm:text-base shadow-md shadow-blue-500/20 shrink-0">
-              ORD
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{order.order_no}</h1>
+              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${chip.color}`}>
+                {chip.label}
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{order.order_no}</h1>
-                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${chip.color}`}>
-                  {chip.label}
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+              Customer: <span className="text-slate-800 font-bold">{customer?.name ?? "Unknown"}</span>
+              {customer?.phone && <span className="text-slate-400"> ({customer.phone})</span>}
+              <span className="text-slate-400"> · Created {formatDate(order.created_at)}</span>
+              {order.expected_delivery_date && <span className="text-slate-400"> · Expected Delivery: {formatDate(order.expected_delivery_date)}</span>}
+              {quote && (
+                <span className="text-slate-400">
+                  {" · Source: "}
+                  <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-blue-600 hover:underline font-bold">
+                    {quote.quote_no}
+                  </Link>
                 </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600 font-medium">
-                Customer: <span className="text-slate-900 font-bold">{customer?.name ?? "Unknown"}</span>
-                {customer?.phone && <span className="text-slate-400 font-normal"> ({customer.phone})</span>}
-              </p>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-400 font-medium">
-                <span>Created {formatDate(order.created_at)}</span>
-                {order.expected_delivery_date && <span>· Expected Delivery: {formatDate(order.expected_delivery_date)}</span>}
-                {quote && (
-                  <span>
-                    · Source:{" "}
-                    <Link href={`/dashboard/quotes/${order.quotation_id}`} className="text-blue-600 hover:underline font-bold">
-                      {quote.quote_no}
-                    </Link>
-                  </span>
-                )}
-              </div>
-            </div>
+              )}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Order Status & Transition Actions */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-3">
-        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Order Status Actions</h3>
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-3">
+        <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Order Status Actions</h3>
         <OrderStatusActions orderId={order.id} status={order.status} />
       </div>
 
