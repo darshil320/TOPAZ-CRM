@@ -96,6 +96,53 @@ PASSED on 2026-07-26; the rest below are unproven on prod.
 - ☐ 🟡 LOW rate-limiting on public + dashboard-key routes.
 - ☐ 🟡 Go-live re-review of the JWT auth change + `api/auth.py:link_salesperson` body-trust.
 
+## Where we are — updated 2026-07-25 (live prod status)
+
+**Big picture:** prod DB + app are on the full 2A build; the money path is wired
+and mostly proven live. What's left is (a) finish testing the payment leg, (b)
+clear the security-rotation blockers, (c) get Meta template approvals, (d) staff
+sign-off. Then real customers.
+
+### ✅ Done & live on prod this session
+
+- DB: prod **and** UAT at migration **0022**, history synced (0010–0022).
+- **Auth fixed** — API now verifies Supabase **ES256** tokens via JWKS; dashboard
+  writes work (was 401 "Invalid or expired session" on every write).
+- **Vercel build fixed** — removed conflicting root `vercel.json`; dashboard deploys.
+- **WhatsApp media enabled** — `WA_MEDIA_ENABLED=true`, Chromium/PDF engine live in
+  the image, **K1 media spike passed** (PDF received on phone).
+- **Live conversation thread** — `messages` added to realtime (0021) + newest-30
+  fix; thread streams without reload.
+- **Order-from-quote deduped** — idempotent create + unique index (0022); the
+  duplicate `ORD-2627-0002` was removed; `ORD-2627-0001` is the surviving order.
+
+### ✅ Money path proven live (real data on prod)
+
+- Quote build + save → `QTN-2627-0004` **approved**.
+- Public approve page → quote went to **approved**.
+- Order from approved quote → **`ORD-2627-0001`** (confirmed, advance = 50%).
+
+### ⏳ Left to verify on prod (UAT smoke — §5–§7 above)
+
+- **§5 Payment + receipt PDF** — the last untested leg; exercises the same
+  Chromium render path, so this is the real PDF confirmation. **Test next.**
+- **§6 `payment_due` reminder** — template Active; runnable.
+- **§7 Roles/RLS** — accounts records payment / salesperson blocked 403 / owner refund.
+- **§2 out-of-window template send** — blocked on Meta approval below.
+
+### 🔴 Go-live blockers (before ANY real customer) — see list above
+
+- Rotate **`WA_TOKEN`**, **prod DB password**, and **revoke the leaked 919426529230
+  session** — all transcript-exposed, still open. Highest priority.
+- Meta approval of **`quote_sent`** + **`quote_approved_confirm`** (In review).
+
+### 👉 What's next (in order)
+
+1. **Rotate the 3 secrets** (WA_TOKEN, DB password, leaked session) — security, do first.
+2. **Test the payment + receipt-PDF leg** on prod (§5) — closes the money path.
+3. **Chase Meta template approvals** (unblocks out-of-window customer sends).
+4. **Staff UAT sign-off** (§ sign-off) → then cleared for real customers.
+
 ## Sign-off
 
 - 2A verified end-to-end on prod: ______ (date / who)
