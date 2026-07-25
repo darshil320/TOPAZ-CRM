@@ -60,65 +60,72 @@ export default async function PaymentsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
-      {/* Header Banner */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments &amp; Collections</h1>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 font-medium">Real-time revenue collections, open balances, and aging tracking</p>
-        </div>
-        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3.5 py-2 rounded-2xl text-emerald-800 text-xs font-extrabold self-start sm:self-auto shadow-2xs">
-          <span>Total Outstanding:</span>
-          <span className="text-emerald-700 font-black">{formatINR(totalOutstanding)}</span>
-        </div>
+      {/* Uncarded Standard Page Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Payments</h1>
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+          Collections, open balances, and aging tracking
+        </p>
       </div>
 
-      {/* 4 Metric Cards */}
+      {/* 4 Stat Cards in Unified Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
-          label="Collected Today"
+          label="COLLECTED TODAY"
           value={formatINR(collectedToday)}
-          icon="🟢"
-          bg="bg-gradient-to-br from-emerald-50/90 via-teal-50/50 to-white"
-          border="border-emerald-200/90"
           valueColor="text-emerald-700"
+          badgeBg="bg-emerald-50 text-emerald-600"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-6h6" />
+            </svg>
+          }
         />
         <StatCard
-          label="Outstanding 0-7D"
+          label="OUTSTANDING 0-7D"
           value={formatINR(buckets["0-7"])}
-          icon="⏱️"
-          bg="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white"
-          border="border-sky-200/90"
-          valueColor="text-sky-700"
+          valueColor="text-slate-900"
+          badgeBg="bg-blue-50 text-blue-600"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
         />
         <StatCard
-          label="Outstanding 8-30D"
+          label="OUTSTANDING 8-30D"
           value={formatINR(buckets["8-30"])}
-          icon="⚠️"
-          bg="bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-white"
-          border="border-amber-200/90"
           valueColor="text-amber-700"
+          badgeBg="bg-amber-50 text-amber-600"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          }
         />
         <StatCard
-          label="Outstanding 30+D"
+          label="OUTSTANDING 30+D"
           value={formatINR(buckets["30+"])}
-          icon="🚨"
-          bg="bg-gradient-to-br from-rose-50/90 via-red-50/50 to-white"
-          border="border-rose-200/90"
           valueColor="text-rose-700"
+          badgeBg="bg-rose-50 text-rose-600"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
         />
       </div>
 
       {/* Open Balances List Section */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Open Balances</h2>
-            <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-              {openOrders.length} Pending
-            </span>
+            <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Open Balances</h2>
+            {openOrders.length > 0 && (
+              <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                {openOrders.length} Pending
+              </span>
+            )}
           </div>
           <span className="text-xs font-bold text-slate-500">{formatINR(totalOutstanding)} total</span>
         </div>
@@ -132,7 +139,7 @@ export default async function PaymentsPage() {
             <p className="text-[11px] text-slate-400 mt-1">There are no outstanding balances at this time.</p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {openOrders.map((o) => {
               const initials = o.name
                 ? o.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
@@ -141,18 +148,18 @@ export default async function PaymentsPage() {
                 <Link
                   key={o.id}
                   href={`/dashboard/orders/${o.id}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 transition-all hover:border-amber-300 hover:shadow-md active:scale-[0.99] group"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 transition-all hover:border-slate-300 hover:shadow-xs active:scale-[0.99] group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs">
                       {initials}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-amber-800 transition-colors truncate">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
                           {o.order_no}
                         </span>
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
                           {o.age}d old
                         </span>
                       </div>
@@ -162,10 +169,10 @@ export default async function PaymentsPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-xs sm:text-sm font-black text-amber-700 block">
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block">
                       {formatINR(o.due)}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-amber-600 transition-colors inline-flex items-center gap-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition-colors inline-flex items-center gap-0.5">
                       View Order &rarr;
                     </span>
                   </div>
@@ -182,25 +189,25 @@ export default async function PaymentsPage() {
 function StatCard({
   label,
   value,
-  icon,
-  bg,
-  border,
   valueColor,
+  badgeBg,
+  icon,
 }: {
   label: string;
   value: string;
-  icon: string;
-  bg: string;
-  border: string;
   valueColor: string;
+  badgeBg: string;
+  icon: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl border ${border} ${bg} p-4 sm:p-5 shadow-2xs transition-all hover:shadow-sm space-y-1.5`}>
+    <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm space-y-2 flex flex-col justify-between">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{label}</p>
-        <span className="text-sm">{icon}</span>
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">{label}</p>
+        <div className={`w-8 h-8 rounded-xl ${badgeBg} flex items-center justify-center shrink-0`}>
+          {icon}
+        </div>
       </div>
-      <p className={`text-lg sm:text-2xl font-black tracking-tight ${valueColor}`}>{value}</p>
+      <p className={`text-xl sm:text-2xl font-black tracking-tight ${valueColor}`}>{value}</p>
     </div>
   );
 }

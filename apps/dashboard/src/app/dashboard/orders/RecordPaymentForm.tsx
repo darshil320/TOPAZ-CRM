@@ -41,24 +41,24 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 text-xs font-bold transition-all shadow-2xs active:scale-95 shrink-0"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        Record Payment
+        + Record Payment
       </button>
     );
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-5 shadow-xs">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Record New Payment</h4>
+    <div className="w-full space-y-4 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 sm:p-5 shadow-xs transition-all">
+      <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5">
+        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Record New Payment</h4>
         <button
           type="button"
           onClick={() => { setOpen(false); setError(null); }}
-          className="text-xs font-bold text-slate-400 hover:text-slate-700"
+          className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors"
         >
           &times; Close
         </button>
@@ -66,45 +66,80 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">Amount (₹)</label>
-          <input type="number" inputMode="decimal" min="0" step="any" value={amount}
-            onChange={(e) => setAmount(e.target.value)} className={FIELD} placeholder="e.g. 15000" autoFocus />
+          <label className="mb-1 block text-xs font-bold text-slate-700">Amount (₹)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={FIELD}
+            placeholder="e.g. 15000"
+            autoFocus
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">Date Paid</label>
-          <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className={FIELD} />
+          <label className="mb-1 block text-xs font-bold text-slate-700">Date Paid</label>
+          <input
+            type="date"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+            className={FIELD}
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">Payment Type</label>
+          <label className="mb-1 block text-xs font-bold text-slate-700">Payment Type</label>
           <select value={kind} onChange={(e) => setKind(e.target.value)} className={FIELD}>
-            {KINDS.map((k) => <option key={k} value={k}>{k.toUpperCase()}</option>)}
+            {KINDS.map((k) => (
+              <option key={k} value={k}>
+                {k.toUpperCase()}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">Payment Mode</label>
+          <label className="mb-1 block text-xs font-bold text-slate-700">Payment Mode</label>
           <select value={mode} onChange={(e) => setMode(e.target.value)} className={FIELD}>
-            {MODES.map((m) => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+            {MODES.map((m) => (
+              <option key={m} value={m}>
+                {m.toUpperCase()}
+              </option>
+            ))}
           </select>
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-xs font-bold text-slate-600">Reference / UTR (optional)</label>
-        <input type="text" value={reference} onChange={(e) => setReference(e.target.value)}
-          placeholder="UTR / Cheque / Ref number" className={FIELD} />
+        <label className="mb-1 block text-xs font-bold text-slate-700">Reference / UTR (optional)</label>
+        <input
+          type="text"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder="UTR / Cheque / Ref number"
+          className={FIELD}
+        />
       </div>
       {kind === "refund" && (
-        <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+        <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl">
           ⚠️ Refunds require owner/admin rights (enforced server-side).
         </p>
       )}
       {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
       <div className="flex items-center gap-2 pt-1">
-        <button type="button" onClick={submit} disabled={isPending}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-60">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={isPending}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-95 disabled:opacity-60"
+        >
           {isPending ? "Recording..." : "Save Payment"}
         </button>
-        <button type="button" onClick={() => { setOpen(false); setError(null); }} disabled={isPending}
-          className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setError(null); }}
+          disabled={isPending}
+          className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+        >
           Cancel
         </button>
       </div>

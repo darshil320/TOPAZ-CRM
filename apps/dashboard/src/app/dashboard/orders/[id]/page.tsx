@@ -98,16 +98,16 @@ export default async function OrderDetailPage({ params }: Props) {
 
       {/* Financial Metrics Summary (3-card Grid) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-5 shadow-2xs space-y-1">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Order Total</p>
+        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Order Total</p>
           <p className="text-xl sm:text-2xl font-black text-slate-900">{formatINR(order.grand_total)}</p>
         </div>
-        <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-white p-4 sm:p-5 shadow-2xs space-y-1">
-          <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Total Paid</p>
+        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Paid</p>
           <p className="text-xl sm:text-2xl font-black text-emerald-700">{formatINR(paid)}</p>
         </div>
-        <div className={`rounded-2xl border ${Number(outstanding) > 0 ? "border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-white" : "border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-white"} p-4 sm:p-5 shadow-2xs space-y-1`}>
-          <p className={`text-[10px] font-extrabold uppercase tracking-wider ${Number(outstanding) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-1">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
             Outstanding Balance
           </p>
           <p className={`text-xl sm:text-2xl font-black ${Number(outstanding) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
@@ -201,28 +201,62 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Recorded Payments */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Payment History &amp; Receipts</h3>
+      {/* Recorded Payments & Receipts */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Payment History &amp; Receipts</h3>
+            <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+              {(payments ?? []).length} payment receipt{(payments ?? []).length === 1 ? "" : "s"} issued
+            </p>
+          </div>
           {order.status !== "cancelled" && (
             <RecordPaymentForm orderId={order.id} defaultDate={new Date().toISOString().slice(0, 10)} />
           )}
         </div>
+
         {(payments ?? []).length === 0 ? (
-          <p className="text-xs font-medium text-slate-400 italic">No payments recorded yet.</p>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
+            <p className="text-xs font-bold text-slate-600">No payments recorded yet</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Record advance or milestone payments above.</p>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {(payments ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 text-xs sm:text-sm">
-                <div>
-                  <span className="font-bold text-slate-900">{p.receipt_no}</span>
-                  <span className="text-slate-500 font-medium"> · {p.kind} via {p.mode.toUpperCase()}</span>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">{formatDate(p.paid_at)}</p>
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs ${
+                      p.kind === "refund"
+                        ? "bg-rose-50 text-rose-600 border border-rose-100"
+                        : "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                    }`}
+                  >
+                    {p.kind === "refund" ? "↩" : "✓"}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm font-bold text-slate-900">{p.receipt_no}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200/80 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider">
+                        {p.kind}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-extrabold uppercase tracking-wider">
+                        {p.mode}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+                      Paid on {formatDate(p.paid_at)} {p.reference ? `· Ref: ${p.reference}` : ""}
+                    </p>
+                  </div>
                 </div>
-                <span className={`font-black text-sm ${p.kind === "refund" ? "text-rose-600" : "text-emerald-700"}`}>
-                  {p.kind === "refund" ? "− " : "+"}{formatINR(p.amount)}
-                </span>
+                <div className="text-right shrink-0">
+                  <span className={`text-xs sm:text-sm font-black ${p.kind === "refund" ? "text-rose-600" : "text-emerald-700"}`}>
+                    {p.kind === "refund" ? "− " : "+"}{formatINR(p.amount)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
