@@ -83,10 +83,8 @@ export default function TopBar({
         <span className="text-[13px] font-560 tracking-[-.01em] text-t1 truncate">{current}</span>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-2.5 ml-auto">
-        <div className="hidden sm:flex items-center">
-          <StatusPill salespersonId={user.salespersonId} initialAvailable={user.available} />
-        </div>
+      <div className="flex items-center gap-2.5 ml-auto">
+        <StatusPill salespersonId={user.salespersonId} initialAvailable={user.available} />
 
         <IconButton title="Notifications" className="relative">
           <Bell className="w-4 h-4" strokeWidth={1.7} />
@@ -143,9 +141,12 @@ export default function TopBar({
 
         <div className="hidden sm:block w-px h-5 bg-ln" />
 
-        <Link href="/dashboard/quotes/new" title="New Quote" className={buttonVariants({ variant: "primary" })}>
-          <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={2.1} />
-          <span className="hidden sm:inline whitespace-nowrap">New Quote</span>
+        <Link
+          href="/dashboard/quotes/new"
+          className={`hidden sm:inline-flex ${buttonVariants({ variant: "primary" })}`}
+        >
+          <Plus className="w-3.5 h-3.5" strokeWidth={2.1} />
+          <span className="whitespace-nowrap">New Quote</span>
         </Link>
       </div>
     </header>

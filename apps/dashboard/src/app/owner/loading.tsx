@@ -11,7 +11,7 @@ export default function Loading() {
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="shrink-0 w-[80%] min-w-[220px] sm:w-auto sm:min-w-0 rounded-2xl border border-slate-200 bg-slate-50/80 p-2 space-y-1.5"
+            className="shrink-0 w-[80%] min-w-[220px] sm:w-auto sm:min-w-0 rounded-card border border-ln bg-sf2 p-2 space-y-1.5"
           >
             <Skeleton className="h-6 w-full mb-2" />
             <Skeleton className="h-14 w-full rounded-xl" />

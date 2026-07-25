@@ -4,7 +4,7 @@
  * blocking on Supabase round-trips.
  */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200/70 ${className}`} />;
+  return <div className={`animate-pulse rounded-md bg-t3/15 ${className}`} />;
 }
 
 /** A generic list of card-shaped skeleton rows. */
@@ -14,7 +14,7 @@ export function SkeletonCardList({ rows = 5 }: { rows?: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-3.5 bg-white border border-slate-200 rounded-xl px-4 py-3.5"
+          className="flex items-center gap-3.5 bg-sf border border-ln rounded-card px-4 py-3.5 shadow-sh"
         >
           <Skeleton className="w-9 h-9 rounded-full shrink-0" />
           <div className="flex-1 space-y-2">

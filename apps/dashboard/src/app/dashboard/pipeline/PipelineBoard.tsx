@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Pill from "@/components/ui/Pill";
 import { moveCustomerStage } from "./actions";
 
 export interface BoardCard {
@@ -90,23 +91,23 @@ function KanbanColumn({
             key={card.customerId}
             draggable
             onDragStart={() => onDragStart(card.customerId)}
-            className={`group cursor-grab rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-px active:cursor-grabbing active:opacity-60 ${
+            className={`group cursor-grab rounded-card border border-ln bg-sf p-3 shadow-sh transition-all hover:border-acc/40 active:cursor-grabbing active:opacity-60 ${
               dragId === card.customerId ? "opacity-50 scale-95" : ""
             }`}
           >
             <Link
               href={`/dashboard/customers/${card.customerId}`}
-              className="text-sm font-semibold text-slate-800 hover:text-blue-600 line-clamp-1"
+              className="text-ui font-semibold text-t1 hover:text-acc transition-colors line-clamp-1"
             >
               {card.name}
             </Link>
             {card.subtitle && (
-              <p className="mt-0.5 text-xs text-slate-400 truncate">{card.subtitle}</p>
+              <p className="mt-0.5 text-caption text-t3 truncate">{card.subtitle}</p>
             )}
             {card.ageDays >= STALE_DAYS && (
               <div className="mt-2 flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400" />
-                <p className="text-[10px] font-semibold text-red-500">{card.ageDays}d in stage</p>
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn" />
+                <p className="text-caption font-mono text-warn">{card.ageDays}d in stage</p>
               </div>
             )}
           </div>
@@ -114,8 +115,8 @@ function KanbanColumn({
 
         {colCards.length === 0 && (
           <div
-            className={`rounded-xl border-2 border-dashed py-6 text-center text-[11px] text-slate-300 transition-colors ${
-              isOver ? "border-blue-300 bg-blue-50/50 text-blue-400" : "border-slate-200"
+            className={`rounded-card border-2 border-dashed py-6 text-center text-caption text-t3 transition-colors ${
+              isOver ? "border-acc bg-acc/10 text-acc" : "border-ln"
             }`}
           >
             Drop here
@@ -137,25 +138,24 @@ function MobileColumn({
   colIndex: number;
 }) {
   const [open, setOpen] = useState(colIndex === 0);
-  const c = colColour(colIndex);
 
   return (
-    <div className={`rounded-2xl border ${c.header} overflow-hidden`}>
+    <div className="rounded-card border border-ln bg-sf overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center justify-between px-4 py-3 ${c.header}`}
+        className="w-full flex items-center justify-between px-4 py-3 bg-sf2 border-b border-ln"
       >
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${c.dot}`} />
-          <span className="text-sm font-bold text-slate-700">{col.label}</span>
+          <span className="w-2 h-2 rounded-full bg-acc" />
+          <span className="text-ui font-bold text-t1">{col.label}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
+          <span className="text-caption font-mono font-bold px-2 py-0.5 rounded-full bg-sf3 text-t1 border border-ln">
             {colCards.length}
           </span>
           <svg
-            className={`w-4 h-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`w-4 h-4 text-t3 transition-transform ${open ? "rotate-180" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -164,26 +164,26 @@ function MobileColumn({
       </button>
 
       {open && (
-        <div className="px-3 pb-3 space-y-2 bg-white/60">
+        <div className="p-3 space-y-2 bg-sf">
           {colCards.length === 0 && (
-            <p className="py-4 text-center text-xs text-slate-400">No customers in this stage</p>
+            <p className="py-4 text-center text-caption text-t3">No customers in this stage</p>
           )}
           {colCards.map((card) => (
             <Link
               key={card.customerId}
               href={`/dashboard/customers/${card.customerId}`}
-              className="flex items-start justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
+              className="flex items-start justify-between rounded-card border border-ln bg-sf2 p-3 shadow-sh hover:border-acc/40 transition-colors"
             >
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{card.name}</p>
+                <p className="text-ui font-semibold text-t1 truncate">{card.name}</p>
                 {card.subtitle && (
-                  <p className="mt-0.5 text-xs text-slate-400 truncate">{card.subtitle}</p>
+                  <p className="mt-0.5 text-caption text-t3 truncate">{card.subtitle}</p>
                 )}
               </div>
               {card.ageDays >= STALE_DAYS && (
-                <span className="ml-2 shrink-0 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                <Pill tone="warn" dot={false}>
                   {card.ageDays}d
-                </span>
+                </Pill>
               )}
             </Link>
           ))}
