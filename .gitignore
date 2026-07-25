@@ -34,3 +34,4 @@ build/
 .vscode/
 *.swp
 apps/dashboard/tsconfig.tsbuildinfo
+.vercel
