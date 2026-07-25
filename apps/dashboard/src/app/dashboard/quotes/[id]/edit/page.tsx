@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
 import QuoteBuilder, { type QuoteBuilderInitial } from "../../QuoteBuilder";
 import type { CustomerOption, LineDraft, ProductOption } from "../../types";
 
@@ -82,7 +83,7 @@ export default async function EditQuotePage({ params }: Props) {
           {quote.quote_no}
         </Link>
       </div>
-      <h1 className="text-lg font-bold text-slate-900">Edit {quote.quote_no}</h1>
+      <PageHeader title={`Edit ${quote.quote_no}`} />
 
       <QuoteBuilder
         mode="edit"

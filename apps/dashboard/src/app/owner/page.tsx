@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
 import OwnerPipelineClient, { type OwnerCustomer } from "./OwnerPipelineClient";
 
 function ageInDays(iso: string | null): number {
@@ -80,14 +81,10 @@ export default async function OwnerPage() {
 
   return (
     <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/80 pb-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Executive Pipeline</h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            Real-time multi-stage funnel oversight · {initialCustomers.length} active deal{initialCustomers.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Executive Pipeline"
+        subtitle={`Real-time multi-stage funnel oversight · ${initialCustomers.length} active deal${initialCustomers.length !== 1 ? "s" : ""}`}
+      />
 
       <OwnerPipelineClient initialCustomers={initialCustomers} />
     </div>

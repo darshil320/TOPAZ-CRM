@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import PageHeader from "@/components/ui/PageHeader";
 import QuoteBuilder, { type QuoteBuilderInitial } from "../QuoteBuilder";
 import type { CustomerOption, ProductOption } from "../types";
 
@@ -83,7 +84,7 @@ export default async function NewQuotePage({ searchParams }: Props) {
           Quotations
         </Link>
       </div>
-      <h1 className="text-lg font-bold text-slate-900">New quotation</h1>
+      <PageHeader title="New quotation" />
 
       <QuoteBuilder
         mode="create"
