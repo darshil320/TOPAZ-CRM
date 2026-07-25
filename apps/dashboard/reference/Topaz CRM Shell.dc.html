@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+<style>
+:root{
+--f:'Geist','SF Pro Text',-apple-system,'Segoe UI',system-ui,sans-serif;
+--m:'Geist Mono',ui-monospace,SFMono-Regular,monospace;
+--acc:#4b56e6;
+--accS:color-mix(in oklab, var(--acc) 9%, #ffffff);
+--accL:color-mix(in oklab, var(--acc) 20%, #ffffff);
+--bg:#ffffff; --rail:#fafbfc; --sf:#ffffff; --sf2:#f3f4f7; --sf3:#eceef2;
+--ln:#e6e8ee; --ln2:#eff0f4;
+--t1:#12141a; --t2:#59616f; --t3:#8b93a1;
+--pos:#0e8a5f; --posS:#e7f6ef; --warn:#a8560c; --warnS:#fdf2e4;
+--row:34px; --nfs:13.5px; --gap:2px;
+--sh:0 1px 2px rgba(16,20,30,.06), 0 0 0 1px rgba(16,20,30,.05);
+--shp:0 18px 44px -16px rgba(14,20,40,.28), 0 0 0 1px rgba(16,20,30,.07);
+}
+[data-th="dark"]{
+--accS:color-mix(in oklab, var(--acc) 24%, #0a0b0e);
+--accL:color-mix(in oklab, var(--acc) 40%, #0a0b0e);
+--bg:#08090c; --rail:#0b0d11; --sf:#101318; --sf2:#15181f; --sf3:#1b1f27;
+--ln:#1f232b; --ln2:#171a21;
+--t1:#eef0f5; --t2:#98a1b0; --t3:#69717f;
+--pos:#3ddc9a; --posS:#0f2a20; --warn:#f0a54a; --warnS:#2a1d0c;
+--sh:0 1px 2px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.07);
+--shp:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.09);
+}
+[data-d="compact"]{--row:30px; --nfs:13px; --gap:1px;}
+html,body{margin:0;padding:0;background:#f0f1f4;}
+*{box-sizing:border-box;}
+a{color:var(--acc);text-decoration:none;}
+a:hover{color:var(--acc);text-decoration:underline;}
+button{font-family:inherit;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes popIn{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 0 color-mix(in oklab, var(--pos) 55%, transparent)}70%{box-shadow:0 0 0 4px transparent}}
+</style>
+</helmet>
+
+<section data-d="{{ density }}" style="padding:56px 64px 96px;font-family:var(--f);display:flex;flex-direction:column;gap:34px">
+
+<div style="display:flex;flex-direction:column;gap:10px;max-width:820px">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font:600 11px var(--m);letter-spacing:.1em;color:#9aa1ad">TURN 01</span>
+<span style="height:1px;flex:1;background:#dcdfe6"></span>
+</div>
+<h1 style="margin:0;font:600 27px var(--f);letter-spacing:-.025em;color:#12141a">Three directions for the Topaz shell</h1>
+<p style="margin:0;font:400 14.5px/1.6 var(--f);color:#5c6472;text-wrap:pretty">Each one is a working shell — click nav, collapse the rail, flip light/dark, switch role, open the account menu. The old sidebar's tell was the hard black slab against a white page; all three replace that with a graded surface instead of a seam.</p>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:48px;align-items:flex-start">
+
+<!-- ══════════════ 1a ══════════════ -->
+<div id="1a" style="display:flex;flex-direction:column;gap:14px;width:1240px;flex:none">
+<div style="display:flex;align-items:flex-end;gap:16px">
+<div style="flex:1;display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 11px var(--m);color:#ffffff;background:#12141a;border-radius:5px;padding:3px 7px;letter-spacing:.04em">1a</span>
+<span style="font:600 15.5px var(--f);letter-spacing:-.015em;color:#12141a">Quiet Rail</span>
+</div>
+<p style="margin:0;font:400 13px/1.55 var(--f);color:#6b7280;max-width:640px">One continuous surface — rail, header and canvas step up in tone rather than cutting to black. Active section is an elevated white chip, not a colored slab. Live floor presence sits in the rail where it's always in peripheral view.</p>
+</div>
+<div style="display:flex;gap:7px">
+<button onClick="{{ roleA }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">Viewing as {{ roleAlabel }}</button>
+<button onClick="{{ thAtog }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">{{ thAlabel }}</button>
+</div>
+</div>
+
+<div data-th="{{ thA }}" data-screen-label="1a Quiet Rail" style="height:776px;display:flex;border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:var(--shp);font-family:var(--f)">
+
+<sc-if value="{{ colAoff }}" hint-placeholder-val="{{ true }}">
+<aside style="width:268px;flex:none;background:var(--rail);border-right:1px solid var(--ln);display:flex;flex-direction:column;padding:12px 12px 10px">
+
+<button style="display:flex;align-items:center;gap:10px;height:44px;padding:0 8px;border-radius:9px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;width:100%" style-hover="background:var(--sf);border-color:var(--ln);box-shadow:var(--sh)">
+<span style="width:27px;height:27px;flex:none;border-radius:8px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;font:600 12.5px var(--f);letter-spacing:-.02em">T</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+<span style="font:600 13.5px var(--f);color:var(--t1);letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Topaz Retail</span>
+<span style="font:500 11px var(--f);color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ wsSubA }}</span>
+</span>
+<svg viewBox="0 0 24 24" style="width:13px;height:13px;flex:none;fill:none;stroke:var(--t3);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M8 9.5 12 5.5l4 4"></path><path d="M8 14.5 12 18.5l4-4"></path></svg>
+</button>
+
+<button style="margin-top:8px;display:flex;align-items:center;gap:8px;height:32px;padding:0 9px;border-radius:8px;border:1px solid var(--ln);background:var(--sf2);cursor:pointer;width:100%" style-hover="background:var(--sf);border-color:var(--acc)">
+<svg viewBox="0 0 24 24" style="width:14px;height:14px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15"></path><path d="m21 21-4.4-4.4"></path></svg>
+<span style="flex:1;text-align:left;font:450 12.5px var(--f);color:var(--t3)">Search or jump to…</span>
+<span style="font:500 10.5px var(--m);color:var(--t3);background:var(--sf3);border-radius:4px;padding:2px 5px">⌘K</span>
+</button>
+
+<nav style="margin-top:14px;flex:1;overflow:hidden auto;display:flex;flex-direction:column;gap:14px">
+<sc-for list="{{ navA }}" as="g" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:var(--gap)">
+<div style="font:600 10.5px var(--f);letter-spacing:.09em;text-transform:uppercase;color:var(--t3);padding:0 10px;margin-bottom:5px">{{ g.label }}</div>
+<sc-for list="{{ g.items }}" as="it" hint-placeholder-count="5">
+<sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 10px;border-radius:8px;border:none;background:var(--sf);box-shadow:var(--sh);cursor:pointer;width:100%;text-align:left">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--acc);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:560 var(--nfs) var(--f);color:var(--t1);letter-spacing:-.008em">{{ it.label }}</span>
+<sc-if value="{{ it.badge }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--acc);background:var(--accS);border-radius:5px;padding:2px 5px;font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+<sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 10px;border-radius:8px;border:none;background:transparent;cursor:pointer;width:100%;text-align:left" style-hover="background:var(--sf3)">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:480 var(--nfs) var(--f);color:var(--t2);letter-spacing:-.008em">{{ it.label }}</span>
+<sc-if value="{{ it.badgeWarn }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--warn);background:var(--warnS);border-radius:5px;padding:2px 5px;font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+<sc-if value="{{ it.badgePlain }}" hint-placeholder-val="{{ false }}">
+<span style="font:500 11px var(--m);color:var(--t3);font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+</div>
+</sc-for>
+</nav>
+
+<sc-if value="{{ presence }}" hint-placeholder-val="{{ true }}">
+<div style="margin-top:12px;border-top:1px solid var(--ln);padding-top:12px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:0 4px">
+<span style="width:6px;height:6px;border-radius:50%;background:var(--pos);animation:livePulse 2.4s ease-out infinite"></span>
+<span style="font:600 10.5px var(--f);letter-spacing:.09em;text-transform:uppercase;color:var(--t3)">On the floor</span>
+<span style="margin-left:auto;font:500 11px var(--m);color:var(--t3)">{{ floorCount }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:1px">
+<sc-for list="{{ floor }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:9px;padding:5px 4px;border-radius:7px;cursor:default" style-hover="background:var(--sf3)">
+<span style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--sf3);color:var(--t2);display:flex;align-items:center;justify-content:center;font:600 9.5px var(--m)">{{ p.ini }}</span>
+<span style="flex:1;min-width:0;font:500 12px var(--f);color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+<span style="font:450 10.5px var(--f);color:var(--t3);white-space:nowrap">{{ p.sub }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<div style="position:relative;margin-top:10px;border-top:1px solid var(--ln);padding-top:10px">
+<sc-if value="{{ menuA }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;bottom:52px;left:0;width:244px;background:var(--sf);border-radius:11px;box-shadow:var(--shp);padding:5px;z-index:40;animation:popIn .13s ease-out">
+<div style="padding:9px 10px 10px;border-bottom:1px solid var(--ln2);margin-bottom:4px">
+<div style="font:600 12.5px var(--f);color:var(--t1)">Darshil Mehta</div>
+<div style="font:450 11.5px var(--f);color:var(--t3);margin-top:1px">darshil@topazretail.in</div>
+</div>
+<sc-for list="{{ acctMenu }}" as="m" hint-placeholder-count="4">
+<button onClick="{{ m.go }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ m.d1 }}"></path><path d="{{ m.d2 }}"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">{{ m.label }}</span>
+<span style="font:500 10px var(--m);color:var(--t3)">{{ m.kbd }}</span>
+</button>
+</sc-for>
+<div style="height:1px;background:var(--ln2);margin:4px 6px"></div>
+<button onClick="{{ closeMenu }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="m15 17 5-5-5-5"></path><path d="M20 12H9M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">Sign out</span>
+</button>
+</div>
+</sc-if>
+<button onClick="{{ menuAtog }}" style="display:flex;align-items:center;gap:9px;width:100%;height:42px;padding:0 8px;border-radius:9px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left" style-hover="background:var(--sf);border-color:var(--ln);box-shadow:var(--sh)">
+<span style="position:relative;flex:none">
+<span style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--acc);color:#fff;font:600 10.5px var(--m)">DM</span>
+<span style="position:absolute;right:-1px;bottom:-1px;width:8px;height:8px;border-radius:50%;background:var(--pos);border:2px solid var(--rail)"></span>
+</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+<span style="font:560 12.5px var(--f);color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Darshil Mehta</span>
+<span style="font:450 11px var(--f);color:var(--t3)">{{ roleAlabel }} · Synced 2m ago</span>
+</span>
+<svg viewBox="0 0 24 24" style="width:13px;height:13px;flex:none;fill:none;stroke:var(--t3);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M8 9.5 12 5.5l4 4"></path><path d="M8 14.5 12 18.5l4-4"></path></svg>
+</button>
+</div>
+</aside>
+</sc-if>
+
+<sc-if value="{{ colA }}" hint-placeholder-val="{{ false }}">
+<aside style="width:64px;flex:none;background:var(--rail);border-right:1px solid var(--ln);display:flex;flex-direction:column;align-items:center;padding:12px 0 10px;gap:4px">
+<span style="width:29px;height:29px;border-radius:8px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;font:600 13px var(--f);margin-bottom:12px">T</span>
+<sc-for list="{{ flatA }}" as="it" hint-placeholder-count="10">
+<sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ it.go }}" title="{{ it.label }}" style="width:38px;height:38px;border-radius:9px;border:none;background:var(--sf);box-shadow:var(--sh);display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:var(--acc);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ it.go }}" title="{{ it.label }}" style="position:relative;width:38px;height:38px;border-radius:9px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf3)">
+<svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<sc-if value="{{ it.badgeAny }}" hint-placeholder-val="{{ false }}">
+<span style="position:absolute;top:7px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--acc)"></span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+<span style="flex:1"></span>
+<span style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--acc);color:#fff;font:600 10px var(--m)">DM</span>
+</aside>
+</sc-if>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)">
+<header style="height:57px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px 0 12px;border-bottom:1px solid var(--ln)">
+<button onClick="{{ colAtog }}" style="width:30px;height:30px;flex:none;border-radius:7px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:var(--t2);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M4 5.5h16v13H4z"></path><path d="M9.5 5.5v13"></path></svg>
+</button>
+<div style="display:flex;align-items:center;gap:8px;min-width:0">
+<span style="font:450 13px var(--f);color:var(--t3)">Workspace</span>
+<span style="font:400 13px var(--f);color:var(--t3);opacity:.55">/</span>
+<span style="font:560 13px var(--f);color:var(--t1);letter-spacing:-.01em">{{ titleA }}</span>
+</div>
+<span style="flex:1"></span>
+<div style="display:flex;align-items:center;gap:7px;height:29px;padding:0 10px 0 8px;border-radius:99px;background:var(--posS)">
+<span style="width:6px;height:6px;border-radius:50%;background:var(--pos)"></span>
+<span style="font:560 12px var(--f);color:var(--pos)">Available</span>
+</div>
+<button style="width:30px;height:30px;position:relative;border-radius:7px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:var(--t2);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M18 9A6 6 0 1 0 6 9c0 6.5-2.5 8.5-2.5 8.5h17S18 15.5 18 9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
+<span style="position:absolute;top:6px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--warn)"></span>
+</button>
+<span style="width:1px;height:20px;background:var(--ln)"></span>
+<button style="display:flex;align-items:center;gap:7px;height:31px;padding:0 13px 0 10px;border-radius:8px;border:none;background:var(--acc);cursor:pointer;box-shadow:0 1px 2px rgba(16,20,30,.14)" style-hover="filter:brightness(1.08)">
+<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.1;stroke-linecap:round"><path d="M12 5.5v13M5.5 12h13"></path></svg>
+<span style="font:560 12.5px var(--f);color:#fff;letter-spacing:-.005em;white-space:nowrap">New Quote</span>
+</button>
+</header>
+<div style="flex:1;min-height:0;padding:26px 28px;overflow:hidden">
+<div style="font:600 21px var(--f);color:var(--t1);letter-spacing:-.022em">{{ titleA }}</div>
+<div style="font:450 13px var(--f);color:var(--t2);margin-top:4px">Collections &amp; outstanding</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:20px">
+<sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+<div style="border:1px solid var(--ln);border-radius:10px;padding:13px 14px;background:var(--sf)">
+<div style="font:600 10px var(--f);letter-spacing:.08em;text-transform:uppercase;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ k.label }}</div>
+<div style="font:600 18px var(--m);color:var(--t1);margin-top:9px;font-variant-numeric:tabular-nums">{{ k.value }}</div>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:24px">
+<span style="font:600 14px var(--f);color:var(--t1);letter-spacing:-.012em">Open balances</span>
+<span style="font:500 12px var(--m);color:var(--t2)">₹59,000.00 total</span>
+</div>
+<div style="margin-top:10px;border:1px solid var(--ln);border-radius:10px;background:var(--sf);display:flex;align-items:center;padding:14px 16px" style-hover="border-color:var(--accL)">
+<div style="flex:1">
+<div style="font:600 13.5px var(--m);color:var(--t1)">ORD-2627-0001</div>
+<div style="font:450 12px var(--f);color:var(--t2);margin-top:3px">Rajesh Mehta · 0d old</div>
+</div>
+<div style="font:600 14px var(--m);color:var(--warn);font-variant-numeric:tabular-nums">₹59,000.00</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ══════════════ 1b ══════════════ -->
+<div id="1b" style="display:flex;flex-direction:column;gap:14px;width:1240px;flex:none">
+<div style="display:flex;align-items:flex-end;gap:16px">
+<div style="flex:1;display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 11px var(--m);color:#ffffff;background:#12141a;border-radius:5px;padding:3px 7px;letter-spacing:.04em">1b</span>
+<span style="font:600 15.5px var(--f);letter-spacing:-.015em;color:#12141a">Focus Rail</span>
+</div>
+<p style="margin:0;font:400 13px/1.55 var(--f);color:#6b7280;max-width:640px">A 60px icon rail that gives the floor back to the data. Hover it and a panel slides over the canvas with full labels and counts — pin it if you want it to stay. Whole shell goes near-black, so nothing is a slab against anything.</p>
+</div>
+<div style="display:flex;gap:7px">
+<button onClick="{{ roleB }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">Viewing as {{ roleBlabel }}</button>
+<button onClick="{{ thBtog }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">{{ thBlabel }}</button>
+</div>
+</div>
+
+<div data-th="{{ thB }}" data-screen-label="1b Focus Rail" style="position:relative;height:776px;display:flex;border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:var(--shp);font-family:var(--f)">
+
+<aside onMouseEnter="{{ hovBon }}" onMouseLeave="{{ hovBoff }}" style="width:60px;flex:none;background:var(--rail);border-right:1px solid var(--ln);display:flex;flex-direction:column;align-items:center;padding:11px 0 11px;gap:3px;z-index:20">
+<span style="width:30px;height:30px;border-radius:9px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;font:600 13px var(--f);margin-bottom:11px">T</span>
+<sc-for list="{{ railB }}" as="it" hint-placeholder-count="10">
+<sc-if value="{{ it.rule }}" hint-placeholder-val="{{ false }}">
+<span style="width:22px;height:1px;background:var(--ln);margin:7px 0"></span>
+</sc-if>
+<sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ it.go }}" style="width:40px;height:38px;border-radius:10px;border:none;background:var(--accS);display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg viewBox="0 0 24 24" style="width:17.5px;height:17.5px;fill:none;stroke:var(--acc);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ it.go }}" style="position:relative;width:40px;height:38px;border-radius:10px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:17.5px;height:17.5px;fill:none;stroke:var(--t3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<sc-if value="{{ it.badgeAny }}" hint-placeholder-val="{{ false }}">
+<span style="position:absolute;top:6px;right:8px;width:5px;height:5px;border-radius:50%;background:var(--acc)"></span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+<span style="flex:1"></span>
+<button onClick="{{ pinBtog }}" title="Pin sidebar" style="width:40px;height:34px;border-radius:9px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:15.5px;height:15.5px;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M4 5.5h16v13H4z"></path><path d="M9.5 5.5v13"></path></svg>
+</button>
+<button onClick="{{ menuBtog }}" style="position:relative;margin-top:2px;border:none;background:transparent;padding:0;cursor:pointer">
+<span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--sf3);color:var(--t1);font:600 10.5px var(--m)">DM</span>
+<span style="position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:var(--pos);border:2px solid var(--rail)"></span>
+</button>
+</aside>
+
+<sc-if value="{{ expB }}" hint-placeholder-val="{{ false }}">
+<div onMouseEnter="{{ hovBon }}" onMouseLeave="{{ hovBoff }}" style="position:absolute;left:60px;top:0;bottom:0;width:252px;background:var(--rail);border-right:1px solid var(--ln);box-shadow:22px 0 44px -22px rgba(0,0,0,.45);z-index:19;display:flex;flex-direction:column;padding:11px 10px;animation:slideIn .16s cubic-bezier(.22,1,.36,1)">
+<div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 6px;margin-bottom:9px">
+<span style="font:600 13px var(--f);color:var(--t1);letter-spacing:-.012em">Topaz Retail</span>
+<span style="font:600 9px var(--m);letter-spacing:.06em;color:var(--acc);background:var(--accS);border-radius:4px;padding:2px 5px">PRO</span>
+<span style="flex:1"></span>
+<button onClick="{{ pinBtog }}" style="width:24px;height:24px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:none;stroke:var(--t3);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M15 4.5 19.5 9 16 12.5l-.5 5-8-8 5-.5z"></path><path d="m8 16-4 4"></path></svg>
+</button>
+</div>
+<nav style="flex:1;overflow:hidden auto;display:flex;flex-direction:column;gap:13px">
+<sc-for list="{{ navB }}" as="g" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:var(--gap)">
+<div style="font:600 10px var(--f);letter-spacing:.1em;text-transform:uppercase;color:var(--t3);padding:0 8px;margin-bottom:4px">{{ g.label }}</div>
+<sc-for list="{{ g.items }}" as="it" hint-placeholder-count="5">
+<sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 8px;border-radius:8px;border:none;background:var(--accS);cursor:pointer;width:100%;text-align:left">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--acc);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:560 var(--nfs) var(--f);color:var(--t1)">{{ it.label }}</span>
+<sc-if value="{{ it.badge }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--acc);font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+<sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 8px;border-radius:8px;border:none;background:transparent;cursor:pointer;width:100%;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:480 var(--nfs) var(--f);color:var(--t2)">{{ it.label }}</span>
+<sc-if value="{{ it.badgeWarn }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--warn);font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+<sc-if value="{{ it.badgePlain }}" hint-placeholder-val="{{ false }}">
+<span style="font:500 10.5px var(--m);color:var(--t3);font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+</div>
+</sc-for>
+</nav>
+<sc-if value="{{ presence }}" hint-placeholder-val="{{ true }}">
+<div style="border-top:1px solid var(--ln);padding-top:10px;display:flex;align-items:center;gap:8px">
+<div style="display:flex">
+<sc-for list="{{ floor }}" as="p" hint-placeholder-count="3">
+<span style="width:22px;height:22px;border-radius:50%;background:var(--sf3);border:2px solid var(--rail);margin-right:-6px;display:flex;align-items:center;justify-content:center;font:600 9px var(--m);color:var(--t2)">{{ p.ini }}</span>
+</sc-for>
+</div>
+<span style="margin-left:10px;font:480 11.5px var(--f);color:var(--t2)">{{ floorCount }} on the floor</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)">
+<header style="height:50px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--ln)">
+<span style="font:560 13px var(--f);color:var(--t1);letter-spacing:-.01em">{{ titleB }}</span>
+<span style="font:450 12.5px var(--f);color:var(--t3)">· Owner Control</span>
+<span style="flex:1"></span>
+<button style="display:flex;align-items:center;gap:8px;width:250px;height:29px;padding:0 8px;border-radius:7px;border:1px solid var(--ln);background:var(--sf);cursor:pointer" style-hover="border-color:var(--accL)">
+<svg viewBox="0 0 24 24" style="width:13.5px;height:13.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15"></path><path d="m21 21-4.4-4.4"></path></svg>
+<span style="flex:1;text-align:left;font:450 12px var(--f);color:var(--t3)">Search deals, quotes…</span>
+<span style="font:500 10px var(--m);color:var(--t3);background:var(--sf3);border-radius:4px;padding:2px 5px">⌘K</span>
+</button>
+<button style="height:29px;padding:0 12px;border-radius:7px;border:1px solid var(--ln);background:var(--sf);font:560 12.5px var(--f);color:var(--t1);cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap" style-hover="border-color:var(--accL);background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:none;stroke:var(--acc);stroke-width:2.1;stroke-linecap:round"><path d="M12 5.5v13M5.5 12h13"></path></svg>
+New Quote
+<span style="font:500 10px var(--m);color:var(--t3)">Q</span>
+</button>
+</header>
+<div style="flex:1;min-height:0;padding:26px 28px;overflow:hidden">
+<div style="font:600 21px var(--f);color:var(--t1);letter-spacing:-.022em">{{ titleB }}</div>
+<div style="font:450 13px var(--f);color:var(--t2);margin-top:4px">Collections &amp; outstanding</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:20px">
+<sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+<div style="border:1px solid var(--ln);border-radius:10px;padding:13px 14px;background:var(--sf)">
+<div style="font:600 10px var(--f);letter-spacing:.08em;text-transform:uppercase;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ k.label }}</div>
+<div style="font:600 18px var(--m);color:var(--t1);margin-top:9px;font-variant-numeric:tabular-nums">{{ k.value }}</div>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:24px">
+<span style="font:600 14px var(--f);color:var(--t1);letter-spacing:-.012em">Open balances</span>
+<span style="font:500 12px var(--m);color:var(--t2)">₹59,000.00 total</span>
+</div>
+<div style="margin-top:10px;border:1px solid var(--ln);border-radius:10px;background:var(--sf);display:flex;align-items:center;padding:14px 16px">
+<div style="flex:1">
+<div style="font:600 13.5px var(--m);color:var(--t1)">ORD-2627-0001</div>
+<div style="font:450 12px var(--f);color:var(--t2);margin-top:3px">Rajesh Mehta · 0d old</div>
+</div>
+<div style="font:600 14px var(--m);color:var(--warn);font-variant-numeric:tabular-nums">₹59,000.00</div>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ menuB }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:62px;bottom:12px;width:238px;background:var(--sf);border-radius:11px;box-shadow:var(--shp);padding:5px;z-index:60;animation:popIn .13s ease-out">
+<div style="padding:9px 10px 10px;border-bottom:1px solid var(--ln2);margin-bottom:4px">
+<div style="font:600 12.5px var(--f);color:var(--t1)">Darshil Mehta</div>
+<div style="font:450 11.5px var(--f);color:var(--t3);margin-top:1px">darshil@topazretail.in</div>
+</div>
+<sc-for list="{{ acctMenu }}" as="m" hint-placeholder-count="4">
+<button onClick="{{ m.go }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ m.d1 }}"></path><path d="{{ m.d2 }}"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">{{ m.label }}</span>
+<span style="font:500 10px var(--m);color:var(--t3)">{{ m.kbd }}</span>
+</button>
+</sc-for>
+<div style="height:1px;background:var(--ln2);margin:4px 6px"></div>
+<button onClick="{{ closeMenu }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="m15 17 5-5-5-5"></path><path d="M20 12H9M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">Sign out</span>
+</button>
+</div>
+</sc-if>
+</div>
+</div>
+
+<!-- ══════════════ 1c ══════════════ -->
+<div id="1c" style="display:flex;flex-direction:column;gap:14px;width:1240px;flex:none">
+<div style="display:flex;align-items:flex-end;gap:16px">
+<div style="flex:1;display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 11px var(--m);color:#ffffff;background:#12141a;border-radius:5px;padding:3px 7px;letter-spacing:.04em">1c</span>
+<span style="font:600 15.5px var(--f);letter-spacing:-.015em;color:#12141a">Two-Tier</span>
+</div>
+<p style="margin:0;font:400 13px/1.55 var(--f);color:#6b7280;max-width:640px">Built for the nav you'll have in a year, not the one you have today. A 56px pillar rail holds three permanent areas; the panel beside it swaps to that area's sections and gets its own contextual footer. New features nest instead of lengthening the list.</p>
+</div>
+<div style="display:flex;gap:7px">
+<button onClick="{{ roleC }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">Viewing as {{ roleClabel }}</button>
+<button onClick="{{ thCtog }}" style="height:28px;padding:0 11px;border-radius:7px;border:1px solid #dcdfe6;background:#ffffff;font:500 12px var(--f);color:#5c6472;cursor:pointer" style-hover="border-color:#b8bdc7;color:#12141a">{{ thClabel }}</button>
+</div>
+</div>
+
+<div data-th="{{ thC }}" data-screen-label="1c Two-Tier" style="position:relative;height:776px;display:flex;border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:var(--shp);font-family:var(--f)">
+
+<aside style="width:66px;flex:none;background:var(--sf3);display:flex;flex-direction:column;align-items:center;padding:11px 0;gap:4px">
+<span style="width:30px;height:30px;border-radius:9px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:#fff;font:600 13px var(--f);margin-bottom:12px">T</span>
+<sc-for list="{{ pillars }}" as="p" hint-placeholder-count="3">
+<sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ p.go }}" style="width:54px;height:48px;border-radius:10px;border:none;background:var(--sf);box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer">
+<svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:var(--acc);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ p.d1 }}"></path><path d="{{ p.d2 }}"></path></svg>
+<span style="font:600 10px var(--f);letter-spacing:.01em;color:var(--t1)">{{ p.label }}</span>
+</button>
+</sc-if>
+<sc-if value="{{ p.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ p.go }}" style="position:relative;width:54px;height:48px;border-radius:10px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer" style-hover="background:color-mix(in oklab, var(--sf) 55%, transparent)">
+<svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:var(--t3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ p.d1 }}"></path><path d="{{ p.d2 }}"></path></svg>
+<span style="font:600 10px var(--f);letter-spacing:.01em;color:var(--t3)">{{ p.label }}</span>
+<sc-if value="{{ p.dot }}" hint-placeholder-val="{{ false }}">
+<span style="position:absolute;top:8px;right:9px;width:5px;height:5px;border-radius:50%;background:var(--acc)"></span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+<span style="flex:1"></span>
+<button style="position:relative;width:38px;height:34px;border-radius:9px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:color-mix(in oklab, var(--sf) 55%, transparent)">
+<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M18 9A6 6 0 1 0 6 9c0 6.5-2.5 8.5-2.5 8.5h17S18 15.5 18 9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
+<span style="position:absolute;top:7px;right:9px;width:5px;height:5px;border-radius:50%;background:var(--warn)"></span>
+</button>
+<button onClick="{{ menuCtog }}" style="position:relative;margin-top:3px;border:none;background:transparent;padding:0;cursor:pointer">
+<span style="width:29px;height:29px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--acc);color:#fff;font:600 10.5px var(--m)">DM</span>
+<span style="position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:var(--pos);border:2px solid var(--sf3)"></span>
+</button>
+</aside>
+
+<sc-if value="{{ colCoff }}" hint-placeholder-val="{{ true }}">
+<div style="width:238px;flex:none;background:var(--rail);border-right:1px solid var(--ln);display:flex;flex-direction:column;padding:11px 10px 10px">
+<div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 6px">
+<span style="flex:1;font:600 13.5px var(--f);color:var(--t1);letter-spacing:-.015em">{{ pillarLabel }}</span>
+<button onClick="{{ colCtog }}" style="width:24px;height:24px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf3)">
+<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="m14.5 5.5-6 6.5 6 6.5"></path></svg>
+</button>
+</div>
+<div style="display:flex;align-items:center;gap:7px;height:29px;padding:0 8px;border-radius:7px;background:var(--sf2);margin:8px 0 12px">
+<svg viewBox="0 0 24 24" style="width:13px;height:13px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15"></path><path d="m21 21-4.4-4.4"></path></svg>
+<span style="font:450 12px var(--f);color:var(--t3)">Filter {{ pillarLower }}</span>
+</div>
+<nav style="flex:1;overflow:hidden auto;display:flex;flex-direction:column;gap:var(--gap)">
+<sc-for list="{{ itemsC }}" as="it" hint-placeholder-count="5">
+<sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 9px;border-radius:8px;border:none;background:var(--sf);box-shadow:var(--sh);cursor:pointer;width:100%;text-align:left">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--acc);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:560 var(--nfs) var(--f);color:var(--t1)">{{ it.label }}</span>
+<sc-if value="{{ it.badge }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--acc);background:var(--accS);border-radius:5px;padding:2px 5px;font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+<sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:10px;height:var(--row);padding:0 9px;border-radius:8px;border:none;background:transparent;cursor:pointer;width:100%;text-align:left" style-hover="background:var(--sf3)">
+<svg viewBox="0 0 24 24" style="width:16.5px;height:16.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="{{ it.d1 }}"></path><path d="{{ it.d2 }}"></path></svg>
+<span style="flex:1;font:480 var(--nfs) var(--f);color:var(--t2)">{{ it.label }}</span>
+<sc-if value="{{ it.badgeWarn }}" hint-placeholder-val="{{ false }}">
+<span style="font:600 10.5px var(--m);color:var(--warn);background:var(--warnS);border-radius:5px;padding:2px 5px;font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+<sc-if value="{{ it.badgePlain }}" hint-placeholder-val="{{ false }}">
+<span style="font:500 11px var(--m);color:var(--t3);font-variant-numeric:tabular-nums">{{ it.count }}</span>
+</sc-if>
+</button>
+</sc-if>
+</sc-for>
+</nav>
+<div style="border-top:1px solid var(--ln);padding-top:11px;margin-top:10px">
+<div style="font:600 10px var(--f);letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:8px">{{ footC.title }}</div>
+<sc-if value="{{ footC.isFloor }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ floor }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="position:relative;flex:none">
+<span style="width:21px;height:21px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--sf3);color:var(--t2);font:600 9px var(--m)">{{ p.ini }}</span>
+<span style="position:absolute;right:-1px;bottom:-1px;width:7px;height:7px;border-radius:50%;background:var(--pos);border:1.5px solid var(--rail)"></span>
+</span>
+<span style="flex:1;min-width:0;font:500 11.5px var(--f);color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+<span style="font:450 10px var(--f);color:var(--t3);white-space:nowrap">{{ p.sub }}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ footC.isStat }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:7px">
+<sc-for list="{{ footC.rows }}" as="r" hint-placeholder-count="3">
+<div style="display:flex;align-items:baseline;gap:8px">
+<span style="flex:1;font:450 11.5px var(--f);color:var(--t2)">{{ r.k }}</span>
+<span style="font:600 12px var(--m);color:var(--t1);font-variant-numeric:tabular-nums">{{ r.v }}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ colC }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ colCtog }}" style="width:26px;flex:none;background:var(--rail);border:none;border-right:1px solid var(--ln);display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--sf3)">
+<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="m9.5 5.5 6 6.5-6 6.5"></path></svg>
+</button>
+</sc-if>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)">
+<header style="flex:none;border-bottom:1px solid var(--ln);padding:0 22px">
+<div style="height:52px;display:flex;align-items:center;gap:9px">
+<span style="font:450 12.5px var(--f);color:var(--t3)">{{ pillarLabel }}</span>
+<span style="font:400 12.5px var(--f);color:var(--t3);opacity:.55">/</span>
+<span style="font:560 13px var(--f);color:var(--t1);letter-spacing:-.01em">{{ titleC }}</span>
+<span style="flex:1"></span>
+<button style="display:flex;align-items:center;gap:8px;width:230px;height:29px;padding:0 8px;border-radius:7px;border:1px solid var(--ln);background:var(--sf2);cursor:pointer" style-hover="background:var(--sf);border-color:var(--accL)">
+<svg viewBox="0 0 24 24" style="width:13.5px;height:13.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15"></path><path d="m21 21-4.4-4.4"></path></svg>
+<span style="flex:1;text-align:left;font:450 12px var(--f);color:var(--t3)">Search…</span>
+<span style="font:500 10px var(--m);color:var(--t3)">⌘K</span>
+</button>
+<button style="display:flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:7px;border:none;background:var(--acc);cursor:pointer" style-hover="filter:brightness(1.08)">
+<svg viewBox="0 0 24 24" style="width:13.5px;height:13.5px;fill:none;stroke:#fff;stroke-width:2.1;stroke-linecap:round"><path d="M12 5.5v13M5.5 12h13"></path></svg>
+<span style="font:560 12.5px var(--f);color:#fff;white-space:nowrap">New Quote</span>
+</button>
+</div>
+<div style="display:flex;gap:2px;margin-top:-1px">
+<sc-for list="{{ tabsC }}" as="t" hint-placeholder-count="4">
+<sc-if value="{{ t.on }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ t.go }}" style="height:35px;padding:0 11px;border:none;background:transparent;border-bottom:2px solid var(--acc);font:560 12.5px var(--f);color:var(--t1);cursor:pointer">{{ t.label }}</button>
+</sc-if>
+<sc-if value="{{ t.off }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ t.go }}" style="height:35px;padding:0 11px;border:none;background:transparent;border-bottom:2px solid transparent;font:480 12.5px var(--f);color:var(--t3);cursor:pointer" style-hover="color:var(--t1)">{{ t.label }}</button>
+</sc-if>
+</sc-for>
+</div>
+</header>
+<div style="flex:1;min-height:0;padding:24px 24px;overflow:hidden">
+<div style="font:600 21px var(--f);color:var(--t1);letter-spacing:-.022em">{{ titleC }}</div>
+<div style="font:450 13px var(--f);color:var(--t2);margin-top:4px">Collections &amp; outstanding</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:20px">
+<sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+<div style="border:1px solid var(--ln);border-radius:10px;padding:13px 14px;background:var(--sf)">
+<div style="font:600 10px var(--f);letter-spacing:.08em;text-transform:uppercase;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ k.label }}</div>
+<div style="font:600 18px var(--m);color:var(--t1);margin-top:9px;font-variant-numeric:tabular-nums">{{ k.value }}</div>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:24px">
+<span style="font:600 14px var(--f);color:var(--t1);letter-spacing:-.012em">Open balances</span>
+<span style="font:500 12px var(--m);color:var(--t2)">₹59,000.00 total</span>
+</div>
+<div style="margin-top:10px;border:1px solid var(--ln);border-radius:10px;background:var(--sf);display:flex;align-items:center;padding:14px 16px">
+<div style="flex:1">
+<div style="font:600 13.5px var(--m);color:var(--t1)">ORD-2627-0001</div>
+<div style="font:450 12px var(--f);color:var(--t2);margin-top:3px">Rajesh Mehta · 0d old</div>
+</div>
+<div style="font:600 14px var(--m);color:var(--warn);font-variant-numeric:tabular-nums">₹59,000.00</div>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ menuC }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:68px;bottom:12px;width:238px;background:var(--sf);border-radius:11px;box-shadow:var(--shp);padding:5px;z-index:60;animation:popIn .13s ease-out">
+<div style="padding:9px 10px 10px;border-bottom:1px solid var(--ln2);margin-bottom:4px">
+<div style="font:600 12.5px var(--f);color:var(--t1)">Darshil Mehta</div>
+<div style="font:450 11.5px var(--f);color:var(--t3);margin-top:1px">darshil@topazretail.in</div>
+</div>
+<sc-for list="{{ acctMenu }}" as="m" hint-placeholder-count="4">
+<button onClick="{{ m.go }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="{{ m.d1 }}"></path><path d="{{ m.d2 }}"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">{{ m.label }}</span>
+<span style="font:500 10px var(--m);color:var(--t3)">{{ m.kbd }}</span>
+</button>
+</sc-for>
+<div style="height:1px;background:var(--ln2);margin:4px 6px"></div>
+<button onClick="{{ closeMenu }}" style="display:flex;align-items:center;gap:9px;width:100%;height:31px;padding:0 10px;border:none;background:transparent;border-radius:7px;cursor:pointer;text-align:left" style-hover="background:var(--sf2)">
+<svg viewBox="0 0 24 24" style="width:14.5px;height:14.5px;flex:none;fill:none;stroke:var(--t3);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="m15 17 5-5-5-5"></path><path d="M20 12H9M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"></path></svg>
+<span style="flex:1;font:480 12.5px var(--f);color:var(--t1)">Sign out</span>
+</button>
+</div>
+</sc-if>
+</div>
+</div>
+
+</div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4b56e6&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#4b56e6&quot;,&quot;#0f766e&quot;,&quot;#b1502a&quot;,&quot;#1d4ed8&quot;],&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;default&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;showCounts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;showPresence&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+const I = {
+  grid:['M4 4.5h6.5v6.5H4zM13.5 4.5H20v6.5h-6.5zM13.5 13.5H20V20h-6.5zM4 13.5h6.5V20H4z',''],
+  chart:['M4 20V4','M4 20h16M8 20v-6.5M13 20V8.5M18 20v-10'],
+  card:['M3 6.5h18v11H3z','M3 10.5h18M6.5 14.5h3'],
+  users:['M14.5 20v-1.5A3.5 3.5 0 0 0 11 15H6.5A3.5 3.5 0 0 0 3 18.5V20','M8.75 11.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8M16.5 4a4 4 0 0 1 0 7.7M21 20v-1.5a3.5 3.5 0 0 0-2.6-3.4'],
+  sliders:['M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9','M15 5v5M9 14v5'],
+  userplus:['M12.5 20v-1.5A3.5 3.5 0 0 0 9 15H5.5A3.5 3.5 0 0 0 2 18.5V20','M7.25 11.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8M18 8.5v6M21 11.5h-6'],
+  doc:['M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z','M13.5 3.5V9H19M8.5 13.5h7M8.5 17h4'],
+  box:['M20.5 8.2v7.6L12 20.6 3.5 15.8V8.2L12 3.4z','M3.8 7.9 12 12.5l8.2-4.6M12 21v-8.5'],
+  board:['M4 4.5h4.2v14.5H4zM9.9 4.5h4.2v9.2H9.9zM15.8 4.5H20v11.8h-4.2',''],
+  building:['M4 20.5h16M6 20.5V5a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 1 14 5v15.5','M14 9.5h2.5A1.5 1.5 0 0 1 18 11v9.5M9 7.5h2M9 11h2M9 14.5h2'],
+  shield:['M12 3.2 19 6v5.5c0 4.4-3 7.6-7 9.3-4-1.7-7-4.9-7-9.3V6z','M9.3 12.2l1.9 1.9 3.6-3.7'],
+  plug:['M9 3.5v5M15 3.5v5','M6.5 8.5h11v3a5.5 5.5 0 0 1-11 0zM12 17v3.5'],
+  receipt:['M5 3.5h14v17l-2.3-1.6-2.35 1.6L12 18.9l-2.35 1.6L7.3 18.9 5 20.5z','M9 8.5h6M9 12.5h6'],
+  user:['M12 12.5a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4','M4.5 20.5a7.5 7.5 0 0 1 15 0'],
+  gear:['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6','M19.2 14.4a1.4 1.4 0 0 0 .3 1.6l.05.05a1.85 1.85 0 1 1-2.6 2.6l-.05-.05a1.4 1.4 0 0 0-2.4 1v.15a1.85 1.85 0 1 1-3.7 0v-.08a1.4 1.4 0 0 0-2.45-1l-.05.05a1.85 1.85 0 1 1-2.6-2.6l.05-.05a1.4 1.4 0 0 0-1-2.4h-.15a1.85 1.85 0 1 1 0-3.7h.08a1.4 1.4 0 0 0 1-2.45l-.05-.05a1.85 1.85 0 1 1 2.6-2.6l.05.05a1.4 1.4 0 0 0 1.6.3h.07a1.4 1.4 0 0 0 .85-1.28v-.15a1.85 1.85 0 1 1 3.7 0v.08a1.4 1.4 0 0 0 2.4 1l.05-.05a1.85 1.85 0 1 1 2.6 2.6l-.05.05a1.4 1.4 0 0 0-.3 1.6v.07a1.4 1.4 0 0 0 1.28.85h.15a1.85 1.85 0 1 1 0 3.7h-.08a1.4 1.4 0 0 0-1.28.85z'],
+  swap:['M7.5 4.5 4 8l3.5 3.5','M4 8h11.5a4.5 4.5 0 0 1 0 9H4M16.5 12.5 20 16l-3.5 3.5'],
+  help:['M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17','M9.6 9.3a2.5 2.5 0 0 1 4.85.83c0 1.67-2.5 2.5-2.5 2.5M12 16.4h.01']
+};
+
+const OVERVIEW = [
+  {id:'pipeline', label:'Pipeline', icon:'grid'},
+  {id:'analytics', label:'Analytics', icon:'chart'},
+  {id:'payments', label:'Payments', icon:'card', count:1, tone:'warn'},
+  {id:'salespersons', label:'Salespersons', icon:'users', count:3, tone:'live'},
+  {id:'adminx', label:'Admin', icon:'sliders'}
+];
+const SALES = [
+  {id:'customers', label:'My Customers', icon:'user'},
+  {id:'walkin', label:'Walk-in Queue', icon:'userplus', count:3, tone:'acc'},
+  {id:'quotations', label:'Quotations', icon:'doc', count:7, tone:'plain'},
+  {id:'orders', label:'Orders', icon:'box', count:2, tone:'plain'},
+  {id:'board', label:'Pipeline Board', icon:'board'}
+];
+const ADMIN = [
+  {id:'team', label:'Team & Access', icon:'users'},
+  {id:'showrooms', label:'Showrooms', icon:'building'},
+  {id:'integrations', label:'Integrations', icon:'plug'},
+  {id:'billing', label:'Billing', icon:'receipt'},
+  {id:'audit', label:'Audit Log', icon:'shield'}
+];
+
+class Component extends DCLogic {
+  state = {
+    th:{a:'light', b:'dark', c:'light'},
+    act:{a:'payments', b:'payments', c:'payments'},
+    role:{a:'owner', b:'owner', c:'owner'},
+    col:{a:false, c:false},
+    pinB:false, hovB:false, pill:'overview', tab:'overview', menu:''
+  };
+
+  componentDidMount(){
+    this._close = () => { if (this.state.menu) this.setState({menu:''}); };
+    document.addEventListener('click', this._close);
+    this.applyAccent();
+  }
+  componentDidUpdate(){ this.applyAccent(); }
+  componentWillUnmount(){ document.removeEventListener('click', this._close); }
+  applyAccent(){
+    const a = this.props.accent || '#4b56e6';
+    if (this._acc !== a){ this._acc = a; document.documentElement.style.setProperty('--acc', a); }
+  }
+
+  set(path, val){
+    this.setState(s => {
+      const [k, sub] = path.split('.');
+      return sub ? {[k]: Object.assign({}, s[k], {[sub]: val})} : {[k]: val};
+    });
+  }
+  toggleMenu(id, e){ if(e) e.stopPropagation(); this.setState(s => ({menu: s.menu === id ? '' : id})); }
+
+  decorate(list, opt){
+    const counts = this.props.showCounts !== false;
+    return list.map(it => {
+      const on = this.state.act[opt] === it.id;
+      const has = counts && it.count != null;
+      return Object.assign({}, it, {
+        on, off: !on,
+        d1: (I[it.icon]||['',''])[0], d2: (I[it.icon]||['',''])[1],
+        badge: has, badgeAny: has,
+        badgeWarn: has && it.tone === 'warn',
+        badgePlain: has && (it.tone === 'plain' || it.tone === 'live'),
+        go: () => this.set('act.' + opt, it.id)
+      });
+    });
+  }
+  groups(opt){
+    const owner = this.state.role[opt] === 'owner';
+    const g = [];
+    if (owner) g.push({key:'ov', label:'Management Overview', items:this.decorate(OVERVIEW, opt)});
+    g.push({key:'se', label:'Sales Engine', items:this.decorate(SALES, opt)});
+    return g;
+  }
+  labelOf(id){
+    const all = OVERVIEW.concat(SALES, ADMIN);
+    const f = all.find(x => x.id === id);
+    return f ? f.label : 'Payments';
+  }
+
+  renderVals(){
+    const s = this.state;
+    const navA = this.groups('a'), navB = this.groups('b');
+    const flatA = navA.reduce((a,g) => a.concat(g.items), []);
+    const railB = [];
+    navB.forEach((g, gi) => { if (gi) railB.push({rule:true, on:false, off:false}); g.items.forEach(i => railB.push(i)); });
+
+    const ownerC = s.role.c === 'owner';
+    const PIL = [
+      {id:'overview', label:'Overview', icon:'chart', owner:true, items:OVERVIEW.filter(i=>i.id!=='adminx'), dot:false},
+      {id:'sales', label:'Sales', icon:'users', owner:false, items:SALES, dot:true},
+      {id:'admin', label:'Admin', icon:'sliders', owner:true, items:ADMIN, dot:false}
+    ].filter(p => ownerC || !p.owner);
+    const activePill = PIL.find(p => p.id === s.pill) || PIL[0];
+    const pillars = PIL.map(p => {
+      const on = p.id === activePill.id;
+      return {id:p.id, label:p.label, on, off:!on, dot:p.dot && !on,
+        d1:I[p.icon][0], d2:I[p.icon][1], go:() => this.set('pill', p.id)};
+    });
+
+    const footMap = {
+      overview:{title:'On the floor · 3 live', isFloor:true, isStat:false, rows:[]},
+      sales:{title:'Your day', isFloor:false, isStat:true, rows:[{k:'Walk-ins handled',v:'4'},{k:'Quotes sent',v:'7'},{k:'Converted',v:'2'}]},
+      admin:{title:'Plan', isFloor:false, isStat:true, rows:[{k:'Seats used',v:'9 / 12'},{k:'Renews',v:'14 Aug'}]}
+    };
+
+    const mk = (label, icon, kbd) => ({label, kbd, d1:I[icon][0], d2:I[icon][1], go:(e)=>{ if(e) e.stopPropagation(); this.setState({menu:''}); }});
+
+    return {
+      density: this.props.density || 'default',
+      thA:s.th.a, thB:s.th.b, thC:s.th.c,
+      thAlabel: s.th.a === 'dark' ? 'Light' : 'Dark',
+      thBlabel: s.th.b === 'dark' ? 'Light' : 'Dark',
+      thClabel: s.th.c === 'dark' ? 'Light' : 'Dark',
+      thAtog:()=>this.set('th.a', s.th.a==='dark'?'light':'dark'),
+      thBtog:()=>this.set('th.b', s.th.b==='dark'?'light':'dark'),
+      thCtog:()=>this.set('th.c', s.th.c==='dark'?'light':'dark'),
+
+      roleAlabel: s.role.a==='owner'?'Owner':'Salesperson',
+      roleBlabel: s.role.b==='owner'?'Owner':'Salesperson',
+      roleClabel: s.role.c==='owner'?'Owner':'Salesperson',
+      roleA:()=>this.set('role.a', s.role.a==='owner'?'rep':'owner'),
+      roleB:()=>this.set('role.b', s.role.b==='owner'?'rep':'owner'),
+      roleC:()=>{ this.setState(st=>({role:Object.assign({},st.role,{c:st.role.c==='owner'?'rep':'owner'}), pill:'sales'})); },
+
+      wsSubA: s.role.a==='owner' ? 'Owner workspace · Andheri' : 'Sales floor · Andheri',
+      navA, navB, flatA, railB,
+      colA:s.col.a, colAoff:!s.col.a, colAtog:()=>this.set('col.a', !s.col.a),
+      colC:s.col.c, colCoff:!s.col.c, colCtog:()=>this.set('col.c', !s.col.c),
+      expB: s.pinB || s.hovB,
+      hovBon:()=>{ if(!s.hovB) this.setState({hovB:true}); },
+      hovBoff:()=>{ if(!s.pinB) this.setState({hovB:false}); },
+      pinBtog:()=>this.setState(st=>({pinB:!st.pinB, hovB:false})),
+
+      pillars, pillarLabel:activePill.label,
+      pillarLower:activePill.label.toLowerCase(),
+      itemsC:this.decorate(activePill.items, 'c'),
+      footC:footMap[activePill.id] || footMap.overview,
+      tabsC:['Overview','Collected','Outstanding','Reminders'].map(t=>{
+        const on = t.toLowerCase()===s.tab;
+        return {label:t, on, off:!on, go:()=>this.set('tab', t.toLowerCase())};
+      }),
+
+      titleA:this.labelOf(s.act.a), titleB:this.labelOf(s.act.b), titleC:this.labelOf(s.act.c),
+
+      menuA:s.menu==='a', menuB:s.menu==='b', menuC:s.menu==='c',
+      menuAtog:(e)=>this.toggleMenu('a', e),
+      menuBtog:(e)=>this.toggleMenu('b', e),
+      menuCtog:(e)=>this.toggleMenu('c', e),
+      closeMenu:(e)=>{ if(e) e.stopPropagation(); this.setState({menu:''}); },
+      acctMenu:[ mk('Profile','user',''), mk('Preferences','gear','⌘,'), mk('Switch to Salesperson','swap',''), mk('Help & docs','help','') ],
+
+      presence: this.props.showPresence !== false,
+      floor:[
+        {ini:'AK', name:'Aarav Khanna', sub:'12m'},
+        {ini:'PS', name:'Priya Shah', sub:'Free'},
+        {ini:'RV', name:'Rohit Verma', sub:'4m'}
+      ],
+      floorCount:'3',
+      kpis:[
+        {label:'Collected today', value:'₹0.00'},
+        {label:'Outstanding 0–7d', value:'₹59,000'},
+        {label:'Outstanding 8–30d', value:'₹0.00'},
+        {label:'Overdue 30+d', value:'₹0.00'}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

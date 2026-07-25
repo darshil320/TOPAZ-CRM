@@ -1,0 +1,101 @@
+/* Topaz CRM — design tokens
+   Import once, globally, before any component styles.
+   Dark mode: set data-theme="dark" on <html>.
+   Geist/Geist Mono are self-hosted via next/font/google in layout.tsx
+   (repo convention) — --font-geist-sans/--font-geist-mono are its output vars. */
+
+:root {
+  /* Type */
+  --f: var(--font-geist-sans), 'SF Pro Text', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --m: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Accent */
+  --acc:  #4b56e6;
+  --accS: color-mix(in oklab, var(--acc) 9%, #ffffff);
+  --accL: color-mix(in oklab, var(--acc) 20%, #ffffff);
+
+  /* Surfaces */
+  --bg:   #ffffff;
+  --rail: #fafbfc;
+  --sf:   #ffffff;
+  --sf2:  #f3f4f7;
+  --sf3:  #eceef2;
+
+  /* Borders */
+  --ln:  #e6e8ee;
+  --ln2: #eff0f4;
+
+  /* Text */
+  --t1: #12141a;
+  --t2: #59616f;
+  --t3: #8b93a1;
+
+  /* Semantic */
+  --pos:  #0e8a5f;
+  --posS: #e7f6ef;
+  --warn:  #a8560c;
+  --warnS: #fdf2e4;
+
+  /* Density */
+  --row: 34px;
+  --nfs: 13.5px;
+  --gap: 2px;
+
+  /* Elevation */
+  --sh:  0 1px 2px rgba(16,20,30,.06), 0 0 0 1px rgba(16,20,30,.05);
+  --shp: 0 18px 44px -16px rgba(14,20,40,.28), 0 0 0 1px rgba(16,20,30,.07);
+
+  /* Radius */
+  --r-kbd: 4px;  --r-badge: 5px; --r-sm: 7px;  --r-md: 8px;
+  --r-lg:  9px;  --r-card: 10px; --r-pop: 11px; --r-shell: 14px; --r-pill: 99px;
+}
+
+[data-theme="dark"] {
+  --accS: color-mix(in oklab, var(--acc) 24%, #0a0b0e);
+  --accL: color-mix(in oklab, var(--acc) 40%, #0a0b0e);
+
+  --bg:   #08090c;
+  --rail: #0b0d11;
+  --sf:   #101318;
+  --sf2:  #15181f;
+  --sf3:  #1b1f27;
+
+  --ln:  #1f232b;
+  --ln2: #171a21;
+
+  --t1: #eef0f5;
+  --t2: #98a1b0;
+  --t3: #69717f;
+
+  --pos:  #3ddc9a;
+  --posS: #0f2a20;
+  --warn:  #f0a54a;
+  --warnS: #2a1d0c;
+
+  --sh:  0 1px 2px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.07);
+  --shp: 0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.09);
+}
+
+/* Optional user preference */
+[data-density="compact"] { --row: 30px; --nfs: 13px; --gap: 1px; }
+
+/* Base */
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--t1); }
+* { box-sizing: border-box; }
+body { font-family: var(--f); -webkit-font-smoothing: antialiased; text-wrap: pretty; }
+a { color: var(--acc); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+/* Motion */
+@keyframes popIn   { from { opacity:0; transform: translateY(6px) scale(.985) } to { opacity:1; transform: none } }
+@keyframes slideIn { from { opacity:0; transform: translateX(-8px) }            to { opacity:1; transform: none } }
+@keyframes fadeIn  { from { opacity:0 }                                         to { opacity:1 } }
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--pos) 55%, transparent) }
+  70%      { box-shadow: 0 0 0 4px transparent }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

@@ -9,7 +9,7 @@ export default function VisitAlertBanner({ salespersonId }: { salespersonId: str
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed top-16 right-4 z-50 flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none">
+    <div className="fixed top-[57px] right-4 z-50 flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none">
       {alerts.map((alert) => (
         <AlertCard key={alert.id} alert={alert} onDismiss={() => dismissAlert(alert.id)} />
       ))}
