@@ -16,7 +16,9 @@ dependencies = [
     "httpx>=0.27,<1.0",
     "anthropic>=0.40,<1.0",
     "jinja2>=3.1,<4.0",
-    "pyjwt>=2.9,<3.0",
+    # [crypto] extra pulls `cryptography` — required to verify Supabase's
+    # asymmetric (ES256/RS256) access tokens via JWKS, not just legacy HS256.
+    "pyjwt[crypto]>=2.9,<3.0",
     # PDF rendering (module 03). Chromium binary installed separately:
     #   playwright install --with-deps chromium
     "playwright>=1.47,<2.0",
