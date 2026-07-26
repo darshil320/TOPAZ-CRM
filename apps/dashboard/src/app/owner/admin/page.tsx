@@ -7,6 +7,9 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
 import ProductAdmin, { type AdminProduct } from "./ProductAdmin";
 import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
+import WorkshopAdmin from "./WorkshopAdmin";
+import { listWorkshops } from "@/lib/workshops";
+import { addWorkshop, updateWorkshop, deactivateWorkshop } from "./actions";
 
 // Read-only WhatsApp template registry. Meta approval status is tracked manually
 // until we wire the Meta template-status API (2B). Reflects STATE.md.
@@ -28,9 +31,11 @@ export default async function AdminPage() {
   if (!isOwnerRole(sp)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: products }, { data: settingsRows }] = await Promise.all([
+  const [{ data: products }, { data: settingsRows }, { data: salespersons }, workshopResult] = await Promise.all([
     supabase.from("products").select("id, name, category, hsn, gst_rate, base_price, unit, active").order("name"),
     supabase.from("app_settings").select("key, value"),
+    supabase.from("salespersons").select("id, name, role").eq("active", true).order("name"),
+    listWorkshops(false),
   ]);
 
   const settingsMap = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
@@ -41,12 +46,30 @@ export default async function AdminPage() {
     send_receipts_to_customer: settingsMap.get("send_receipts_to_customer") === true,
   };
 
+  const managerOptions = (salespersons ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    role: s.role,
+  }));
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
       <PageHeader
         title="System Admin"
-        subtitle="Manage product catalog, commercial quotation settings, and messaging templates"
+        subtitle="Manage workshops & vendors, product catalog, quotation policies, and messaging templates"
       />
+
+      {/* Workshops & Vendors Card */}
+      <Card>
+        <WorkshopAdmin
+          workshops={workshopResult.workshops}
+          managers={managerOptions}
+          loadError={workshopResult.error}
+          onAdd={addWorkshop}
+          onUpdate={updateWorkshop}
+          onDeactivate={deactivateWorkshop}
+        />
+      </Card>
 
       {/* Product Catalog Card */}
       <Card>
