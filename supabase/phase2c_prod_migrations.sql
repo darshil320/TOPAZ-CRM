@@ -34,3 +34,20 @@ create policy deliveries_authenticated_update on deliveries for update to authen
 
 create policy delivery_items_authenticated_select on delivery_items for select to authenticated using (true);
 create policy delivery_items_authenticated_insert on delivery_items for insert to authenticated with check (true);
+
+-- ─── 0027 · Job Cards + Media Entities ─────────────────────────────────────────
+alter table documents drop constraint if exists documents_kind_check;
+alter table documents add constraint documents_kind_check
+    check (kind in ('quotation_pdf', 'receipt_pdf', 'invoice_pdf', 'job_card_pdf', 'job_card_image'));
+
+alter table media drop constraint if exists media_entity_type_check;
+alter table media add constraint media_entity_type_check
+    check (entity_type in ('customer', 'order', 'order_item', 'production_event',
+                           'delivery', 'product', 'quotation_item'));
+
+alter table products add column if not exists primary_media_id uuid references media(id) on delete set null;
+alter table quotation_items add column if not exists spec_notes text;
+alter table order_items     add column if not exists spec_notes text;
+
+create index if not exists documents_entity_kind_version_idx
+    on documents (entity_type, entity_id, kind, version desc);

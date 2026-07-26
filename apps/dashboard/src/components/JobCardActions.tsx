@@ -38,6 +38,11 @@ export default function JobCardActions({
     try {
       const result = await fn();
       if (result.error) {
+        if (label === "open" && result.error.includes("No job card yet")) {
+          setNotice("Generating job card in background — retry Open in a few seconds.");
+          await createJobCard(source, entityId);
+          return;
+        }
         setError(result.error);
         return;
       }
