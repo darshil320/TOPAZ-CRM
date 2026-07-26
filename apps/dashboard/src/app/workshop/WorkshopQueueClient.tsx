@@ -1,9 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { CheckCircle2, AlertOctagon, Camera, ArrowRight, Clock, ShieldAlert, Sparkles } from "lucide-react";
+import { useState, useTransition, useRef } from "react";
+import { CheckCircle2, AlertOctagon, Camera, ArrowRight, ShieldAlert, Sparkles, ImagePlus, Loader2, Check } from "lucide-react";
 import { advanceStageAction, toggleBlockAction } from "./actions";
+import { signUpload, completeUpload, type MediaMime } from "@/lib/media/actions";
 import type { WorkshopQueueItem, StageDef } from "./page";
+
+const PASSTHROUGH_MIME: Record<string, MediaMime> = {
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+};
+
+interface PhotoState {
+  mediaId: string | null;
+  previewUrl: string | null;
+  uploading: boolean;
+  error: string | null;
+}
 
 export default function WorkshopQueueClient({
   initialItems,
@@ -14,25 +27,92 @@ export default function WorkshopQueueClient({
 }) {
   const [items, setItems] = useState<WorkshopQueueItem[]>(initialItems);
   const [isPending, startTransition] = useTransition();
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Record<string, PhotoState>>({});
   const [blockNote, setBlockNote] = useState("");
   const [showBlockModal, setShowBlockModal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const stageMap = new Map(stages.map((s) => [s.code, s]));
   const firstStageCode = stages[0]?.code ?? "design_approved";
+
+  async function handleFileSelected(itemId: string, file: File) {
+    setError(null);
+    setPhotos((prev) => ({
+      ...prev,
+      [itemId]: { mediaId: null, previewUrl: URL.createObjectURL(file), uploading: true, error: null },
+    }));
+
+    try {
+      const mime = (PASSTHROUGH_MIME[file.type] || "image/jpeg") as MediaMime;
+      const signRes = await signUpload({
+        entityType: "order_item",
+        entityId: itemId,
+        kind: "production",
+        mime,
+      });
+
+      if (signRes.error || !signRes.data?.upload_url || !signRes.data?.media_id) {
+        throw new Error(signRes.error || "Failed to initiate upload");
+      }
+
+      const mediaId = signRes.data.media_id;
+      const uploadUrl = signRes.data.upload_url;
+
+      // PUT file directly to signed storage URL
+      const uploadResp = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "image/jpeg" },
+        body: file,
+      });
+
+      if (!uploadResp.ok) {
+        throw new Error(`Upload failed (${uploadResp.status})`);
+      }
+
+      // Complete upload
+      const compRes = await completeUpload(mediaId, file.size);
+      if (compRes.error) {
+        throw new Error(compRes.error);
+      }
+
+      setPhotos((prev) => ({
+        ...prev,
+        [itemId]: { mediaId, previewUrl: prev[itemId]?.previewUrl || null, uploading: false, error: null },
+      }));
+    } catch (err) {
+      setPhotos((prev) => ({
+        ...prev,
+        [itemId]: { mediaId: null, previewUrl: null, uploading: false, error: err instanceof Error ? err.message : "Photo upload failed" },
+      }));
+    }
+  }
 
   function handleAdvance(item: WorkshopQueueItem) {
     setError(null);
     const currentCode = item.current_stage || firstStageCode;
     const currentDef = stageMap.get(currentCode);
+    const isPhotoReq = currentDef?.photo_required ?? false;
+    const photo = photos[item.id];
+
+    if (isPhotoReq && !photo?.mediaId) {
+      setError(`📷 ${currentDef?.label_gu || currentDef?.label_en || "Current"} સ્ટેજ માટે ફોટો પાડવો ફરજિયાત છે / Photo required for this stage`);
+      return;
+    }
 
     startTransition(async () => {
-      const res = await advanceStageAction(item.id);
+      const res = await advanceStageAction(item.id, undefined, photo?.mediaId || undefined);
       if (res.error) {
         setError(res.error);
         return;
       }
+      // Clear photo state for this item
+      setPhotos((prev) => {
+        const copy = { ...prev };
+        delete copy[item.id];
+        return copy;
+      });
+
       if (res.done) {
         setItems((prev) => prev.filter((i) => i.id !== item.id));
       } else if (res.nextStage) {
@@ -114,6 +194,7 @@ export default function WorkshopQueueClient({
         const currentIndex = stages.findIndex((s) => s.code === currentCode);
         const stageNum = currentIndex >= 0 ? currentIndex + 1 : 1;
         const isPhotoReq = currentDef?.photo_required ?? false;
+        const photo = photos[item.id];
 
         return (
           <div
@@ -185,12 +266,71 @@ export default function WorkshopQueueClient({
               </div>
             </div>
 
+            {/* Camera / Photo Upload Field */}
+            {(isPhotoReq || photo?.previewUrl) && (
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-sky-400" />
+                    <span>સ્ટેજ ફોટો / Stage Photo</span>
+                    {isPhotoReq && <span className="text-red-400 font-bold">*</span>}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRefs.current[item.id]?.click()}
+                    disabled={photo?.uploading}
+                    className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    <span>{photo?.previewUrl ? "Change Photo" : "Take / Pick Photo"}</span>
+                  </button>
+                  <input
+                    ref={(el) => { fileInputRefs.current[item.id] = el; }}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFileSelected(item.id, f);
+                    }}
+                  />
+                </div>
+
+                {photo?.uploading && (
+                  <div className="flex items-center gap-2 text-xs text-sky-400 py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Compressing & uploading photo...</span>
+                  </div>
+                )}
+
+                {photo?.error && (
+                  <p className="text-xs font-semibold text-red-400">{photo.error}</p>
+                )}
+
+                {photo?.previewUrl && !photo.uploading && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <img
+                      src={photo.previewUrl}
+                      alt="Stage photo preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-slate-700 shadow-md"
+                    />
+                    <div className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      <span>Photo uploaded & linked</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => handleAdvance(item)}
-                disabled={isPending || item.blocked}
+                disabled={isPending || item.blocked || photo?.uploading || (isPhotoReq && !photo?.mediaId)}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isPending ? (
