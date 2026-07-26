@@ -8,25 +8,37 @@ import ListRow from "@/components/ui/ListRow";
 import Pill, { type PillTone } from "@/components/ui/Pill";
 import { orderStatusChip } from "./status";
 
+import Pagination from "@/components/ui/Pagination";
+
+type Props = { searchParams: Promise<{ page?: string; limit?: string }> };
+
 function pillToneForStatus(status: string | null | undefined): PillTone {
   if (status === "installed" || status === "closed" || status === "delivered") return "pos";
   if (status === "cancelled") return "warn";
   return "neutral";
 }
 
-export default async function OrdersPage() {
+export default async function OrdersPage({ searchParams }: Props) {
+  const { page: pageStr, limit: limitStr } = await searchParams;
+  const page = Math.max(1, Number(pageStr) || 1);
+  const limit = Math.min(100, Math.max(5, Number(limitStr) || 25));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: orders, error }, { data: outstanding }] = await Promise.all([
+  const [{ data: orders, count, error }, { data: outstanding }] = await Promise.all([
     supabase
       .from("orders")
-      .select("id, order_no, status, grand_total, expected_delivery_date, created_at, customers(name)")
+      .select("id, order_no, status, grand_total, expected_delivery_date, created_at, customers(name)", { count: "exact" })
       .order("created_at", { ascending: false })
-      .limit(100),
+      .range(from, to),
     supabase.from("order_outstanding").select("order_id, outstanding"),
   ]);
+
+  const totalCount = count ?? (orders ?? []).length;
 
   const outstandingByOrder = new Map(
     (outstanding ?? []).map((o) => [o.order_id, o.outstanding]),
@@ -36,7 +48,7 @@ export default async function OrdersPage() {
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
       <PageHeader
         title="Orders"
-        subtitle={`${(orders ?? []).length} active & historical customer orders`}
+        subtitle={`${totalCount} active & historical customer orders`}
       />
 
       {error ? (
@@ -45,14 +57,14 @@ export default async function OrdersPage() {
         </div>
       ) : (orders ?? []).length === 0 ? (
         <div className="bg-sf rounded-card border border-ln p-12 text-center shadow-sh">
-          <p className="text-body font-semibold text-t1">No orders yet</p>
+          <p className="text-body font-semibold text-t1">No orders found</p>
           <p className="mt-1 text-caption text-t3">Approved quotes automatically become orders in one click.</p>
         </div>
       ) : (
-        <div>
+        <div className="bg-sf rounded-card border border-ln p-4 space-y-4 shadow-sh">
           <SectionHeader
             label="All Orders List"
-            total={`${(orders ?? []).length} Total`}
+            total={`${totalCount} Total`}
           />
 
           <div className="space-y-2 mt-3">
@@ -91,6 +103,8 @@ export default async function OrdersPage() {
               );
             })}
           </div>
+
+          <Pagination page={page} limit={limit} total={totalCount} />
         </div>
       )}
     </div>

@@ -10,18 +10,30 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import Button from "@/components/ui/Button";
 import Pill from "@/components/ui/Pill";
 
+import Pagination from "@/components/ui/Pagination";
+
+type Props = { searchParams: Promise<{ page?: string; limit?: string }> };
+
 /** Quotes list — RLS scopes rows to the caller (owner/accounts see all; a
  * salesperson sees quotes for customers they're assigned to). */
-export default async function QuotesPage() {
+export default async function QuotesPage({ searchParams }: Props) {
+  const { page: pageStr, limit: limitStr } = await searchParams;
+  const page = Math.max(1, Number(pageStr) || 1);
+  const limit = Math.min(100, Math.max(5, Number(limitStr) || 25));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const { data: quotes, error } = await supabase
+  const { data: quotes, count, error } = await supabase
     .from("quotations")
-    .select("id, quote_no, status, revision_no, grand_total, created_at, customers(name)")
+    .select("id, quote_no, status, revision_no, grand_total, created_at, customers(name)", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
+
+  const totalCount = count ?? (quotes ?? []).length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
@@ -29,7 +41,7 @@ export default async function QuotesPage() {
       <div className="flex items-center justify-between gap-4">
         <PageHeader
           title="Quotations"
-          subtitle={`${(quotes ?? []).length} quotation${(quotes ?? []).length === 1 ? "" : "s"} generated`}
+          subtitle={`${totalCount} quotation${totalCount === 1 ? "" : "s"} generated`}
         />
         <Link href="/dashboard/quotes/new">
           <Button variant="primary">
@@ -44,12 +56,12 @@ export default async function QuotesPage() {
         </Card>
       ) : (quotes ?? []).length === 0 ? (
         <Card className="p-12 text-center">
-          <p className="text-body font-semibold text-t1">No quotations yet</p>
+          <p className="text-body font-semibold text-t1">No quotations found</p>
           <p className="mt-1 text-caption text-t3">Create one from a customer&apos;s requirements.</p>
         </Card>
       ) : (
         <Card className="space-y-4">
-          <SectionHeader label="All Quotations" total={(quotes ?? []).length} />
+          <SectionHeader label="All Quotations" total={totalCount} />
 
           <div className="space-y-2">
             {(quotes ?? []).map((q) => {
@@ -96,6 +108,8 @@ export default async function QuotesPage() {
               );
             })}
           </div>
+
+          <Pagination page={page} limit={limit} total={totalCount} />
         </Card>
       )}
     </div>

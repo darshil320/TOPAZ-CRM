@@ -7,6 +7,8 @@ import { StatCard, StatCardGrid } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import ListRow from "@/components/ui/ListRow";
 
+import OpenBalancesListClient from "./OpenBalancesListClient";
+
 function ageDays(iso: string | null): number {
   if (!iso) return 0;
   const t = new Date(iso).getTime();
@@ -78,22 +80,7 @@ export default async function PaymentsPage() {
           total={openOrders.length > 0 ? `${openOrders.length} open · ${formatINR(totalOutstanding)}` : undefined}
         />
 
-        {openOrders.length === 0 ? (
-          <p className="mt-6 text-center text-body text-t2">
-            All orders are fully paid — there are no outstanding balances at this time.
-          </p>
-        ) : (
-          openOrders.map((o) => (
-            <ListRow
-              key={o.id}
-              href={`/dashboard/orders/${o.id}`}
-              primary={o.order_no}
-              secondary={`${o.name} · ${o.age}d old`}
-              trailing={formatINR(o.due)}
-              trailingTone="warn"
-            />
-          ))
-        )}
+        <OpenBalancesListClient openOrders={openOrders} />
       </div>
     </div>
   );

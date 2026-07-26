@@ -19,7 +19,7 @@ export default async function DashboardPage() {
       .from("customers")
       .select("id, name, phone, primary_interest, budget_range, created_at, pipeline_stages(stage)")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(1000);
 
     customers = (rows ?? []).map((c) => {
       const stageObj = Array.isArray(c.pipeline_stages) ? c.pipeline_stages[0] : c.pipeline_stages;
