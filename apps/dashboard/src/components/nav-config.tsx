@@ -88,11 +88,25 @@ export const SALES_NAV: NavItem[] = [
     exact: true,
     roles: ALLOCATING_ROLES,
   },
-  { href: "/dashboard/pipeline", label: "Pipeline Board", shortLabel: "Board", icon: ICONS.pipeline },
+  {
+    href: "/dashboard/production",
+    label: "Production Board",
+    shortLabel: "Production",
+    icon: ICONS.production,
+    exact: true,
+  },
+  { href: "/dashboard/pipeline", label: "Lead Pipeline", shortLabel: "Leads", icon: ICONS.pipeline },
 ];
 
 export const OWNER_NAV: NavItem[] = [
   { href: "/owner", label: "Pipeline", shortLabel: "Pipeline", icon: ICONS.pipeline, exact: true },
+  {
+    href: "/dashboard/production",
+    label: "Production Board",
+    shortLabel: "Production",
+    icon: ICONS.production,
+    exact: true,
+  },
   { href: "/owner/analytics", label: "Analytics", shortLabel: "Analytics", icon: ICONS.analytics, exact: true },
   { href: "/dashboard/payments", label: "Payments", shortLabel: "Payments", icon: ICONS.payments, exact: true },
   { href: "/owner/salespersons", label: "Salespersons", shortLabel: "Team", icon: ICONS.people, exact: true },
