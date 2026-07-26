@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^3.9.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.45.0",
+    "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
@@ -25,12 +26,12 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.47.0",
     "@tailwindcss/forms": "^0.5.9",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
-    "@playwright/test": "^1.47.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "15.3.3",
     "postcss": "^8.4.47",

@@ -58,11 +58,16 @@ migration file in one transaction. See EXECUTION_PLAN_2A_2B §0.1/§0.2.
 | 0017 | `documents` registry | 01 | built |
 | 0018 | pipeline_stage: ADD VALUE ×8 (own transaction) | 01 | built |
 | 0019 | pipeline_stage: data migration old→new + default | 01 | built |
-| 0020 | RLS phase-2a completion + `app_settings` | 06 | todo |
-| 0021 | `workshops` | 08 | todo |
-| 0022 | `production_stage_defs` + seed, `order_item_assignments`, `production_events`, stage triggers | 08/09 | todo |
-| 0023 | `media` polymorphic | 08 | todo |
-| 0024 | realtime publication (production_events) — only if needed | 11 | todo |
+| 0020 | RLS phase-2a completion + `app_settings` | 06 | built |
+| 0021 | publish `messages` to realtime | 03 | built |
+| 0022 | partial unique index: one order per quotation | 04 | built |
+| 0023 | `workshops` + `is_workshop_manager_of()` | 08 | built |
+| 0024 | `production_stage_defs` + seed, production cols on `order_items`, `order_item_assignments`, `production_events` (append-only), denorm trigger, realtime publication | 08 | built |
+| 0025 | `media` polymorphic + deferred `production_events.media_id` FK | 08 | built |
+
+Realtime for `production_events` is folded into 0024 (guarded, idempotent) — module 11
+needs no migration. Storage bucket policies are NOT migrations: see
+`supabase/storage/0025_media_policies.sql` (pgtest's bare cluster has no `storage` schema).
 
 ## Build order (one module = one session)
 

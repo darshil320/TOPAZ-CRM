@@ -2,6 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { apiHeaders } from "@/lib/apiAuth";
+
+// Workshop writes route through FastAPI (not straight to Supabase, even though RLS
+// would allow it): the E.164 phone rule with a usable message and the deactivation
+// guard ("N item(s) still in production") cannot live in RLS. See api/workshops.py.
+const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
+const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
+const WORKSHOPS_API = `${API_BASE}/api/workshops`;
+const TIMEOUT_MS = 10_000;
+const E164 = /^\+[1-9][0-9]{7,14}$/;
 
 export interface ProductInput {
   name: string;
@@ -44,6 +54,136 @@ export async function setProductActive(id: string, active: boolean): Promise<{ e
     return { error: null };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
+// ─── Workshops (Phase 2B, module 08) ────────────────────────────────────────
+
+export interface WorkshopInput {
+  name: string;
+  type: string;
+  manager_name?: string;
+  manager_phone?: string;
+  manager_salesperson_id?: string;
+  address?: string;
+}
+
+/** The API's `detail` is the operator-facing message (409 duplicate name, 409 open
+ *  items, 422 bad phone) — surface it verbatim rather than paraphrasing. */
+async function readApiError(resp: Response): Promise<string> {
+  try {
+    const body = await resp.json();
+    if (body && typeof body.detail === "string") return body.detail;
+    if (body && Array.isArray(body.detail) && body.detail.length > 0) {
+      const first = body.detail[0];
+      if (first && typeof first.msg === "string") return first.msg;
+    }
+  } catch {
+    // non-JSON
+  }
+  return `Request failed (${resp.status})`;
+}
+
+function apiFailure(err: unknown): string {
+  if (err instanceof Error && err.name === "TimeoutError") {
+    return "The workshops service did not respond in time — refresh and try again.";
+  }
+  return err instanceof Error ? err.message : "Server error";
+}
+
+/** Validate at the boundary so the operator gets the fix, not a 422 round-trip. */
+function validateWorkshop(input: WorkshopInput, requireName: boolean): string | null {
+  if (requireName && !input.name.trim()) return "Workshop name is required";
+  if (input.name.trim().length > 120) return "Workshop name must be 120 characters or fewer";
+  if (input.type && input.type !== "own" && input.type !== "vendor") {
+    return "Type must be either 'own' or 'vendor'";
+  }
+  const phone = input.manager_phone?.trim();
+  if (phone && !E164.test(phone)) {
+    return "Manager phone must be in E.164 form, e.g. +919876543210";
+  }
+  return null;
+}
+
+/** Only send the fields the operator actually filled in — the API PATCH is sparse. */
+function workshopBody(input: WorkshopInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    name: input.name.trim(),
+    type: input.type === "vendor" ? "vendor" : "own",
+    manager_name: input.manager_name?.trim() || null,
+    manager_phone: input.manager_phone?.trim() || null,
+    manager_salesperson_id: input.manager_salesperson_id || null,
+    address: input.address?.trim() || null,
+  };
+  return body;
+}
+
+export async function addWorkshop(input: WorkshopInput): Promise<{ error: string | null }> {
+  if (!DASHBOARD_API_KEY) return { error: "Workshops API not configured — set DASHBOARD_API_KEY" };
+  const invalid = validateWorkshop(input, true);
+  if (invalid) return { error: invalid };
+
+  try {
+    const resp = await fetch(WORKSHOPS_API, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(true),
+      body: JSON.stringify(workshopBody(input)),
+    });
+    if (!resp.ok) return { error: await readApiError(resp) };
+    revalidatePath("/owner/admin");
+    revalidatePath("/dashboard/production/allocate");
+    return { error: null };
+  } catch (err) {
+    return { error: apiFailure(err) };
+  }
+}
+
+export async function updateWorkshop(
+  id: string,
+  input: WorkshopInput,
+): Promise<{ error: string | null }> {
+  if (!DASHBOARD_API_KEY) return { error: "Workshops API not configured — set DASHBOARD_API_KEY" };
+  if (!id) return { error: "Missing workshop id" };
+  const invalid = validateWorkshop(input, true);
+  if (invalid) return { error: invalid };
+
+  try {
+    const resp = await fetch(`${WORKSHOPS_API}/${id}`, {
+      method: "PATCH",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(true),
+      body: JSON.stringify(workshopBody(input)),
+    });
+    if (!resp.ok) return { error: await readApiError(resp) };
+    revalidatePath("/owner/admin");
+    revalidatePath("/dashboard/production/allocate");
+    return { error: null };
+  } catch (err) {
+    return { error: apiFailure(err) };
+  }
+}
+
+/**
+ * Retire a workshop. The API refuses (409) while it still holds unfinished items;
+ * that message names the count and the fix, so it is shown verbatim.
+ */
+export async function deactivateWorkshop(id: string): Promise<{ error: string | null }> {
+  if (!DASHBOARD_API_KEY) return { error: "Workshops API not configured — set DASHBOARD_API_KEY" };
+  if (!id) return { error: "Missing workshop id" };
+
+  try {
+    const resp = await fetch(`${WORKSHOPS_API}/${id}/deactivate`, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(),
+    });
+    if (!resp.ok) return { error: await readApiError(resp) };
+    revalidatePath("/owner/admin");
+    revalidatePath("/dashboard/production/allocate");
+    return { error: null };
+  } catch (err) {
+    return { error: apiFailure(err) };
   }
 }
 

@@ -64,6 +64,13 @@ See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse 
 - Consent withdrawal has no UI/API path yet; the DB cascade trigger
   (`cascade_on_consent_withdrawal`) purges `face_embeddings` but the Storage face-crop
   files are not purged by any app code — finish this before go-live (DPDPA risk).
+  **Phase 2B widens this:** `media` rows with `entity_type='customer'` (migration 0025)
+  are personal data too. Upload is gated on active `personal_data` consent
+  (`api/media.py`), but withdrawal purges neither the rows nor the `media` bucket
+  objects. Deliberately NOT solved with a DB cascade — SQL cannot delete Storage
+  objects, and dropping the row destroys the only record of the key, leaving the
+  object permanently unpurgeable. The withdrawal task must list keys →
+  `storage.remove()` → delete rows, for BOTH buckets.
 
 ---
 

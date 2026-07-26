@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isActive, OWNER_NAV, SALES_NAV, type NavItem, type Role } from "@/components/nav-config";
+import { isActive, visibleTo, OWNER_NAV, SALES_NAV, type NavItem, type Role } from "@/components/nav-config";
 
 function NavRow({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
   const content = (
@@ -61,9 +61,19 @@ export default function NavGroups({ role, collapsed }: { role: Role; collapsed: 
   return (
     <nav className={`flex-1 overflow-y-auto ${collapsed ? "mt-3 flex flex-col items-center gap-1" : "mt-3.5 space-y-3.5"}`}>
       {role === "owner" && (
-        <NavGroup label="Management Overview" items={OWNER_NAV} pathname={pathname} collapsed={collapsed} />
+        <NavGroup
+          label="Management Overview"
+          items={visibleTo(OWNER_NAV, role)}
+          pathname={pathname}
+          collapsed={collapsed}
+        />
       )}
-      <NavGroup label="Sales Engine" items={SALES_NAV} pathname={pathname} collapsed={collapsed} />
+      <NavGroup
+        label="Sales Engine"
+        items={visibleTo(SALES_NAV, role)}
+        pathname={pathname}
+        collapsed={collapsed}
+      />
     </nav>
   );
 }

@@ -48,6 +48,59 @@ def upload_bytes(bucket: str, key: str, data: bytes, content_type: str = "applic
     return key
 
 
+def signed_upload_url(bucket: str, key: str, expires_in: int = 900) -> str:
+    """Create a short-lived signed UPLOAD url so the browser can PUT bytes straight
+    into a private bucket without ever holding the service-role key.
+
+    Returns the absolute URL (token embedded). The browser PUTs the file body to it.
+    Raises StorageError.
+    """
+    base, headers = _base_and_headers()
+    settings = get_settings()
+    url = f"{base}/object/upload/sign/{bucket}/{key}"
+    try:
+        resp = httpx.post(url, json={"expiresIn": expires_in}, headers=headers, timeout=15)
+        resp.raise_for_status()
+        body = resp.json()
+        signed = body.get("url") or body.get("signedURL") or body.get("signedUrl")
+    except httpx.HTTPError as exc:
+        raise StorageError(f"Sign upload {bucket}/{key} failed: {exc}") from exc
+    if not signed:
+        raise StorageError(f"Sign upload {bucket}/{key} returned no URL")
+    # The signed path is relative to the storage root.
+    return f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1{signed}"
+
+
+def object_exists(bucket: str, key: str) -> bool:
+    """True if the object is really present. Used by /media/{id}/complete so a
+    client that never finished its upload cannot mark a row 'ready' (a phantom row
+    renders as a broken tile forever). Raises StorageError only when Storage is
+    unconfigured/unreachable — a clean 404 returns False."""
+    base, headers = _base_and_headers()
+    url = f"{base}/object/info/{bucket}/{key}"
+    try:
+        resp = httpx.get(url, headers=headers, timeout=15)
+    except httpx.HTTPError as exc:
+        raise StorageError(f"Stat {bucket}/{key} failed: {exc}") from exc
+    if resp.status_code == 404:
+        return False
+    if resp.status_code >= 400:
+        raise StorageError(f"Stat {bucket}/{key} failed: HTTP {resp.status_code}")
+    return True
+
+
+def download_bytes(bucket: str, key: str) -> bytes:
+    """Fetch a private object's bytes server-side (thumbnail generation). Raises StorageError."""
+    base, headers = _base_and_headers()
+    url = f"{base}/object/{bucket}/{key}"
+    try:
+        resp = httpx.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise StorageError(f"Download {bucket}/{key} failed: {exc}") from exc
+    return resp.content
+
+
 def signed_url(bucket: str, key: str, expires_in: int = 3600) -> str:
     """Create a short-lived signed URL for a private object. Raises StorageError."""
     base, headers = _base_and_headers()

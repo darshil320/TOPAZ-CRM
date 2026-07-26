@@ -681,6 +681,10 @@ export type Database = {
       }
       order_items: {
         Row: {
+          blocked: boolean
+          blocked_at: string | null
+          current_stage: string | null
+          current_stage_at: string | null
           customization: string | null
           description: string
           dimensions: string | null
@@ -693,12 +697,18 @@ export type Database = {
           order_id: string
           polish: string | null
           product_id: string | null
+          production_done_at: string | null
           qty: number
           sort: number
           unit: string | null
           unit_price: number
+          workshop_id: string | null
         }
         Insert: {
+          blocked?: boolean
+          blocked_at?: string | null
+          current_stage?: string | null
+          current_stage_at?: string | null
           customization?: string | null
           description: string
           dimensions?: string | null
@@ -711,12 +721,18 @@ export type Database = {
           order_id: string
           polish?: string | null
           product_id?: string | null
+          production_done_at?: string | null
           qty: number
           sort?: number
           unit?: string | null
           unit_price: number
+          workshop_id?: string | null
         }
         Update: {
+          blocked?: boolean
+          blocked_at?: string | null
+          current_stage?: string | null
+          current_stage_at?: string | null
           customization?: string | null
           description?: string
           dimensions?: string | null
@@ -729,10 +745,12 @@ export type Database = {
           order_id?: string
           polish?: string | null
           product_id?: string | null
+          production_done_at?: string | null
           qty?: number
           sort?: number
           unit?: string | null
           unit_price?: number
+          workshop_id?: string | null
         }
         Relationships: [
           {
@@ -740,6 +758,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_current_stage_fkey"
+            columns: ["current_stage"]
+            isOneToOne: false
+            referencedRelation: "production_stage_defs"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "order_items_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -1127,6 +1159,243 @@ export type Database = {
           {
             foreignKeyName: "visits_salesperson_id_fkey"
             columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespersons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshops: {
+        Row: {
+          active: boolean
+          address: string | null
+          created_at: string
+          id: string
+          manager_name: string | null
+          manager_phone: string | null
+          manager_salesperson_id: string | null
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          manager_name?: string | null
+          manager_phone?: string | null
+          manager_salesperson_id?: string | null
+          name: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          manager_name?: string | null
+          manager_phone?: string | null
+          manager_salesperson_id?: string | null
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshops_manager_salesperson_id_fkey"
+            columns: ["manager_salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespersons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_stage_defs: {
+        Row: {
+          active: boolean
+          code: string
+          label_en: string
+          label_gu: string | null
+          photo_required: boolean
+          sort: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          label_en: string
+          label_gu?: string | null
+          photo_required?: boolean
+          sort: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          label_en?: string
+          label_gu?: string | null
+          photo_required?: boolean
+          sort?: number
+        }
+        Relationships: []
+      }
+      order_item_assignments: {
+        Row: {
+          active: boolean
+          assigned_by: string | null
+          created_at: string
+          deactivated_at: string | null
+          due_date: string | null
+          id: string
+          order_item_id: string
+          workshop_id: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_by?: string | null
+          created_at?: string
+          deactivated_at?: string | null
+          due_date?: string | null
+          id?: string
+          order_item_id: string
+          workshop_id: string
+        }
+        Update: {
+          active?: boolean
+          assigned_by?: string | null
+          created_at?: string
+          deactivated_at?: string | null
+          due_date?: string | null
+          id?: string
+          order_item_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_item_assignments_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_item_assignments_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_item_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "salespersons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_events: {
+        Row: {
+          actor: string | null
+          at: string
+          id: string
+          kind: string
+          media_id: string | null
+          note: string | null
+          order_item_id: string
+          stage_code: string
+        }
+        Insert: {
+          actor?: string | null
+          at?: string
+          id?: string
+          kind: string
+          media_id?: string | null
+          note?: string | null
+          order_item_id: string
+          stage_code: string
+        }
+        Update: {
+          actor?: string | null
+          at?: string
+          id?: string
+          kind?: string
+          media_id?: string | null
+          note?: string | null
+          order_item_id?: string
+          stage_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_events_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_events_stage_code_fkey"
+            columns: ["stage_code"]
+            isOneToOne: false
+            referencedRelation: "production_stage_defs"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "production_events_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media: {
+        Row: {
+          bytes: number | null
+          created_at: string
+          created_by: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          kind: string
+          mime: string
+          status: string
+          storage_key: string
+          thumb_key: string | null
+          uploaded_at: string | null
+        }
+        Insert: {
+          bytes?: number | null
+          created_at?: string
+          created_by?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          kind: string
+          mime: string
+          status?: string
+          storage_key: string
+          thumb_key?: string | null
+          uploaded_at?: string | null
+        }
+        Update: {
+          bytes?: number | null
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          kind?: string
+          mime?: string
+          status?: string
+          storage_key?: string
+          thumb_key?: string | null
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "salespersons"
             referencedColumns: ["id"]

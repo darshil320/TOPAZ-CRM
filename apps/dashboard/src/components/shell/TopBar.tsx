@@ -13,7 +13,11 @@ import StatusPill from "./StatusPill";
 
 const ANCESTOR_LABEL: Record<Role, string> = {
   owner: "Owner Control",
+  admin: "Owner Control",
   salesperson: "Sales Engine",
+  accounts: "Sales Engine",
+  workshop_manager: "Sales Engine",
+  delivery: "Sales Engine",
 };
 
 export default function TopBar({

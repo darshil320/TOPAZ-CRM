@@ -76,6 +76,24 @@ class Settings(BaseSettings):
     # the client confirms the policy (STATE.md open questions).
     SEND_RECEIPTS_TO_CUSTOMER: bool = False
 
+    # ── Phase 2B (Make) ──────────────────────────────────────────────────────
+    # Supabase Storage bucket for production/customer photos. PRIVATE — the browser
+    # reads via short-lived signed URLs, uploads via service-role-signed upload URLs.
+    # Face crops NEVER go here (they stay in FACE_CROP_BUCKET behind the consent gate).
+    MEDIA_BUCKET: str = "media"
+    # Upload ceiling enforced at /media/{id}/complete (the browser compresses first).
+    MEDIA_MAX_BYTES: int = 8_000_000
+    # Lifetime of a signed upload URL. Long enough for a slow 3G phone upload.
+    MEDIA_UPLOAD_TTL_SECONDS: int = 900
+    # Lifetime of a signed READ url handed to the dashboard/PWA gallery.
+    MEDIA_URL_TTL_SECONDS: int = 3600
+    # Longest edge of the generated thumbnail (tasks/media.py::make_thumb).
+    MEDIA_THUMB_EDGE_PX: int = 400
+    # JPEG quality for generated thumbnails.
+    MEDIA_THUMB_QUALITY: int = 80
+    # Accepted upload types. Anything else is rejected at sign-upload (422).
+    MEDIA_ALLOWED_MIME: tuple[str, ...] = ("image/jpeg", "image/png", "image/webp")
+
     # Supabase project URL + service-role key — used by the worker to fetch the
     # private face-crop for the salesperson arrival alert. If either is unset the
     # alert gracefully falls back to text-only (no photo).

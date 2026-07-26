@@ -135,6 +135,40 @@ def seed(cur) -> bool:
                 (oid, desc, Decimal(qty), Decimal(price), hsn, Decimal(rate), lt, si))
         n += 1
 
+    # Workshops (module 08). The real `workshops` table ships EMPTY on purpose —
+    # a fake workshop can receive a real allocation and drive an order to 'ready'
+    # against a site that doesn't exist. These two exist only so dev/UAT has
+    # something to allocate to; they carry the demo phone marker.
+    workshop_ids = []
+    for wname, wtype, mgr, i in (
+        ("Demo Workshop — Katargam", "own", "Suresh", 0),
+        ("Demo Vendor — Sachin GIDC", "vendor", "Rakesh", 1),
+    ):
+        cur.execute(
+            "insert into workshops (name, type, manager_name, manager_phone, address)"
+            " values (%s,%s,%s,%s,%s) returning id",
+            (wname, wtype, mgr, f"+9198{90 + i:08d}", "Surat, Gujarat"))
+        workshop_ids.append(cur.fetchone()[0])
+
+    # Allocate the first item of the first demo order, so the allocate page has
+    # both an allocated and an unallocated example. current_stage is set the same
+    # way production_repo.allocate sets it (first active stage by sort).
+    if order_ids and workshop_ids:
+        cur.execute("select id from order_items where order_id = %s order by sort limit 1",
+                    (order_ids[0][0],))
+        first_item = cur.fetchone()
+        if first_item:
+            cur.execute(
+                "insert into order_item_assignments (order_item_id, workshop_id, due_date, active)"
+                " values (%s,%s,%s,true)",
+                (first_item[0], workshop_ids[0], date.today() + timedelta(days=21)))
+            cur.execute(
+                "update order_items set workshop_id = %s,"
+                " current_stage = (select code from production_stage_defs where active"
+                "                   order by sort limit 1),"
+                " current_stage_at = now() where id = %s",
+                (workshop_ids[0], first_item[0]))
+
     # Payments + schedules on the orders (one fully paid advance, one partial)
     for idx, (oid, ci, grand, advance) in enumerate(order_ids):
         cur.execute(

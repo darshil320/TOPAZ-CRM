@@ -22,6 +22,9 @@ dependencies = [
     # PDF rendering (module 03). Chromium binary installed separately:
     #   playwright install --with-deps chromium
     "playwright>=1.47,<2.0",
+    # Thumbnail generation (module 08). Imported lazily inside tasks/media.py so
+    # the pure test suite still runs where Pillow is absent.
+    "pillow>=10.4,<12.0",
 ]
 
 [project.optional-dependencies]

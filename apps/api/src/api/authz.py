@@ -64,6 +64,22 @@ async def assert_can_write_customer(session: AsyncSession, caller: Caller, custo
                         detail="Not authorized to write this customer's records")
 
 
+def assert_admin(caller: Caller, *, action: str) -> None:
+    """Owner/admin-only gate. `action` is folded into the 403 so the message tells
+    the user what was refused, not just that something was."""
+    if not caller.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Only owner/admin may {action}")
+
+
+def assert_role(caller: Caller, roles: set[str], *, action: str) -> None:
+    """Membership gate for the non-admin role sets (accounts, workshop_manager…)."""
+    if caller.role not in roles:
+        allowed = "/".join(sorted(roles))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Only {allowed} may {action}")
+
+
 async def assert_can_read_customer(session: AsyncSession, caller: Caller, customer_id: str) -> None:
     """Read access to a customer's financial documents (receipts): owner/admin/
     accounts may read any; a salesperson only their assigned customers."""

@@ -13,9 +13,36 @@ import {
   UsersRound,
   Wallet,
   Settings,
+  Factory,
 } from "lucide-react";
 
-export type Role = "salesperson" | "owner";
+/**
+ * The staff roles the DB allows (`salespersons.role`, migration 0011). The shell
+ * only branches owner-vs-rest for layout, but individual nav items gate on the
+ * real role — an accounts or delivery user must not be shown a production route
+ * the API would 403.
+ */
+export type Role =
+  | "salesperson"
+  | "owner"
+  | "admin"
+  | "accounts"
+  | "workshop_manager"
+  | "delivery";
+
+const ROLES: readonly Role[] = [
+  "salesperson",
+  "owner",
+  "admin",
+  "accounts",
+  "workshop_manager",
+  "delivery",
+];
+
+/** Narrow a raw `salespersons.role` string; anything unknown is a plain salesperson. */
+export function parseRole(raw: string | null | undefined): Role {
+  return ROLES.includes(raw as Role) ? (raw as Role) : "salesperson";
+}
 
 export const ICON_SIZE = "w-5 h-5";
 
@@ -26,6 +53,8 @@ export interface NavItem {
   shortLabel: string;
   icon: (className: string) => ReactNode;
   exact?: boolean;
+  /** Omit to show the item to every role; otherwise an allowlist. */
+  roles?: readonly Role[];
 }
 
 const STROKE = 1.7;
@@ -40,13 +69,25 @@ export const ICONS = {
   orders: (c: string) => <Package className={c} strokeWidth={STROKE} />,
   payments: (c: string) => <Wallet className={c} strokeWidth={STROKE} />,
   admin: (c: string) => <Settings className={c} strokeWidth={STROKE} />,
+  production: (c: string) => <Factory className={c} strokeWidth={STROKE} />,
 } as const;
+
+/** Roles the production allocate route accepts — mirrors api/production.py. */
+const ALLOCATING_ROLES: readonly Role[] = ["owner", "admin", "salesperson"];
 
 export const SALES_NAV: NavItem[] = [
   { href: "/dashboard", label: "My Customers", shortLabel: "Customers", icon: ICONS.customers, exact: true },
   { href: "/dashboard/walkins", label: "Walk-in Queue", shortLabel: "Walk-ins", icon: ICONS.walkin, exact: true },
   { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
   { href: "/dashboard/orders", label: "Orders", shortLabel: "Orders", icon: ICONS.orders },
+  {
+    href: "/dashboard/production/allocate",
+    label: "Allocate Production",
+    shortLabel: "Allocate",
+    icon: ICONS.production,
+    exact: true,
+    roles: ALLOCATING_ROLES,
+  },
   { href: "/dashboard/pipeline", label: "Pipeline Board", shortLabel: "Board", icon: ICONS.pipeline },
 ];
 
@@ -63,9 +104,15 @@ export function isActive(item: NavItem, pathname: string): boolean {
   return item.exact ? pathname === item.href : pathname.startsWith(item.href);
 }
 
+/** Drop the items this role may not use. Returns a new array — never mutates. */
+export function visibleTo(items: NavItem[], role: Role): NavItem[] {
+  return items.filter((item) => !item.roles || item.roles.includes(role));
+}
+
 /** Flat nav list for a role — owner sees owner nav + the sales view too. */
 export function navForRole(role: Role): NavItem[] {
-  return role === "owner" ? [...OWNER_NAV, ...SALES_NAV] : SALES_NAV;
+  const base = role === "owner" ? [...OWNER_NAV, ...SALES_NAV] : SALES_NAV;
+  return visibleTo(base, role);
 }
 
 /** Label of the active nav item for the given pathname, for the breadcrumb. Longest-href match wins. */

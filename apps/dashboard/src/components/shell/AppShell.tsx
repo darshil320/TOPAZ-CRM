@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentSalesperson, getSessionUser } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Role } from "@/components/nav-config";
+import { parseRole, type Role } from "@/components/nav-config";
 import MobileBrand from "@/components/MobileBrand";
 import MobileNav from "@/components/MobileNav";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
@@ -17,7 +17,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   const salesperson = await getCurrentSalesperson();
   if (!salesperson) redirect("/login");
 
-  const role: Role = salesperson.role === "owner" ? "owner" : "salesperson";
+  const role: Role = parseRole(salesperson.role);
   const supabase = await createServerSupabaseClient();
 
   const [{ data: presence }, { count: unreadCount }, user] = await Promise.all([

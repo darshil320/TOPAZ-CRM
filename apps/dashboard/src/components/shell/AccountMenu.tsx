@@ -6,12 +6,13 @@ import { ChevronUp, ChevronDown, User, SlidersHorizontal, UserCog, Moon, Sun, He
 import { createClient } from "@/lib/supabase/client";
 import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
 import { Popover, PopoverPanel } from "@/components/ui/Popover";
+import type { Role } from "@/components/nav-config";
 
 export interface AccountMenuUser {
   name: string;
   email: string;
   initials: string;
-  role: "owner" | "salesperson";
+  role: Role;
   available: boolean;
 }
 

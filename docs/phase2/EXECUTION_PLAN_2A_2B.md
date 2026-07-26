@@ -39,9 +39,9 @@ These are discrepancies between the phase2 docs (authored 2026-07-04) and the re
 | 0012_payments | **0016_payments** | 01 |
 | 0013_pipeline_documents | **0017_pipeline_documents** | 01 |
 | 0013b_rls_phase2a (+app_settings) | **0018_rls_phase2a** | 06 |
-| 0014_workshops | **0019_workshops** | 08 |
-| 0015_production | **0020_production** | 08 |
-| 0016_media | **0021_media** | 08 |
+| 0014_workshops | **0023_workshops** | 08 |
+| 0015_production | **0024_production** | 08 |
+| 0016_media | **0025_media** | 08 |
 | (realtime publication, if needed) | **0022_realtime_production** | 11 |
 
 **Action:** first task of module 01 is a docs-only patch updating PLAN.md's ledger, STATE.md's "Environment" line, and each module spec's migration filenames. Also correct STATE.md: it says "0001–0006 applied, 0006 pending" — stale; **prod is at 0010** and all are applied.
@@ -86,7 +86,7 @@ Baseline = **one senior full-stack dev**. "2-dev" column = elapsed time if a Bac
 | 06 | Roles, RLS, admin screens | **plan-mode + sec-review** | 4.5 | 3.5 | 02–05 (tables exist) | staff list + roles + phones (CLIENT) |
 | 07 | 2A hardening (E2E, seed, UAT, go-live) | **milestone + invoice** | 4.0 + UAT | 4.0 + UAT | 01–06 | UAT run by Topaz staff (CLIENT, ~5 business days) |
 | — | **2A subtotal** | | **~29 dev-days** | **~19 elapsed** | | + ~1 week UAT |
-| 08 | Workshops, media, allocation (0019–0021) | db-review | 4.5 | 3.5 | 07 (orders live) | workshop list + Gujarati stage names (CLIENT); submit 2B templates (OPS) |
+| 08 | Workshops, media, allocation (0023–0025) | db-review | 4.5 | 3.5 | 07 (orders live) | workshop list + Gujarati stage names (CLIENT); submit 2B templates (OPS) |
 | 09 | Production state machine + events | demo | 4.5 | 4.0 | 08 | — |
 | 10 | Workshop PWA (My Queue) | field-test | 5.5 | 4.5 | 09 | 2 real managers for field test (CLIENT) |
 | 11 | Live board + order tabs (+PWA fixes) | demo | 4.5 | 3.0 | 10 | field feedback from 10 (CLIENT) |
@@ -458,7 +458,7 @@ POST /api/orders/{id}/schedule replace schedule rows [{label,due_date,amount}]; 
 
 ---
 
-### Module 08 — Workshops, media, allocation (migrations 0019–0021)
+### Module 08 — Workshops, media, allocation (migrations 0023–0025)
 
 > `database-reviewer` on migrations. Spec: `modules/08-workshops-media.md`.
 
@@ -467,9 +467,9 @@ POST /api/orders/{id}/schedule replace schedule rows [{label,due_date,amount}]; 
 **Prerequisites:** 2A live (orders + order_items); workshop list + Gujarati stage names (fallback: empty workshops, English + placeholder Gujarati); `media` bucket private (OPS).
 
 **Technical scope:**
-- **`0019_workshops`:** `workshops(id,name,type∈{own,vendor},manager_name,manager_phone,manager_salesperson_id fk,address,active)`; seed from client list or empty.
-- **`0020_production`:** `production_stage_defs(code pk,sort unique,label_en,label_gu,photo_required,active)` seed 11 (design_approved…dispatch); `ALTER order_items ADD current_stage fk stage_defs, current_stage_at, workshop_id fk workshops`; `order_item_assignments` (partial unique index: one active per item); `production_events` (append-only, RLS no update/delete); **trigger** on event insert: `done`→advance `current_stage` to next by sort; first done on order→status `in_production`; all items past final→status `ready`. Trigger only maintains denorm; complex logic in API.
-- **`0021_media`:** `media(id,entity_type∈{customer,order,order_item,production_event,delivery},entity_id,kind∈{reference,drawing,site,production,finished,delivery},storage_key,thumb_key,mime,bytes,created_by,created_at)` + index. Bucket `media` private, role-based RLS (staff read; authenticated staff write).
+- **`0023_workshops`:** `workshops(id,name,type∈{own,vendor},manager_name,manager_phone,manager_salesperson_id fk,address,active)`; seed from client list or empty.
+- **`0024_production`:** `production_stage_defs(code pk,sort unique,label_en,label_gu,photo_required,active)` seed 11 (design_approved…dispatch); `ALTER order_items ADD current_stage fk stage_defs, current_stage_at, workshop_id fk workshops`; `order_item_assignments` (partial unique index: one active per item); `production_events` (append-only, RLS no update/delete); **trigger** on event insert: `done`→advance `current_stage` to next by sort; first done on order→status `in_production`; all items past final→status `ready`. Trigger only maintains denorm; complex logic in API.
+- **`0025_media`:** `media(id,entity_type∈{customer,order,order_item,production_event,delivery},entity_id,kind∈{reference,drawing,site,production,finished,delivery},storage_key,thumb_key,mime,bytes,created_by,created_at)` + index. Bucket `media` private, role-based RLS (staff read; authenticated staff write).
 - **API:** `api/workshops.py` (CRUD admin, list); `api/media.py` (`POST /api/media/sign-upload`→{signed upload url, media id}; `POST /api/media/{id}/complete`→enqueue thumb); `api/production.py` (`POST /api/production/allocate`→deactivate prior, set order_items.workshop_id, audit); `tasks/media.py::make_thumb` (pillow, 400px).
 - **Dashboard:** `production/allocate/page.tsx` (unallocated confirmed-order items queue + assign modal + per-workshop open-count); admin Workshops CRUD tab; shared `MediaGallery`+`MediaUpload` (dep `browser-image-compression`).
 
@@ -479,7 +479,7 @@ POST /api/orders/{id}/schedule replace schedule rows [{label,due_date,amount}]; 
 
 **Testing:** empirical green; migrations clean on temp DB; upload→thumb manual. **USER:** workshop list + Gujarati names; OPS submit 2B templates (production_started, production_completed image-header, ready_for_dispatch).
 
-**Deployment:** `0019–0021` staging→prod (batch); `media` bucket + policies; celery include `tasks.media`. Rollback: additive schema; drop trigger to disable auto-advance if misbehaving.
+**Deployment:** `0023–0025` staging→prod (batch); `media` bucket + policies; celery include `tasks.media`. Rollback: additive schema; drop trigger to disable auto-advance if misbehaving.
 
 **Handoff:** workshops + assignments + events + stage_defs + media + allocation + the trigger. 09 drives the state machine over these; 10/11 render them.
 
