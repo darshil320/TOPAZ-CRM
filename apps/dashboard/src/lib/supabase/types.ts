@@ -1402,6 +1402,69 @@ export type Database = {
           },
         ]
       }
+      deliveries: {
+        Row: {
+          id: string
+          order_id: string
+          driver_salesperson_id: string | null
+          status: string
+          scheduled_date: string
+          delivered_at: string | null
+          vehicle_no: string | null
+          eway_bill_no: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          driver_salesperson_id?: string | null
+          status?: string
+          scheduled_date?: string
+          delivered_at?: string | null
+          vehicle_no?: string | null
+          eway_bill_no?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          driver_salesperson_id?: string | null
+          status?: string
+          scheduled_date?: string
+          delivered_at?: string | null
+          vehicle_no?: string | null
+          eway_bill_no?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      delivery_items: {
+        Row: {
+          id: string
+          delivery_id: string
+          order_item_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          delivery_id: string
+          order_item_id?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          delivery_id?: string
+          order_item_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       order_outstanding: {

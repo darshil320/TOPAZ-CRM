@@ -25,6 +25,7 @@ ENTITY_TABLES: dict[str, str] = {
     "order": "orders",
     "order_item": "order_items",
     "production_event": "production_events",
+    "delivery": "deliveries",
 }
 
 # Every entity_type the CHECK constraint allows, including the not-yet-buildable one.
@@ -84,8 +85,6 @@ def validate_request(entity_type: str, kind: str, mime: str) -> None:
     storable. Ordered cheapest-first; every branch names what the caller got wrong."""
     if entity_type not in KNOWN_ENTITY_TYPES:
         raise MediaRuleError(f"Unknown entity_type '{entity_type}'")
-    if entity_type == "delivery":
-        raise MediaRuleError("Delivery media is not available until Phase 2C")
     if mime not in MIME_EXTENSIONS:
         allowed = ", ".join(sorted(MIME_EXTENSIONS))
         raise MediaRuleError(f"Unsupported image type '{mime}' (allowed: {allowed})")

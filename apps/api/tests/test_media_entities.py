@@ -41,10 +41,9 @@ def test_table_for_known_entities():
     assert table_for("production_event") == "production_events"
 
 
-def test_table_for_delivery_is_none():
-    # 'delivery' is a known entity_type (CHECK constraint) but has no table to
-    # validate against yet — table_for must say so rather than guessing.
-    assert table_for("delivery") is None
+def test_table_for_delivery_returns_deliveries():
+    # Phase 2C maps 'delivery' entity_type to 'deliveries' table.
+    assert table_for("delivery") == "deliveries"
 
 
 def test_table_for_unknown_type_is_none():
@@ -107,13 +106,9 @@ def test_validate_request_rejects_unknown_entity_type_first():
         validate_request("bogus", "reference", "image/gif")
 
 
-def test_validate_request_rejects_delivery_before_mime_check():
-    # 'delivery' passes the KNOWN_ENTITY_TYPES check, so this proves the
-    # Phase-2C-not-shipped rejection fires BEFORE the mime is even inspected.
-    with pytest.raises(MediaRuleError, match="Delivery media is not available until Phase 2C"):
-        validate_request("delivery", "delivery", "image/gif")
-    with pytest.raises(MediaRuleError, match="Delivery media is not available until Phase 2C"):
-        validate_request("delivery", "delivery", "image/jpeg")
+def test_validate_request_allows_delivery_media():
+    # Phase 2C enables delivery media for proof of delivery uploads.
+    validate_request("delivery", "delivery", "image/jpeg")
 
 
 def test_validate_request_rejects_bad_mime():
@@ -221,8 +216,8 @@ def test_valid_pairings_kinds_are_subset_of_migration_check_constraint():
     assert all_kinds <= MIGRATION_KINDS
 
 
-def test_entity_tables_is_subset_of_known_entity_types():
-    assert set(ENTITY_TABLES) < KNOWN_ENTITY_TYPES  # strict: 'delivery' is excluded
+def test_entity_tables_matches_known_entity_types():
+    assert set(ENTITY_TABLES) == KNOWN_ENTITY_TYPES
 
 
 def test_consent_gated_entity_types_is_subset_of_known_entity_types():

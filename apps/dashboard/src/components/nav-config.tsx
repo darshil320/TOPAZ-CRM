@@ -14,6 +14,7 @@ import {
   Wallet,
   Settings,
   Factory,
+  Truck,
 } from "lucide-react";
 
 /**
@@ -70,6 +71,7 @@ export const ICONS = {
   payments: (c: string) => <Wallet className={c} strokeWidth={STROKE} />,
   admin: (c: string) => <Settings className={c} strokeWidth={STROKE} />,
   production: (c: string) => <Factory className={c} strokeWidth={STROKE} />,
+  delivery: (c: string) => <Truck className={c} strokeWidth={STROKE} />,
 } as const;
 
 /** Roles the production allocate route accepts — mirrors api/production.py. */
@@ -80,6 +82,13 @@ export const SALES_NAV: NavItem[] = [
   { href: "/dashboard/walkins", label: "Walk-in Queue", shortLabel: "Walk-ins", icon: ICONS.walkin, exact: true },
   { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
   { href: "/dashboard/orders", label: "Orders", shortLabel: "Orders", icon: ICONS.orders },
+  {
+    href: "/dashboard/deliveries",
+    label: "Deliveries",
+    shortLabel: "Deliveries",
+    icon: ICONS.delivery,
+    exact: true,
+  },
   {
     href: "/dashboard/production/allocate",
     label: "Allocate Production",
@@ -105,6 +114,13 @@ export const OWNER_NAV: NavItem[] = [
     label: "Production Board",
     shortLabel: "Production",
     icon: ICONS.production,
+    exact: true,
+  },
+  {
+    href: "/dashboard/deliveries",
+    label: "Deliveries",
+    shortLabel: "Deliveries",
+    icon: ICONS.delivery,
     exact: true,
   },
   { href: "/owner/analytics", label: "Analytics", shortLabel: "Analytics", icon: ICONS.analytics, exact: true },
