@@ -108,15 +108,27 @@ async def send_job_card_route(source: str, entity_id: UUID, req: SendRequest,
     return {"status": "queued", "source": source, "entity_id": str(entity_id), "to": req.to}
 
 
+IMAGE_KIND = "job_card_image"
+PDF_KIND = "job_card_pdf"
+
+
+def _doc_kind(fmt: str) -> str:
+    return IMAGE_KIND if fmt == "image" else PDF_KIND
+
+
 @router.get("/{source}/{entity_id}/url")
 async def job_card_url(source: str, entity_id: UUID,
                        caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Short-lived signed URL for the latest rendered job card."""
     _check_source(source)
     settings = get_settings()
+    kind = _doc_kind(settings.JOB_CARD_FORMAT)
     async with make_task_session() as session:
         await _authorize(session, caller_uid, source, entity_id)
-        key = await document_repo.latest_storage_key(session, source, entity_id, "job_card_pdf")
+        key = await document_repo.latest_storage_key(session, source, entity_id, kind)
+        if key is None:
+            alt_kind = PDF_KIND if kind == IMAGE_KIND else IMAGE_KIND
+            key = await document_repo.latest_storage_key(session, source, entity_id, alt_kind)
     if key is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Job card not generated yet")

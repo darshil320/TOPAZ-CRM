@@ -28,7 +28,7 @@ async def latest_storage_key(
         text(
             "SELECT storage_key FROM documents"
             " WHERE entity_type = :et AND entity_id = :eid AND kind = :kind"
-            " ORDER BY version DESC LIMIT 1"
+            " ORDER BY version DESC, storage_key ASC LIMIT 1"
         ),
         {"et": entity_type, "eid": str(entity_id), "kind": kind},
     )
