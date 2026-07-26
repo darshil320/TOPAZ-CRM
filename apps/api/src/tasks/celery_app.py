@@ -30,6 +30,8 @@ def create_celery_app() -> Celery:
             "src.tasks.payment_reminders",
             "src.tasks.media",
             "src.tasks.job_card",
+            "src.tasks.production_notify",
+            "src.tasks.transit_watchdog",
         ],
     )
 
@@ -54,6 +56,14 @@ def create_celery_app() -> Celery:
             "payment-reminders": {
                 "task": "src.tasks.payment_reminders.send_payment_reminders",
                 "schedule": crontab(hour=10, minute=0),  # daily 10:00 IST (timezone set above)
+            },
+            # 09:00 IST, BEFORE the payment reminder: a manager reads the first message
+            # of the day, and a missed production deadline is the one they can still act
+            # on today. Once daily, not hourly — the dedupe key is per-day, so a tighter
+            # cadence would only re-scan without ever alerting twice.
+            "transit-watchdog": {
+                "task": "src.tasks.transit_watchdog.scan_production_delays",
+                "schedule": crontab(hour=9, minute=0),
             },
         },
     )

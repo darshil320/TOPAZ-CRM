@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, Camera, ShieldAlert, Clock, Share2, X, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Sparkles, Camera, ShieldAlert, Clock, Share2, X, ChevronRight, CheckCircle2, Truck } from "lucide-react";
 import Pill from "@/components/ui/Pill";
 import Link from "next/link";
+// Same helpers the workshop PWA and the courier app use, so a deadline reads
+// identically on all three screens (module 14).
+import { describeDue, legLabel } from "@/lib/production/format";
 
 export interface ProductionItem {
   id: string;
@@ -25,6 +28,14 @@ export interface ProductionItem {
   workshop_type: string;
   photos: { id: string; url: string; stageCode: string; createdAt: string }[];
   events: { id: string; kind: string; stageCode: string; note: string | null; at: string }[];
+  /** Module 14. The workshop's own deadline for this item, WITH a time. */
+  due_at: string | null;
+  /** Non-null while the goods are on a lorry between two workshops. */
+  transit_transfer_id: string | null;
+  leg_seq: number | null;
+  leg_total: number;
+  /** Where the item goes after this leg — the board's "→ Sharma Furniture" hint. */
+  next_workshop_name: string | null;
 }
 
 export interface StageDef {
@@ -163,6 +174,42 @@ export default function ProductionBoardClient({
                         <h4 className="text-caption font-bold text-t1 line-clamp-2">{item.description}</h4>
                         <p className="text-[11px] text-t2 font-medium mt-0.5">{item.customer_name}</p>
                       </div>
+
+                      {/* Module 14: the deadline WITH a time, the transit state, and the
+                          next workshop. These three answer the question the board could
+                          not before — "is this late, and whose problem is it right now?" */}
+                      {(item.due_at || item.transit_transfer_id || item.leg_seq) && (
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                          {item.due_at && (
+                            <span
+                              className={`font-mono font-semibold px-1.5 py-0.5 rounded-kbd border ${
+                                describeDue(item.due_at).overdue
+                                  ? "text-warn bg-warnS border-warn/40"
+                                  : "text-t2 bg-sf2 border-ln"
+                              }`}
+                            >
+                              <Clock className="w-2.5 h-2.5 inline mr-0.5" />
+                              {describeDue(item.due_at).label}
+                            </span>
+                          )}
+                          {item.leg_seq && item.leg_total > 1 && (
+                            <span className="font-mono text-t3 bg-sf2 border border-ln px-1.5 py-0.5 rounded-kbd">
+                              {legLabel(item.leg_seq, item.leg_total)}
+                            </span>
+                          )}
+                          {item.transit_transfer_id ? (
+                            <span className="font-semibold text-acc bg-acc/10 border border-acc/25 px-1.5 py-0.5 rounded-kbd flex items-center gap-1">
+                              <Truck className="w-2.5 h-2.5" /> In transit
+                            </span>
+                          ) : (
+                            item.next_workshop_name && (
+                              <span className="font-mono text-t3">
+                                → {item.next_workshop_name}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
 
                       {/* Photo indicators & actions */}
                       <div className="flex items-center justify-between pt-1 border-t border-ln2 text-[11px]">

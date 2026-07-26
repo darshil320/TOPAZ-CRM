@@ -8,6 +8,9 @@ import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
 import AssignModal, { type WorkshopOption } from "./AssignModal";
+import RouteModal from "./RouteModal";
+import { listRouteTemplates } from "@/lib/production/reads";
+import type { StageDef } from "@/lib/production/types";
 
 // Mirrors the API's own gate (api/production.py): a workshop manager must never
 // self-allocate, and accounts/delivery have no production role at all.
@@ -64,19 +67,28 @@ export default async function AllocatePage() {
 
   // Items read direct from Supabase under RLS (house pattern, §19-G). Workshops
   // come from the API because their open-item count is an aggregate RLS hides.
-  const [{ data: rows, error }, workshopList] = await Promise.all([
-    supabase
-      .from("order_items")
-      .select(
-        "id, description, qty, unit, dimensions, material, sort, order_id," +
-          " orders!inner(order_no, status, expected_delivery_date, created_at," +
-          " customers!inner(name))",
-      )
-      .is("workshop_id", null)
-      .in("orders.status", ["confirmed", "in_production"])
-      .limit(QUEUE_LIMIT),
-    listWorkshops(false),
-  ]);
+  const [{ data: rows, error }, { data: stageRows }, workshopList, templateList] =
+    await Promise.all([
+      supabase
+        .from("order_items")
+        .select(
+          "id, description, qty, unit, dimensions, material, sort, order_id," +
+            " orders!inner(order_no, status, expected_delivery_date, created_at," +
+            " customers!inner(name))",
+        )
+        .is("workshop_id", null)
+        .in("orders.status", ["confirmed", "in_production"])
+        .limit(QUEUE_LIMIT),
+      // Stage codes + order drive the route builder's dropdowns. Read-open to all
+      // authenticated staff (0024) — a stage label carries no money.
+      supabase
+        .from("production_stage_defs")
+        .select("code, sort, label_en, label_gu, photo_required, active")
+        .eq("active", true)
+        .order("sort"),
+      listWorkshops(false),
+      listRouteTemplates(true),
+    ]);
 
   const items: QueueItem[] = ((rows as any[]) ?? [])
     .map((row: any): QueueItem | null => {
@@ -101,6 +113,8 @@ export default async function AllocatePage() {
     })
     .filter((item): item is QueueItem => item !== null)
     .sort(byUrgency);
+
+  const stages = (stageRows ?? []) as StageDef[];
 
   const activeWorkshops: WorkshopOption[] = workshopList.workshops
     .filter((w) => w.active)
@@ -233,14 +247,30 @@ export default async function AllocatePage() {
                       </div>
                     </div>
 
-                    <AssignModal
-                      itemId={item.id}
-                      itemDescription={item.description}
-                      orderNo={item.orderNo}
-                      customerName={item.customerName}
-                      workshops={activeWorkshops}
-                      todayISO={today}
-                    />
+                    {/* Two paths, deliberately side by side: one workshop start to
+                        finish (Allocate) or the multi-workshop journey the client
+                        described (Plan route). Neither is hidden behind the other —
+                        the operator knows which piece is which. */}
+                    <div className="flex items-center gap-2">
+                      <RouteModal
+                        itemId={item.id}
+                        itemDescription={item.description}
+                        orderNo={item.orderNo}
+                        customerName={item.customerName}
+                        workshops={activeWorkshops}
+                        stages={stages}
+                        templates={templateList.data?.templates ?? []}
+                        todayISO={today}
+                      />
+                      <AssignModal
+                        itemId={item.id}
+                        itemDescription={item.description}
+                        orderNo={item.orderNo}
+                        customerName={item.customerName}
+                        workshops={activeWorkshops}
+                        todayISO={today}
+                      />
+                    </div>
                   </div>
                 </div>
               );

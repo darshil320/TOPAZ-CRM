@@ -35,10 +35,21 @@ export type MediaEntityType =
   | "production_event"
   | "delivery"
   | "product"
-  | "quotation_item";
+  | "quotation_item"
+  // Module 14 (0031): the two-party handover frame on an inter-workshop consignment.
+  // The ONE upload path a `delivery` courier has — see `_COURIER_ENTITY_TYPES` in
+  // apps/api/src/api/media.py.
+  | "workshop_transfer";
 
 /** Media kinds (`media.kind` CHECK constraint). */
-export type MediaKind = "reference" | "drawing" | "site" | "production" | "finished" | "delivery";
+export type MediaKind =
+  | "reference"
+  | "drawing"
+  | "site"
+  | "production"
+  | "finished"
+  | "delivery"
+  | "transit";
 
 /** Mime types the API allows (`services/media_entities.MIME_EXTENSIONS`). */
 export type MediaMime = "image/jpeg" | "image/png" | "image/webp";

@@ -30,6 +30,9 @@ ENTITY_TABLES: dict[str, str] = {
     # per-line overrides for custom pieces.
     "product": "products",
     "quotation_item": "quotation_items",
+    # Module 14 (0031): the two-party handover photo. One at pickup (the origin's proof
+    # of the condition the goods left in) and one at receipt (what actually turned up).
+    "workshop_transfer": "workshop_transfers",
 }
 
 # Every entity_type the CHECK constraint allows, including the not-yet-buildable one.
@@ -51,6 +54,11 @@ VALID_PAIRINGS: dict[str, frozenset[str]] = {
     # A catalog photo is a 'reference' shot of the product, nothing else.
     "product": frozenset({"reference"}),
     "quotation_item": frozenset({"reference", "drawing"}),
+    # A consignment photo is the handover frame and nothing else. Deliberately NOT
+    # 'production': a stage photo belongs to the item's timeline, and filing one against
+    # a consignment would hide it from the item's history where the customer-facing
+    # progress story is assembled.
+    "workshop_transfer": frozenset({"transit"}),
 }
 
 # Upload mime → file extension. Also the allowlist: an unmapped mime is rejected.

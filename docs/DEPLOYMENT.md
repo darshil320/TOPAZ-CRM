@@ -9,6 +9,14 @@ DONE: all Phase 1 code built + empirically verified · repo on GitHub (darshil32
 
 REMAINING: Tracks A–G below.
 
+> **Phase 2 / 2B status lives in [`docs/phase2/STATE.md`](phase2/STATE.md), not here.** This
+> file covers the Phase-1 go-live tracks only. Current cross-phase deployment facts worth
+> having in one place (2026-07-27): the repo's migration head is **`0031`** while prod and
+> UAT are still at **`0020`**, so migrations `0021`–`0031` (quotes/orders/payments RLS,
+> workshops, production, media, job cards, and module 14's workshop staff + routing +
+> transit) all need pushing before any Phase-2B feature works against a real database.
+> Module 14 also adds two unsubmitted Meta templates (`transfer_assigned`, `leg_overdue`).
+
 ---
 
 ## TRACK A — Railway env vars: replace every placeholder (YOU · ~30 min)

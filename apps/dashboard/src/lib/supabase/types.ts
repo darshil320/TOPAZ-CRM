@@ -698,6 +698,7 @@ export type Database = {
           polish: string | null
           product_id: string | null
           production_done_at: string | null
+          transit_transfer_id: string | null
           qty: number
           sort: number
           spec_notes: string | null
@@ -723,6 +724,7 @@ export type Database = {
           polish?: string | null
           product_id?: string | null
           production_done_at?: string | null
+          transit_transfer_id?: string | null
           qty: number
           sort?: number
           spec_notes?: string | null
@@ -748,6 +750,7 @@ export type Database = {
           polish?: string | null
           product_id?: string | null
           production_done_at?: string | null
+          transit_transfer_id?: string | null
           qty?: number
           sort?: number
           spec_notes?: string | null
@@ -1182,6 +1185,287 @@ export type Database = {
           },
         ]
       }
+      // ─── Module 14 (migrations 0029-0031) ────────────────────────────────
+      // Hand-added to this generated file, same as every earlier phase (STATE.md
+      // "types.ts extended"). Regenerating with `supabase gen types` will reproduce
+      // them; the Relationships arrays are omitted deliberately — nothing in the app
+      // relies on PostgREST relationship inference for these, every join is explicit.
+      workshop_staff: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          deactivated_at: string | null
+          id: string
+          role: string
+          salesperson_id: string
+          updated_at: string
+          workshop_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          deactivated_at?: string | null
+          id?: string
+          role: string
+          salesperson_id: string
+          updated_at?: string
+          workshop_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          deactivated_at?: string | null
+          id?: string
+          role?: string
+          salesperson_id?: string
+          updated_at?: string
+          workshop_id?: string
+        }
+        Relationships: []
+      }
+      order_item_route_legs: {
+        Row: {
+          activated_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string | null
+          id: string
+          order_item_id: string
+          planned_days: number | null
+          seq: number
+          stage_from: string
+          stage_to: string
+          status: string
+          updated_at: string
+          workshop_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          id?: string
+          order_item_id: string
+          planned_days?: number | null
+          seq: number
+          stage_from: string
+          stage_to: string
+          status?: string
+          updated_at?: string
+          workshop_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          id?: string
+          order_item_id?: string
+          planned_days?: number | null
+          seq?: number
+          stage_from?: string
+          stage_to?: string
+          status?: string
+          updated_at?: string
+          workshop_id?: string
+        }
+        Relationships: []
+      }
+      production_route_templates: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      production_route_template_legs: {
+        Row: {
+          created_at: string
+          id: string
+          planned_days: number
+          seq: number
+          stage_from: string
+          stage_to: string
+          template_id: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          planned_days: number
+          seq: number
+          stage_from: string
+          stage_to: string
+          template_id: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          planned_days?: number
+          seq?: number
+          stage_from?: string
+          stage_to?: string
+          template_id?: string
+          workshop_id?: string
+        }
+        Relationships: []
+      }
+      workshop_transfers: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          courier_salesperson_id: string | null
+          created_at: string
+          created_by: string | null
+          delivered_at: string | null
+          due_at: string | null
+          expected_pickup_at: string | null
+          from_workshop_id: string
+          id: string
+          notes: string | null
+          picked_up_at: string | null
+          reason: string
+          received_at: string | null
+          status: string
+          to_workshop_id: string
+          transfer_no: string
+          updated_at: string
+          vehicle_no: string | null
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          courier_salesperson_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          due_at?: string | null
+          expected_pickup_at?: string | null
+          from_workshop_id: string
+          id?: string
+          notes?: string | null
+          picked_up_at?: string | null
+          reason?: string
+          received_at?: string | null
+          status?: string
+          to_workshop_id: string
+          transfer_no: string
+          updated_at?: string
+          vehicle_no?: string | null
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          courier_salesperson_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          due_at?: string | null
+          expected_pickup_at?: string | null
+          from_workshop_id?: string
+          id?: string
+          notes?: string | null
+          picked_up_at?: string | null
+          reason?: string
+          received_at?: string | null
+          status?: string
+          to_workshop_id?: string
+          transfer_no?: string
+          updated_at?: string
+          vehicle_no?: string | null
+        }
+        Relationships: []
+      }
+      workshop_transfer_items: {
+        Row: {
+          created_at: string
+          id: string
+          open: boolean
+          order_item_id: string
+          qty: number | null
+          route_leg_id: string | null
+          transfer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          open?: boolean
+          order_item_id: string
+          qty?: number | null
+          route_leg_id?: string | null
+          transfer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          open?: boolean
+          order_item_id?: string
+          qty?: number | null
+          route_leg_id?: string | null
+          transfer_id?: string
+        }
+        Relationships: []
+      }
+      workshop_transfer_events: {
+        Row: {
+          actor: string | null
+          at: string
+          id: string
+          kind: string
+          media_id: string | null
+          note: string | null
+          transfer_id: string
+        }
+        Insert: {
+          actor?: string | null
+          at?: string
+          id?: string
+          kind: string
+          media_id?: string | null
+          note?: string | null
+          transfer_id: string
+        }
+        Update: {
+          actor?: string | null
+          at?: string
+          id?: string
+          kind?: string
+          media_id?: string | null
+          note?: string | null
+          transfer_id?: string
+        }
+        Relationships: []
+      }
       workshops: {
         Row: {
           active: boolean
@@ -1262,9 +1546,11 @@ export type Database = {
           assigned_by: string | null
           created_at: string
           deactivated_at: string | null
+          due_at: string | null
           due_date: string | null
           id: string
           order_item_id: string
+          route_leg_id: string | null
           workshop_id: string
         }
         Insert: {
@@ -1272,9 +1558,11 @@ export type Database = {
           assigned_by?: string | null
           created_at?: string
           deactivated_at?: string | null
+          due_at?: string | null
           due_date?: string | null
           id?: string
           order_item_id: string
+          route_leg_id?: string | null
           workshop_id: string
         }
         Update: {
@@ -1282,9 +1570,11 @@ export type Database = {
           assigned_by?: string | null
           created_at?: string
           deactivated_at?: string | null
+          due_at?: string | null
           due_date?: string | null
           id?: string
           order_item_id?: string
+          route_leg_id?: string | null
           workshop_id?: string
         }
         Relationships: [

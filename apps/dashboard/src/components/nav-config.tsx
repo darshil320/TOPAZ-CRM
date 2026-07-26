@@ -15,6 +15,7 @@ import {
   Settings,
   Factory,
   Truck,
+  Route,
 } from "lucide-react";
 
 /**
@@ -72,10 +73,23 @@ export const ICONS = {
   admin: (c: string) => <Settings className={c} strokeWidth={STROKE} />,
   production: (c: string) => <Factory className={c} strokeWidth={STROKE} />,
   delivery: (c: string) => <Truck className={c} strokeWidth={STROKE} />,
+  // Module 14: workshop→workshop movement. A distinct icon from `delivery` on purpose —
+  // the two are different journeys (mid-production vs to the customer) and a driver
+  // must never confuse the two lists.
+  transit: (c: string) => <Route className={c} strokeWidth={STROKE} />,
 } as const;
 
 /** Roles the production allocate route accepts — mirrors api/production.py. */
 const ALLOCATING_ROLES: readonly Role[] = ["owner", "admin", "salesperson"];
+
+/**
+ * Roles that can open the inter-workshop transit app (module 14). `delivery` is the
+ * courier the app is FOR; owner/admin get in to unstick a run when a driver's phone is
+ * dead — which is also exactly what api/transfers.py allows, so no nav item here 403s.
+ * A `workshop_manager` is deliberately absent: they act on consignments from their own
+ * queue's Incoming section, not from a driver's run list.
+ */
+const TRANSIT_ROLES: readonly Role[] = ["delivery", "owner", "admin"];
 
 export const SALES_NAV: NavItem[] = [
   { href: "/dashboard", label: "My Customers", shortLabel: "Customers", icon: ICONS.customers, exact: true },
@@ -103,6 +117,14 @@ export const SALES_NAV: NavItem[] = [
     shortLabel: "Production",
     icon: ICONS.production,
     exact: true,
+  },
+  {
+    href: "/transit",
+    label: "Workshop Transit",
+    shortLabel: "Transit",
+    icon: ICONS.transit,
+    exact: true,
+    roles: TRANSIT_ROLES,
   },
   { href: "/dashboard/pipeline", label: "Lead Pipeline", shortLabel: "Leads", icon: ICONS.pipeline },
 ];

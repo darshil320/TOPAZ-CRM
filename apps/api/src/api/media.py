@@ -35,8 +35,15 @@ router = APIRouter(prefix="/media", dependencies=[Depends(require_dashboard_key)
 
 # A workshop manager may only attach production evidence, and only to an item their
 # own workshop currently holds. Anything else is somebody else's customer.
-_WORKSHOP_ENTITY_TYPES = {"order_item", "production_event"}
-_WORKSHOP_KINDS = {"production", "finished"}
+# Module 14 adds the handover frame: a consignment photo, filed against the run.
+_WORKSHOP_ENTITY_TYPES = {"order_item", "production_event", "workshop_transfer"}
+_WORKSHOP_KINDS = {"production", "finished", "transit"}
+
+# A courier's ONE upload path. `delivery` is otherwise barred from this endpoint (it
+# mints billable Storage credentials), but the two-party handover is built on that
+# person photographing the goods at both ends, so the exception is the feature.
+_COURIER_ENTITY_TYPES = {"workshop_transfer"}
+_COURIER_KINDS = {"transit"}
 
 
 class SignUploadRequest(BaseModel):
@@ -60,9 +67,17 @@ async def _authorize_upload(session, caller: authz.Caller, entity_type: str, ent
         authz.assert_admin(caller, action="upload catalog photos")
         return
 
+    # A HANDOVER photo (module 14, 0031) belongs to a consignment, not a customer: it
+    # is filed by whoever is physically holding the goods. That is the assigned courier
+    # — a `delivery` user who has no customer relationship at all and would fail every
+    # other branch here — or staff of either end of the run.
+    if entity_type == "workshop_transfer":
+        await _authorize_transfer_upload(session, caller, entity_id)
+        return
+
     if caller.role == "workshop_manager":
         workshop_id = await repo.workshop_id_for_entity(session, entity_type, entity_id)
-        if workshop_id is None or not await _manages(session, caller, workshop_id):
+        if workshop_id is None or not await _is_staff_of(session, caller, workshop_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Not authorized to add photos to this item")
         return
@@ -72,17 +87,53 @@ async def _authorize_upload(session, caller: authz.Caller, entity_type: str, ent
     await authz.assert_can_write_customer(session, caller, customer_id)
 
 
-async def _manages(session, caller: authz.Caller, workshop_id: str) -> bool:
+async def _is_staff_of(session, caller: authz.Caller, workshop_id: str) -> bool:
+    """Active roster membership at this workshop, ANY role.
+
+    Module 14 changed this from a `workshops.manager_salesperson_id = me` test. It had
+    to: four production stages are photo_required (0024), so a sub-manager who could
+    not upload could not complete a stage at all — the hierarchy would have shipped
+    with its main user unable to do the one thing it exists to let them do.
+    """
+    from ..repositories import workshop_staff_repo
+
+    role = await workshop_staff_repo.staff_role_at(
+        session, salesperson_id=caller.salesperson_id, workshop_id=workshop_id
+    )
+    return role is not None
+
+
+async def _authorize_transfer_upload(session, caller: authz.Caller, transfer_id: UUID) -> None:
     from sqlalchemy import text
 
+    if caller.is_admin:
+        return
     result = await session.execute(
         text(
-            "SELECT 1 FROM workshops WHERE id = :wid AND active = true"
-            "   AND manager_salesperson_id = :sp"
+            "SELECT from_workshop_id, to_workshop_id, courier_salesperson_id, status"
+            " FROM workshop_transfers WHERE id = :id"
         ),
-        {"wid": workshop_id, "sp": caller.salesperson_id},
+        {"id": str(transfer_id)},
     )
-    return result.first() is not None
+    row = result.mappings().first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Consignment not found")
+    if row["status"] in ("received", "cancelled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This consignment is closed — its handover photos are final",
+        )
+    if caller.role == "delivery":
+        assigned = row["courier_salesperson_id"]
+        if assigned is None or str(assigned) == caller.salesperson_id:
+            return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="This consignment is assigned to another courier")
+    for side in ("from_workshop_id", "to_workshop_id"):
+        if await _is_staff_of(session, caller, str(row[side])):
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to add photos to this consignment")
 
 
 @router.post("/sign-upload", status_code=status.HTTP_201_CREATED)
@@ -103,9 +154,25 @@ async def sign_upload(req: SignUploadRequest, caller_uid: str = Depends(get_call
 
     async with make_task_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
-        if caller.role in ("accounts", "delivery"):
+        if caller.role == "accounts":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Your role cannot upload photos")
+        if caller.role == "delivery" and not (
+            req.entity_type in _COURIER_ENTITY_TYPES and req.kind in _COURIER_KINDS
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="A courier may only upload handover photos for a consignment",
+            )
+        if caller.role == "workshop_manager" and not (
+            req.entity_type in _WORKSHOP_ENTITY_TYPES and req.kind in _WORKSHOP_KINDS
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "A workshop may only upload production, finished or handover photos"
+                ),
+            )
         if not await repo.entity_exists(session, table, req.entity_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"No {req.entity_type} with that id")

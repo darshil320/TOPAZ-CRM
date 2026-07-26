@@ -27,10 +27,14 @@ from src.services.media_entities import (
 # source edit that silently drifts from the migration fails here.
 MIGRATION_ENTITY_TYPES = frozenset(
     {"customer", "order", "order_item", "production_event", "delivery",
-     "product", "quotation_item"}
+     "product", "quotation_item",
+     # 0031 (module 14): the inter-workshop handover photo.
+     "workshop_transfer"}
 )
 MIGRATION_KINDS = frozenset(
-    {"reference", "drawing", "site", "production", "finished", "delivery"}
+    {"reference", "drawing", "site", "production", "finished", "delivery",
+     # 0031 (module 14).
+     "transit"}
 )
 MIGRATION_MIMES = frozenset({"image/jpeg", "image/png", "image/webp"})
 

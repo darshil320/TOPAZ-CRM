@@ -80,6 +80,37 @@ def assert_role(caller: Caller, roles: set[str], *, action: str) -> None:
                             detail=f"Only {allowed} may {action}")
 
 
+async def capabilities_at_workshop(
+    session: AsyncSession, caller: Caller, workshop_id: str | None
+) -> frozenset[str]:
+    """What this caller may do AT ONE WORKSHOP (module 14's lead/sub split).
+
+    Resolves the caller's `workshop_staff.role` there and hands both roles to the pure
+    rule in services/stage_flow.capabilities_for(). Owner/admin and the courier role do
+    not depend on a roster row, so the lookup is skipped for them — a `delivery` user
+    driving a consignment must not need to be on either workshop's staff list.
+    """
+    from ..repositories import workshop_staff_repo
+    from ..services import stage_flow
+
+    staff_role: str | None = None
+    if workshop_id and caller.role == "workshop_manager":
+        staff_role = await workshop_staff_repo.staff_role_at(
+            session, salesperson_id=caller.salesperson_id, workshop_id=workshop_id
+        )
+    return stage_flow.capabilities_for(role=caller.role, staff_role=staff_role)
+
+
+def assert_capability(caps: frozenset[str], cap: str, *, action: str) -> None:
+    """403 unless the capability is present. `action` is folded into the message so a
+    sub-manager who taps Receive is told what is missing, not just that it failed."""
+    if cap not in caps:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You are not authorized to {action} at this workshop",
+        )
+
+
 async def assert_can_read_customer(session: AsyncSession, caller: Caller, customer_id: str) -> None:
     """Read access to a customer's financial documents (receipts): owner/admin/
     accounts may read any; a salesperson only their assigned customers."""

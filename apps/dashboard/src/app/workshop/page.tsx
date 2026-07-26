@@ -1,113 +1,99 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { AlertTriangle, Factory } from "lucide-react";
 import { getCurrentSalesperson } from "@/lib/auth";
+import { getMyQueue } from "@/lib/production/reads";
+import IncomingTransfers from "./IncomingTransfers";
 import WorkshopQueueClient from "./WorkshopQueueClient";
 
-export interface WorkshopQueueItem {
-  id: string;
-  description: string;
-  qty: number;
-  unit: string | null;
-  dimensions: string | null;
-  material: string | null;
-  current_stage: string | null;
-  current_stage_at: string | null;
-  blocked: boolean;
-  blocked_at: string | null;
-  order_id: string;
-  order_no: string;
-  customer_name: string;
-  expected_delivery_date: string | null;
-  workshop_name: string;
-  workshop_id: string;
-}
-
-export interface StageDef {
-  code: string;
-  sort: number;
-  label_en: string;
-  label_gu: string | null;
-  photo_required: boolean;
-}
-
+/**
+ * The workshop PWA's My Queue.
+ *
+ * ─── WHY THIS READS THE API AND NOT SUPABASE (it used to) ──────────────────────
+ * Two reasons, both load-bearing:
+ *
+ *  1. **The roster.** This page used to filter workshops by
+ *     `manager_salesperson_id = me`. Module 14 made that column a DENORM of the
+ *     `workshop_staff` roster (0029), and a SUB-MANAGER matches it never — so the
+ *     person the hierarchy exists for would have opened the app to an empty queue.
+ *     `GET /api/production/my-queue` scopes on the roster instead.
+ *  2. **Money.** The old query selected `order_items` directly. `workshop_manager` has
+ *     no SELECT policy on that table and must never get one (it carries unit_price /
+ *     line_total / gst_rate, 0024:118) — the query only appeared to work because the
+ *     rows came back empty or via a broader session. The API's projection is the
+ *     money-blind boundary.
+ */
 export default async function WorkshopPage() {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
+  const { data, error } = await getMyQueue();
 
-  // 1. Fetch workshops managed by this staff member, or all active workshops if owner/admin
-  const isElevated = sp.role === "owner" || sp.role === "admin";
-  
-  let workshopQuery = supabase.from("workshops").select("id, name, type, manager_salesperson_id").eq("active", true);
-  if (!isElevated) {
-    workshopQuery = workshopQuery.eq("manager_salesperson_id", sp.id);
-  }
+  const workshops = data?.workshops ?? [];
+  const items = data?.items ?? [];
+  const stages = data?.stages ?? [];
+  const incoming = data?.incoming_transfers ?? [];
 
-  const [{ data: workshops }, { data: stageDefs }] = await Promise.all([
-    workshopQuery,
-    supabase.from("production_stage_defs").select("*").eq("active", true).order("sort", { ascending: true }),
-  ]);
-
-  const workshopList = workshops ?? [];
-  const workshopIds = workshopList.map((w) => w.id);
-
-  // 2. Fetch assigned items for these workshops
-  let items: WorkshopQueueItem[] = [];
-
-  if (workshopIds.length > 0) {
-    const { data: rows } = await supabase
-      .from("order_items")
-      .select("id, description, qty, unit, dimensions, material, current_stage, current_stage_at, blocked, blocked_at, order_id, workshop_id, orders!inner(order_no, expected_delivery_date, customers!inner(name)), workshops!inner(name)")
-      .in("workshop_id", workshopIds)
-      .is("production_done_at", null)
-      .order("current_stage_at", { ascending: true });
-
-    items = ((rows as any[]) ?? []).map((r) => {
-      const orderObj = Array.isArray(r.orders) ? r.orders[0] : r.orders;
-      const custObj = orderObj?.customers ? (Array.isArray(orderObj.customers) ? orderObj.customers[0] : orderObj.customers) : null;
-      const shopObj = Array.isArray(r.workshops) ? r.workshops[0] : r.workshops;
-
-      return {
-        id: r.id,
-        description: r.description,
-        qty: r.qty,
-        unit: r.unit,
-        dimensions: r.dimensions,
-        material: r.material,
-        current_stage: r.current_stage,
-        current_stage_at: r.current_stage_at,
-        blocked: r.blocked,
-        blocked_at: r.blocked_at,
-        order_id: r.order_id,
-        order_no: orderObj?.order_no ?? "ORD-???",
-        customer_name: custObj?.name ?? "Customer",
-        expected_delivery_date: orderObj?.expected_delivery_date ?? null,
-        workshop_name: shopObj?.name ?? "Workshop",
-        workshop_id: r.workshop_id,
-      };
-    });
-  }
+  const isLeadSomewhere = workshops.some((w) => w.staff_role === "lead");
+  const overdueCount = items.filter((item) => {
+    const due = item.leg_due_at ?? item.due_at;
+    return due !== null && new Date(due).getTime() < Date.now();
+  }).length;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-xl">
         <div>
-          <h2 className="text-lg font-extrabold text-white">મારું ઉત્પાદન કામ / My Production Queue</h2>
+          <h2 className="text-lg font-extrabold text-white">
+            મારું ઉત્પાદન કામ / My Production Queue
+          </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            {items.length} item{items.length === 1 ? "" : "s"} assigned for active production
+            {items.length} item{items.length === 1 ? "" : "s"} assigned
+            {overdueCount > 0 && (
+              <span className="text-red-400 font-bold"> · {overdueCount} overdue</span>
+            )}
           </p>
         </div>
-        <div className="text-right font-mono text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2.5 py-1 rounded-md">
-          {workshopList.length} site{workshopList.length === 1 ? "" : "s"}
+        <div className="text-right shrink-0 space-y-1">
+          <span className="block font-mono text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2.5 py-1 rounded-md">
+            {workshops.length} site{workshops.length === 1 ? "" : "s"}
+          </span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            {isLeadSomewhere ? "મુખ્ય / Lead" : "સહાયક / Sub-manager"}
+          </span>
         </div>
       </div>
 
-      <WorkshopQueueClient
-        initialItems={items}
-        stages={(stageDefs ?? []) as StageDef[]}
-      />
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-400 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {workshops.length === 0 && !error && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+          <Factory className="w-10 h-10 text-slate-600 mx-auto" />
+          <h3 className="text-base font-bold text-white">
+            કોઈ વર્કશોપ સોંપાયું નથી / No workshop assigned
+          </h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Ask the owner to add you to a workshop&apos;s staff list (Admin → Workshops →
+            Staff). Until then there is nothing here to show you.
+          </p>
+        </div>
+      )}
+
+      {/* Incoming FIRST: goods waiting on a lorry outside are more urgent than the
+          work already on the floor, and only a lead can clear them. */}
+      <IncomingTransfers transfers={incoming} canReceive={isLeadSomewhere} />
+
+      {workshops.length > 0 && (
+        <WorkshopQueueClient
+          initialItems={items}
+          stages={stages}
+          workshops={workshops}
+        />
+      )}
     </div>
   );
 }

@@ -79,3 +79,76 @@ export async function allocateItem(
     return { error: err instanceof Error ? err.message : "Server error" };
   }
 }
+
+/**
+ * Plan a MULTI-WORKSHOP route for one item (module 14) — the richer sibling of
+ * `allocateItem` above.
+ *
+ * Where allocate says "this item goes to one workshop", a route says "polishing here
+ * for 5 days, then finishing there for 4". The API activates leg 1 through the same
+ * allocate path, so the one-active-assignment invariant is untouched; the difference is
+ * that legs 2..n exist as a plan, each with its own deadline, and finishing a leg's last
+ * stage auto-opens a consignment to the next workshop.
+ *
+ * `legs` and `templateId` are mutually exclusive — the API refuses both, rather than
+ * silently preferring one.
+ */
+export interface RouteLegInput {
+  workshop_id: string;
+  stage_from: string;
+  stage_to: string;
+  planned_days: number | null;
+}
+
+export interface PlanRouteResult {
+  error: string | null;
+  legCount?: number;
+  activatedWorkshopId?: string;
+  firstDueAt?: string | null;
+}
+
+export async function planRoute(
+  orderItemId: string,
+  input: { legs?: RouteLegInput[]; templateId?: string; startAt?: string | null },
+): Promise<PlanRouteResult> {
+  if (!DASHBOARD_API_KEY) {
+    return { error: "Production API not configured — set DASHBOARD_API_KEY" };
+  }
+  if (!orderItemId) return { error: "Pick the item to route" };
+  if (!input.legs?.length && !input.templateId) {
+    return { error: "Add at least one leg, or pick a saved route" };
+  }
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/routing/items/${orderItemId}/route`, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(true),
+      body: JSON.stringify({
+        legs: input.templateId ? null : input.legs,
+        template_id: input.templateId ?? null,
+        start_at: input.startAt || null,
+      }),
+    });
+    if (!resp.ok) return { error: await readError(resp) };
+
+    const body = await resp.json();
+    revalidatePath("/dashboard/production/allocate");
+    revalidatePath("/dashboard/production");
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/workshop");
+    return {
+      error: null,
+      legCount: Array.isArray(body.legs) ? body.legs.length : 0,
+      activatedWorkshopId: body.assignment?.workshop_id ?? undefined,
+      firstDueAt: body.assignment?.due_at ?? null,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return {
+        error: "The production service did not respond in time — refresh and check before retrying.",
+      };
+    }
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}

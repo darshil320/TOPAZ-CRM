@@ -8,7 +8,11 @@ import Pill from "@/components/ui/Pill";
 import ProductAdmin, { type AdminProduct } from "./ProductAdmin";
 import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
 import WorkshopAdmin from "./WorkshopAdmin";
+import WorkshopStaffAdmin, { type StaffWorkshop } from "./WorkshopStaffAdmin";
+import RouteTemplateAdmin from "./RouteTemplateAdmin";
 import { listWorkshops } from "@/lib/workshops";
+import { listRouteTemplates, listWorkshopStaff } from "@/lib/production/reads";
+import type { StageDef } from "@/lib/production/types";
 import { addWorkshop, updateWorkshop, deactivateWorkshop } from "./actions";
 
 // Read-only WhatsApp template registry. Meta approval status is tracked manually
@@ -31,15 +35,49 @@ export default async function AdminPage() {
   if (!isOwnerRole(sp)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: products }, { data: settingsRows }, { data: salespersons }, workshopResult] = await Promise.all([
+  const [
+    { data: products },
+    { data: settingsRows },
+    { data: salespersons },
+    { data: stageRows },
+    workshopResult,
+    templateResult,
+  ] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, category, hsn, gst_rate, base_price, unit, active, primary_media_id")
       .order("name"),
     supabase.from("app_settings").select("key, value"),
     supabase.from("salespersons").select("id, name, role").eq("active", true).order("name"),
+    // production_stage_defs is read-open to every authenticated staff member (0024):
+    // a stage label carries no money, and the route builder needs the codes + order.
+    supabase
+      .from("production_stage_defs")
+      .select("code, sort, label_en, label_gu, photo_required, active")
+      .eq("active", true)
+      .order("sort"),
     listWorkshops(false),
+    listRouteTemplates(false),
   ]);
+
+  // Rosters, one call per active workshop. Sequential-safe and small (a showroom has a
+  // handful of sites), and the staff endpoint is the only money-blind path to the
+  // roster + each person's phone number in one row.
+  const activeWorkshops = workshopResult.workshops.filter((w) => w.active);
+  const rosters = await Promise.all(
+    activeWorkshops.map(async (w) => ({
+      workshop: w,
+      result: await listWorkshopStaff(w.id),
+    })),
+  );
+  const staffWorkshops: StaffWorkshop[] = rosters.map(({ workshop, result }) => ({
+    id: workshop.id,
+    name: workshop.name,
+    type: workshop.type,
+    active: workshop.active,
+    staff: result.data?.staff ?? [],
+  }));
+  const rosterError = rosters.find(({ result }) => result.error)?.result.error ?? null;
 
   const settingsMap = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
   const settings: AdminSettings = {
@@ -71,6 +109,25 @@ export default async function AdminPage() {
           onAdd={addWorkshop}
           onUpdate={updateWorkshop}
           onDeactivate={deactivateWorkshop}
+        />
+      </Card>
+
+      {/* Workshop Staff Card — the roster that decides who sees which queue (module 14) */}
+      <Card>
+        <WorkshopStaffAdmin
+          workshops={staffWorkshops}
+          staffOptions={managerOptions}
+          loadError={rosterError}
+        />
+      </Card>
+
+      {/* Route Templates Card — reusable multi-workshop journeys (module 14) */}
+      <Card>
+        <RouteTemplateAdmin
+          templates={templateResult.data?.templates ?? []}
+          workshops={workshopResult.workshops}
+          stages={(stageRows ?? []) as StageDef[]}
+          loadError={templateResult.error}
         />
       </Card>
 

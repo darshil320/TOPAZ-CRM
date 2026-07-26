@@ -6,9 +6,11 @@ Routes:
   /api/whatsapp/webhook      — Meta Cloud API inbound events (Layer 2)
   /api/whatsapp/send         — dashboard → outbound message (Layer 2)
   /api/auth/link-salesperson — dashboard → first-login auth linking (Layer 3)
-  /api/workshops             — workshops CRUD (Phase 2B)
+  /api/workshops             — workshops CRUD + staff roster (Phase 2B · module 14)
   /api/media                 — signed upload → complete → thumbnail (Phase 2B)
-  /api/production            — allocate an order item to a workshop (Phase 2B)
+  /api/production            — allocate + the stage machine (Phase 2B · modules 08/09)
+  /api/routing               — multi-workshop route legs + templates (module 14)
+  /api/transfers             — inter-workshop consignments, the mediator app (module 14)
   /api/job-cards             — render/send the money-free spec sheet (Phase 2B)
   /api/health                — liveness probe
 """
@@ -25,6 +27,8 @@ from .api.production import router as production_router
 from .api.public import router as public_router
 from .api.quotations import router as quotations_router
 from .api.recognition import router as recognition_router
+from .api.routing import router as routing_router
+from .api.transfers import router as transfers_router
 from .api.whatsapp import router as whatsapp_router
 from .api.workshops import router as workshops_router
 
@@ -49,6 +53,9 @@ def create_app() -> FastAPI:
     app.include_router(media_router, prefix="/api")
     app.include_router(production_router, prefix="/api")
     app.include_router(job_cards_router, prefix="/api")
+    # Module 14 (multi-workshop routing + the mediator app).
+    app.include_router(routing_router, prefix="/api")
+    app.include_router(transfers_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
 
