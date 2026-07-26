@@ -5,10 +5,17 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 
+// Mirrors salespersons_role_check (migration 0011) exactly — the DB is the source of
+// truth, this is just so a typo here fails at compile time instead of a 500 at insert.
+export type StaffRole = "salesperson" | "owner" | "admin" | "accounts" | "workshop_manager" | "delivery";
+const STAFF_ROLES: readonly StaffRole[] = [
+  "salesperson", "owner", "admin", "accounts", "workshop_manager", "delivery",
+];
+
 export async function addSalesperson(
   name: string,
   whatsapp: string,
-  role: "salesperson" | "owner",
+  role: StaffRole,
 ): Promise<{ error: string | null }> {
   const cleanName = name.trim();
   const cleanWhatsapp = whatsapp.trim();
@@ -17,7 +24,7 @@ export async function addSalesperson(
   if (!E164.test(cleanWhatsapp)) {
     return { error: "WhatsApp number must be E.164, e.g. +919426529230" };
   }
-  if (role !== "salesperson" && role !== "owner") {
+  if (!STAFF_ROLES.includes(role)) {
     return { error: `Invalid role: ${role}` };
   }
 

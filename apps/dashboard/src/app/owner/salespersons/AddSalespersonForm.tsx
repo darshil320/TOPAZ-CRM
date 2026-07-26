@@ -2,15 +2,28 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addSalesperson } from "./actions";
+import { addSalesperson, type StaffRole } from "./actions";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Button from "@/components/ui/Button";
 
+// The full role enum (salespersons_role_check, migration 0011). This form only ever
+// exposed salesperson/owner — workshop_manager and delivery had no way to be created
+// at all, which silently blocked module 14's staff hierarchy and the transit app from
+// ever getting a real login.
+const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
+  { value: "salesperson", label: "Salesperson" },
+  { value: "owner", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "accounts", label: "Accounts" },
+  { value: "workshop_manager", label: "Workshop Manager (lead/sub-manager)" },
+  { value: "delivery", label: "Delivery (transit driver)" },
+];
+
 export default function AddSalespersonForm() {
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [role, setRole] = useState<"salesperson" | "owner">("salesperson");
+  const [role, setRole] = useState<StaffRole>("salesperson");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -54,11 +67,14 @@ export default function AddSalespersonForm() {
           />
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value as "salesperson" | "owner")}
+            onChange={(e) => setRole(e.target.value as StaffRole)}
             className="border border-ln rounded-md px-3 py-1.5 text-ui bg-sf2 text-t1 font-medium focus:outline-none focus:border-acc transition-all"
           >
-            <option value="salesperson">Salesperson</option>
-            <option value="owner">Owner</option>
+            {ROLE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
           <Button type="submit" disabled={isPending}>
             {isPending ? "Adding…" : "Add"}
