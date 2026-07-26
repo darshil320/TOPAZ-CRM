@@ -185,7 +185,7 @@ export default function ProductionBoardClient({
 
       {/* Item History & Photo Drawer */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-end">
           <div className="w-full max-w-lg bg-sf border-l border-ln h-full overflow-y-auto p-6 space-y-6 shadow-2xl flex flex-col">
             {/* Drawer Header */}
             <div className="flex items-start justify-between gap-3 border-b border-ln pb-4">

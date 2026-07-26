@@ -85,7 +85,7 @@ export default function OrderProductionPhotos({
 
       {/* Photo Lightbox Modal */}
       {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-sf border border-ln rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl relative">
             <button
               onClick={() => setSelectedPhoto(null)}
