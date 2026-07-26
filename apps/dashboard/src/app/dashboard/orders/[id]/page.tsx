@@ -10,6 +10,7 @@ import Pill from "@/components/ui/Pill";
 import { orderStatusChip } from "../status";
 import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
+import ReceiptDownloadButton from "./ReceiptDownloadButton";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -216,8 +217,14 @@ export default async function OrderDetailPage({ params }: Props) {
                   </div>
                 }
                 secondary={`Paid on ${formatDate(p.paid_at)} ${p.reference ? `· Ref: ${p.reference}` : ""}`}
-                trailing={`${p.kind === "refund" ? "− " : "+"}${formatINR(p.amount)}`}
-                trailingTone={p.kind === "refund" ? "warn" : "pos"}
+                trailing={
+                  <div className="flex items-center gap-3">
+                    <span className={p.kind === "refund" ? "text-warn" : "text-pos"}>
+                      {`${p.kind === "refund" ? "− " : "+"}${formatINR(p.amount)}`}
+                    </span>
+                    <ReceiptDownloadButton paymentId={p.id} />
+                  </div>
+                }
               />
             ))}
           </div>

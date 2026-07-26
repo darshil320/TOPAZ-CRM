@@ -64,3 +64,25 @@ export async function recordPayment(
     return { error: err instanceof Error ? err.message : "Server error" };
   }
 }
+
+/**
+ * Fetch a short-lived signed URL for a payment's receipt PDF. The receipt lives
+ * in a private bucket, so the API mints the signed link after an auth check.
+ */
+export async function getReceiptUrl(
+  paymentId: string,
+): Promise<{ error: string | null; url?: string }> {
+  if (!DASHBOARD_API_KEY) return { error: "Payments API not configured — set DASHBOARD_API_KEY" };
+  try {
+    const resp = await fetch(`${API_BASE}/api/payments/${paymentId}/receipt-url`, {
+      method: "GET",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(true),
+    });
+    if (!resp.ok) return { error: await readError(resp) };
+    const body = await resp.json();
+    return { error: null, url: body.url as string };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}

@@ -15,6 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Roles that may write any customer's quotes/orders (no assignment needed).
 _QUOTE_ORDER_ADMIN = {"owner", "admin"}
 
+# Roles that may read any customer's financial documents (receipts/payments),
+# regardless of assignment — accounts handle collections across all customers.
+_FINANCE_READ_ANY = {"owner", "admin", "accounts"}
+
 
 @dataclass(frozen=True)
 class Caller:
@@ -58,3 +62,14 @@ async def assert_can_write_customer(session: AsyncSession, caller: Caller, custo
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized to write this customer's records")
+
+
+async def assert_can_read_customer(session: AsyncSession, caller: Caller, customer_id: str) -> None:
+    """Read access to a customer's financial documents (receipts): owner/admin/
+    accounts may read any; a salesperson only their assigned customers."""
+    if caller.role in _FINANCE_READ_ANY:
+        return
+    if caller.role == "salesperson" and await _is_assigned(session, caller.salesperson_id, customer_id):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to view this customer's records")

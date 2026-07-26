@@ -18,11 +18,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from ..config import get_settings
 from ..database import make_task_session
+from ..repositories import document_repo
 from ..repositories import payment_repo as repo
-from ..services import numbering
+from ..services import numbering, storage
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
 
@@ -48,6 +50,38 @@ class PaymentCreate(BaseModel):
     notes: str | None = None
     # Owner/admin may knowingly accept a payment beyond the order total.
     override_overpay: bool = False
+
+
+@router.get("/{payment_id}/receipt-url")
+async def receipt_url(payment_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
+    """Return a short-lived signed URL for a payment's receipt PDF.
+
+    The receipt lives in the private `documents` bucket, so the browser can't
+    fetch it directly — this issues a time-limited signed URL after checking the
+    caller may read the payment's customer (owner/admin/accounts, or the assigned
+    salesperson). 404 if the receipt hasn't been rendered yet.
+    """
+    settings = get_settings()
+    async with make_task_session() as session:
+        row = await session.execute(
+            text("SELECT customer_id FROM payments WHERE id = :id"), {"id": str(payment_id)}
+        )
+        customer_id = row.scalar_one_or_none()
+        if customer_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+        caller = await authz.resolve_caller(session, caller_uid)
+        await authz.assert_can_read_customer(session, caller, str(customer_id))
+        key = await document_repo.latest_storage_key(session, "payment", payment_id, "receipt_pdf")
+    if key is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Receipt not generated yet")
+    try:
+        url = storage.signed_url(settings.DOCUMENTS_BUCKET, key)
+    except storage.StorageError as exc:
+        logger.error("Receipt URL sign failed for payment %s: %s", payment_id, exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Could not generate receipt link") from exc
+    return {"url": url}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

@@ -142,3 +142,55 @@ def test_due_schedules_flips_pending_to_due():
         finally:
             await engine.dispose()
     run(scenario())
+
+
+def test_receipt_storage_key_lookup():
+    """document_repo.latest_storage_key returns the newest receipt key for a
+    payment (backs the receipt-download signed-URL endpoint)."""
+    from src.repositories import document_repo
+
+    async def scenario():
+        engine = _engine()
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as s:
+                oid, cust = await _order(s)
+                pid = await payment_repo.record_payment(
+                    s, receipt_no=f"RCP-{uuid4().hex[:8]}", order_id=oid, customer_id=cust,
+                    kind="advance", amount=Decimal("5000.00"), mode="upi",
+                    paid_at=datetime.now(timezone.utc))
+                assert await document_repo.latest_storage_key(s, "payment", pid, "receipt_pdf") is None
+                v = await document_repo.next_version(s, "payment", pid)
+                await document_repo.insert_document(
+                    s, kind="receipt_pdf", entity_type="payment", entity_id=pid,
+                    storage_key="receipts/RCP-x.pdf", version=v)
+                key = await document_repo.latest_storage_key(s, "payment", pid, "receipt_pdf")
+                assert key == "receipts/RCP-x.pdf"
+                await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())
+
+
+def test_receipt_read_authz_by_role():
+    """assert_can_read_customer: accounts/owner/admin may read any customer's
+    receipts; workshop/delivery are refused (no assignment fallback)."""
+    from fastapi import HTTPException
+    from src.api import authz
+
+    async def scenario():
+        engine = _engine()
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as s:
+                oid, cust = await _order(s)
+                for role in ("accounts", "owner", "admin"):
+                    await authz.assert_can_read_customer(
+                        s, authz.Caller(salesperson_id=str(uuid4()), role=role), cust)
+                for role in ("workshop_manager", "delivery"):
+                    with pytest.raises(HTTPException) as e:
+                        await authz.assert_can_read_customer(
+                            s, authz.Caller(salesperson_id=str(uuid4()), role=role), cust)
+                    assert e.value.status_code == 403
+                await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())

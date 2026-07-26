@@ -115,6 +115,28 @@ sign-off. Then real customers.
   fix; thread streams without reload.
 - **Order-from-quote deduped** — idempotent create + unique index (0022); the
   duplicate `ORD-2627-0002` was removed; `ORD-2627-0001` is the surviving order.
+- **Dashboard UI overhaul (parallel sessions, live)** — new app shell + design
+  tokens, dark mode, real-time WhatsApp chat panel, `RecordPaymentForm` now a
+  modal, customer detail shows orders + production status, owner/walk-in access.
+  (commits `9178b4e`…`00af054`; all on `main`, deployed.)
+
+### 📱 WhatsApp messaging model (operational — read before contacting prospects)
+
+- WhatsApp allows **free-form** text/media only inside an **open 24-hour window**
+  (opened when the customer messages the business). Outside it, ONLY an
+  **approved template** may be sent. The dashboard composer sends free-form
+  (`send_wa_text`) — so typing "hi" to a cold prospect **fails** until a window
+  is open. This is Meta's rule, not a bug.
+- **Cold prospects ARE reached automatically:** kiosk enrollment with a `wa_id`
+  + WhatsApp-marketing consent schedules the approved **`topaz_welcome`** template
+  (`welcome_visit` → maps to it), sent after `WELCOME_FOLLOWUP_DELAY_MINUTES`
+  (**default 120 min**). When the prospect replies, the 24h window opens and the
+  composer works. Verified live: prospect *sanjay bhai* got the welcome template,
+  replied "Hii", and free-form messages then delivered.
+- **Gap:** there is no manual "send template / start conversation" button in the
+  chat UI — a salesperson cannot proactively template a cold prospect on demand
+  (only the 2h auto-welcome or the quote-send template path do it). Candidate
+  enhancement if reps need to reach prospects faster than the 2h delay.
 
 ### ✅ Money path proven live (real data on prod)
 
@@ -124,8 +146,11 @@ sign-off. Then real customers.
 
 ### ⏳ Left to verify on prod (UAT smoke — §5–§7 above)
 
-- **§5 Payment + receipt PDF** — the last untested leg; exercises the same
-  Chromium render path, so this is the real PDF confirmation. **Test next.**
+- **§5 Payment + receipt PDF** — ✅ **render VERIFIED on prod**: `ORD-2627-0001`
+  fully paid (3 receipts), receipt PDFs rendered ~41KB each in the `documents`
+  bucket + rows recorded. Added a **"Receipt" download button** (signed-URL via new
+  `GET /api/payments/{id}/receipt-url`) so staff/customers can open them. Remaining:
+  eyeball the **guards** (over-payment → 409, refund as salesperson → 403).
 - **§6 `payment_due` reminder** — template Active; runnable.
 - **§7 Roles/RLS** — accounts records payment / salesperson blocked 403 / owner refund.
 - **§2 out-of-window template send** — blocked on Meta approval below.
