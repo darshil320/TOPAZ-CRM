@@ -10,7 +10,7 @@ import type { QuotePayload } from "./types";
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 const QUOTES_API = `${API_BASE}/api/quotations`;
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 
 export type QuoteResult = { error: string | null; id?: string };
 

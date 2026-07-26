@@ -15,7 +15,7 @@ import { apiHeaders } from "@/lib/apiAuth";
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 const WORKSHOPS_API = `${API_BASE}/api/workshops`;
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 
 export interface WorkshopRow {
   id: string;

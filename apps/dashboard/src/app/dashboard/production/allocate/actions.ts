@@ -13,7 +13,7 @@ import { apiHeaders } from "@/lib/apiAuth";
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 const PRODUCTION_API = `${API_BASE}/api/production`;
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 
 export interface AllocateResult {
   error: string | null;

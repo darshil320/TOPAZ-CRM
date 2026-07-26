@@ -18,7 +18,7 @@ import { apiHeaders } from "@/lib/apiAuth";
 const API_BASE = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
 const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY ?? "";
 const MEDIA_API = `${API_BASE}/api/media`;
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 
 const NOT_CONFIGURED = "Photo uploads are not configured — set DASHBOARD_API_KEY on the dashboard.";
 
