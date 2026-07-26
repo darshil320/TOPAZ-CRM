@@ -13,6 +13,7 @@ import RecordPaymentForm from "../RecordPaymentForm";
 import ReceiptDownloadButton from "./ReceiptDownloadButton";
 import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
 import JobCardActions from "@/components/JobCardActions";
+import LineItemPhotoCell from "@/components/LineItemPhotoCell";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -171,6 +172,7 @@ export default async function OrderDetailPage({ params }: Props) {
                       <p className="text-caption text-t3 font-mono">
                         {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
+                      <LineItemPhotoCell entityType="order_item" entityId={it.id} />
 
                       {/* Workshop & Production Stage Badge */}
                       <div className="pt-1">

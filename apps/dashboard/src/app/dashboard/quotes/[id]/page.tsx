@@ -7,6 +7,7 @@ import { stateName } from "../states";
 import { statusChip } from "../status";
 import QuoteActions from "../QuoteActions";
 import JobCardActions from "@/components/JobCardActions";
+import LineItemPhotoCell from "@/components/LineItemPhotoCell";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -147,6 +148,7 @@ export default async function QuoteDetailPage({ params }: Props) {
                     <td className="px-5 py-3 align-top">
                       <p className="font-semibold text-t1">{it.description}</p>
                       {specs.length > 0 && <p className="mt-0.5 text-caption text-t3">{specs.join(" · ")}</p>}
+                      <LineItemPhotoCell entityType="quotation_item" entityId={it.id} />
                     </td>
                     <td className="px-3 py-3 text-right align-top font-mono text-t2">
                       {it.qty}
