@@ -51,3 +51,93 @@ alter table order_items     add column if not exists spec_notes text;
 
 create index if not exists documents_entity_kind_version_idx
     on documents (entity_type, entity_id, kind, version desc);
+
+-- ─── 0029 · Workshop Staff Hierarchy ──────────────────────────────────────────
+create table if not exists workshop_staff (
+    id             uuid primary key default gen_random_uuid(),
+    workshop_id    uuid not null references workshops(id),
+    salesperson_id uuid not null references salespersons(id),
+    role           text not null check (role in ('lead', 'sub')),
+    active         boolean not null default true,
+    created_by     uuid references salespersons(id),
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
+    deactivated_at timestamptz
+);
+
+create unique index if not exists workshop_staff_one_active_lead
+    on workshop_staff (workshop_id) where active = true and role = 'lead';
+
+-- ─── 0030 · Route Legs ───────────────────────────────────────────────────────
+alter table order_items add column if not exists transit_transfer_id uuid;
+
+create table if not exists route_templates (
+    id          uuid primary key default gen_random_uuid(),
+    name        text not null unique,
+    description text,
+    active      boolean not null default true,
+    created_by  uuid references salespersons(id),
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now()
+);
+
+create table if not exists route_template_legs (
+    id                uuid primary key default gen_random_uuid(),
+    route_template_id uuid not null references route_templates(id) on delete cascade,
+    seq               integer not null check (seq >= 1),
+    workshop_id       uuid not null references workshops(id),
+    stage_from        text check (stage_from in ('design', 'cutting', 'carving', 'framing', 'sanding', 'polishing', 'upholstery', 'quality_check', 'packing', 'ready_for_dispatch')),
+    stage_to          text check (stage_to in ('design', 'cutting', 'carving', 'framing', 'sanding', 'polishing', 'upholstery', 'quality_check', 'packing', 'ready_for_dispatch')),
+    expected_days     integer check (expected_days >= 1),
+    notes             text,
+    created_at        timestamptz not null default now(),
+    constraint route_template_legs_unique_seq unique (route_template_id, seq)
+);
+
+create table if not exists order_item_route_legs (
+    id            uuid primary key default gen_random_uuid(),
+    order_item_id uuid not null references order_items(id) on delete cascade,
+    seq           integer not null check (seq >= 1),
+    workshop_id   uuid not null references workshops(id),
+    stage_from    text check (stage_from in ('design', 'cutting', 'carving', 'framing', 'sanding', 'polishing', 'upholstery', 'quality_check', 'packing', 'ready_for_dispatch')),
+    stage_to      text check (stage_to in ('design', 'cutting', 'carving', 'framing', 'sanding', 'polishing', 'upholstery', 'quality_check', 'packing', 'ready_for_dispatch')),
+    expected_days integer check (expected_days >= 1),
+    notes         text,
+    created_at    timestamptz not null default now(),
+    constraint order_item_route_legs_unique_seq unique (order_item_id, seq)
+);
+
+-- ─── 0031 · Workshop Transfers (Mediator App) ─────────────────────────────────
+create table if not exists workshop_transfers (
+    id                     uuid primary key default gen_random_uuid(),
+    transfer_no            text not null unique,
+    from_workshop_id       uuid not null references workshops(id),
+    to_workshop_id         uuid not null references workshops(id),
+    reason                 text not null default 'next_stage'
+                           check (reason in ('next_stage', 'rework', 'capacity', 'other')),
+    status                 text not null default 'ready'
+                           check (status in ('ready', 'picked_up', 'in_transit',
+                                             'delivered', 'received', 'cancelled')),
+    courier_salesperson_id uuid references salespersons(id),
+    vehicle_no             text,
+    expected_pickup_at     timestamptz,
+    due_at                 timestamptz,
+    picked_up_at           timestamptz,
+    delivered_at           timestamptz,
+    received_at            timestamptz,
+    cancelled_at           timestamptz,
+    cancel_reason          text,
+    notes                  text,
+    created_by             uuid references salespersons(id),
+    created_at             timestamptz not null default now(),
+    updated_at             timestamptz not null default now()
+);
+
+create table if not exists workshop_transfer_items (
+    id            uuid primary key default gen_random_uuid(),
+    transfer_id   uuid not null references workshop_transfers(id) on delete cascade,
+    order_item_id uuid not null references order_items(id),
+    notes         text,
+    created_at    timestamptz not null default now(),
+    constraint workshop_transfer_items_unique_pair unique (transfer_id, order_item_id)
+);
