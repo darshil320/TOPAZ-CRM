@@ -33,7 +33,11 @@ export default async function OrderDetailPage({ params }: Props) {
 
   const [{ data: items }, { data: out }, { data: schedule }, { data: payments }, { data: timeline }] =
     await Promise.all([
-      supabase.from("order_items").select("*").eq("order_id", id).order("sort", { ascending: true }),
+      supabase
+        .from("order_items")
+        .select("*, workshops(name, type), production_stage_defs(label_en, label_gu)")
+        .eq("order_id", id)
+        .order("sort", { ascending: true }),
       supabase.from("order_outstanding").select("grand_total, paid, outstanding").eq("order_id", id).single(),
       supabase.from("payment_schedules").select("*").eq("order_id", id).order("due_date", { ascending: true }),
       supabase.from("payments").select("*").eq("order_id", id).order("paid_at", { ascending: false }),
@@ -113,10 +117,15 @@ export default async function OrderDetailPage({ params }: Props) {
             <tbody className="divide-y divide-ln2">
               {(items ?? []).map((it) => {
                 const specs = [it.dimensions, it.material, it.fabric, it.polish, it.customization].filter(Boolean);
+                const workshop = one(it.workshops as { name: string; type: string } | null);
+                const stage = one(it.production_stage_defs as { label_en: string; label_gu: string } | null);
+
                 return (
                   <tr key={it.id} className="hover:bg-sf2 transition-colors">
                     <td className="px-4 py-3 space-y-1">
-                      <p className="font-semibold text-t1 text-nav">{it.description}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-t1 text-nav">{it.description}</p>
+                      </div>
                       {specs.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {specs.map((spc, idx) => (
@@ -129,6 +138,31 @@ export default async function OrderDetailPage({ params }: Props) {
                       <p className="text-caption text-t3 font-mono">
                         {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
+
+                      {/* Workshop & Production Stage Badge */}
+                      <div className="pt-1">
+                        {workshop ? (
+                          <div className="inline-flex items-center gap-1.5 text-[11px] bg-sf2 border border-ln px-2.5 py-1 rounded-card shadow-sh flex-wrap">
+                            <span className="text-t3 font-medium">Workshop:</span>
+                            <span className="text-t1 font-bold">{workshop.name}</span>
+                            <span className="text-t3">({workshop.type === "own" ? "Own floor" : "Vendor"})</span>
+                            {stage && (
+                              <>
+                                <span className="text-t3">·</span>
+                                <span className="text-t3 font-medium">Stage:</span>
+                                <span className="text-pos font-semibold">{stage.label_en}</span>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <Link
+                            href="/dashboard/production/allocate"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-warn bg-warnS border border-warn/30 px-2.5 py-1 rounded-card hover:border-warn transition-all shadow-sh"
+                          >
+                            <span>Unallocated · Tap to allocate to a workshop →</span>
+                          </Link>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold font-mono text-t1 align-top">
                       {formatINR(it.line_total)}
