@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ChevronsUpDown, Search } from "lucide-react";
+import { ChevronsUpDown, Search, ChevronDown, ChevronUp } from "lucide-react";
 import KbdChip from "@/components/ui/KbdChip";
 import NavGroups from "./NavGroups";
 import AccountMenu, { type AccountMenuUser } from "./AccountMenu";
@@ -19,6 +20,7 @@ export default function Sidebar({
   user: AccountMenuUser;
   presence: PresenceEntry[];
 }) {
+  const [presenceOpen, setPresenceOpen] = useState(false);
   return (
     <aside
       className={`hidden sm:flex sticky top-0 h-screen shrink-0 flex-col bg-rail border-r border-ln transition-[width] ${
@@ -66,25 +68,37 @@ export default function Sidebar({
 
       <NavGroups role={role} collapsed={collapsed} />
 
-      {/* Presence — hide entirely if no one is on the floor */}
+      {/* Presence — Collapsible compact single view */}
       {!collapsed && presence.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-ln shrink-0">
-          <div className="flex items-center gap-1.5 mb-2 px-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-pos animate-[livePulse_2.4s_ease-out_infinite]" />
-            <span className="text-label uppercase text-t3">On the floor</span>
-            <span className="ml-auto text-[11px] font-medium font-mono text-t3">{presence.length}</span>
-          </div>
-          <div className="space-y-0.5 max-h-[140px] overflow-y-auto pr-1">
-            {presence.map((p) => (
-              <div key={p.id} className="flex items-center gap-2.5 px-1 py-[5px] rounded-sm hover:bg-sf3">
-                <span className="w-[22px] h-[22px] rounded-full bg-sf3 flex items-center justify-center text-[9.5px] font-semibold font-mono text-t2 shrink-0">
-                  {p.initials}
-                </span>
-                <span className="flex-1 truncate text-[12px] font-medium text-t1">{p.name}</span>
-                <span className="text-[10.5px] font-450 text-t3">Free</span>
-              </div>
-            ))}
-          </div>
+        <div className="mt-2 pt-2 border-t border-ln shrink-0">
+          <button
+            type="button"
+            onClick={() => setPresenceOpen((open) => !open)}
+            className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md hover:bg-sf2 text-t3 transition-colors"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-pos animate-[livePulse_2.4s_ease-out_infinite] shrink-0" />
+              <span className="text-caption font-semibold text-t2 truncate">On the floor</span>
+            </div>
+            <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-t3">
+              <span className="bg-sf3 px-1.5 py-0.5 rounded text-t1">{presence.length}</span>
+              {presenceOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </div>
+          </button>
+
+          {presenceOpen && (
+            <div className="mt-1.5 space-y-0.5 max-h-[120px] overflow-y-auto pr-1">
+              {presence.map((p) => (
+                <div key={p.id} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-sf3">
+                  <span className="w-5 h-5 rounded-full bg-sf3 flex items-center justify-center text-[9px] font-semibold font-mono text-t2 shrink-0">
+                    {p.initials}
+                  </span>
+                  <span className="flex-1 truncate text-caption font-medium text-t1">{p.name}</span>
+                  <span className="text-[10px] font-semibold text-pos">Available</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

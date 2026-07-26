@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Camera, Share2, ExternalLink, Sparkles, X, Check } from "lucide-react";
 import Pill from "@/components/ui/Pill";
 
@@ -26,6 +27,9 @@ export default function OrderProductionPhotos({
   photos: ProductionPhoto[];
 }) {
   const [selectedPhoto, setSelectedPhoto] = useState<ProductionPhoto | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   if (photos.length === 0) return null;
 
@@ -83,52 +87,55 @@ export default function OrderProductionPhotos({
         ))}
       </div>
 
-      {/* Photo Lightbox Modal */}
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-sf border border-ln rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl relative">
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute top-3 right-3 text-t3 hover:text-t1 p-1"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1">
-              <h3 className="text-body font-bold text-t1">{selectedPhoto.itemDescription}</h3>
-              <p className="text-caption text-t3 font-mono">
-                Order {orderNo} · Stage: {selectedPhoto.stageLabel || selectedPhoto.stageCode}
-              </p>
-            </div>
-
-            <div className="rounded-xl overflow-hidden bg-black max-h-[60vh] flex items-center justify-center">
-              <img
-                src={selectedPhoto.imageUrl}
-                alt="Full size production photo"
-                className="max-h-[60vh] w-auto object-contain"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
+      {/* Photo Lightbox Modal (Portalled to document.body) */}
+      {mounted &&
+        selectedPhoto &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-sf border border-ln rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl relative">
               <button
                 onClick={() => setSelectedPhoto(null)}
-                className="text-caption font-semibold text-t2 hover:text-t1 px-4 py-2"
+                className="absolute top-3 right-3 text-t3 hover:text-t1 p-1"
               >
-                Close
+                <X className="w-5 h-5" />
               </button>
-              <a
-                href={buildWhatsAppUrl(selectedPhoto)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-caption font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-card shadow-lg shadow-emerald-600/20 transition-all"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>Share on WhatsApp →</span>
-              </a>
+
+              <div className="space-y-1">
+                <h3 className="text-body font-bold text-t1">{selectedPhoto.itemDescription}</h3>
+                <p className="text-caption text-t3 font-mono">
+                  Order {orderNo} · Stage: {selectedPhoto.stageLabel || selectedPhoto.stageCode}
+                </p>
+              </div>
+
+              <div className="rounded-xl overflow-hidden bg-black max-h-[60vh] flex items-center justify-center">
+                <img
+                  src={selectedPhoto.imageUrl}
+                  alt="Full size production photo"
+                  className="max-h-[60vh] w-auto object-contain"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setSelectedPhoto(null)}
+                  className="text-caption font-semibold text-t2 hover:text-t1 px-4 py-2"
+                >
+                  Close
+                </button>
+                <a
+                  href={buildWhatsAppUrl(selectedPhoto)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-caption font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-card shadow-lg shadow-emerald-600/20 transition-all"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share on WhatsApp →</span>
+                </a>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

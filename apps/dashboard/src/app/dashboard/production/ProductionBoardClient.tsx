@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Sparkles, Camera, ShieldAlert, Clock, Share2, X, ChevronRight, CheckCircle2 } from "lucide-react";
 import Pill from "@/components/ui/Pill";
 import Link from "next/link";
@@ -42,6 +43,9 @@ export default function ProductionBoardClient({
   stages: StageDef[];
 }) {
   const [selectedItem, setSelectedItem] = useState<ProductionItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const stageMap = new Map(stages.map((s) => [s.code, s]));
   const firstStageCode = stages[0]?.code ?? "design_approved";
@@ -183,9 +187,11 @@ export default function ProductionBoardClient({
         })}
       </div>
 
-      {/* Item History & Photo Drawer */}
-      {selectedItem && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-end">
+      {/* Item History & Photo Drawer (Portalled to document.body) */}
+      {mounted &&
+        selectedItem &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex justify-end">
           <div className="w-full max-w-lg bg-sf border-l border-ln h-full overflow-y-auto p-6 space-y-6 shadow-2xl flex flex-col">
             {/* Drawer Header */}
             <div className="flex items-start justify-between gap-3 border-b border-ln pb-4">
@@ -304,7 +310,8 @@ export default function ProductionBoardClient({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
