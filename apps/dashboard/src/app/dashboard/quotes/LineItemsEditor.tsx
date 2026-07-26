@@ -177,6 +177,16 @@ export default function LineItemsEditor({
                     />
                   </div>
                 ))}
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Special / Custom Instructions (Job Card)</label>
+                  <textarea
+                    rows={2}
+                    value={line.spec_notes ?? ""}
+                    placeholder={"e.g. Marble Detail: Off White Base Brown Figure\nMolding: New Molding"}
+                    onChange={(e) => onUpdate(line.key, { spec_notes: e.target.value })}
+                    className={FIELD}
+                  />
+                </div>
               </div>
             )}
           </div>

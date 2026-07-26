@@ -172,7 +172,7 @@ export default async function OrderDetailPage({ params }: Props) {
                       <p className="text-caption text-t3 font-mono">
                         {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
-                      <LineItemPhotoCell entityType="order_item" entityId={it.id} />
+                      <LineItemPhotoCell entityType="order_item" entityId={it.id} parentId={order.id} />
 
                       {/* Workshop & Production Stage Badge */}
                       <div className="pt-1">

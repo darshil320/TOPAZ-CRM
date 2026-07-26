@@ -31,6 +31,7 @@ class QuoteItem:
     fabric: str | None = None
     polish: str | None = None
     customization: str | None = None
+    spec_notes: str | None = None
     unit: str | None = None
     sort: int = 0
 
@@ -40,10 +41,10 @@ async def _insert_items(session: AsyncSession, quotation_id: UUID, items: list[Q
         await session.execute(
             text(
                 "INSERT INTO quotation_items (quotation_id, product_id, description, dimensions,"
-                " material, fabric, polish, customization, qty, unit, unit_price, hsn, gst_rate,"
+                " material, fabric, polish, customization, spec_notes, qty, unit, unit_price, hsn, gst_rate,"
                 " line_total, sort)"
                 " VALUES (:qid, :product_id, :description, :dimensions, :material, :fabric, :polish,"
-                " :customization, :qty, :unit, :unit_price, :hsn, :gst_rate, :line_total, :sort)"
+                " :customization, :spec_notes, :qty, :unit, :unit_price, :hsn, :gst_rate, :line_total, :sort)"
             ),
             {
                 "qid": str(quotation_id),
@@ -54,6 +55,7 @@ async def _insert_items(session: AsyncSession, quotation_id: UUID, items: list[Q
                 "fabric": it.fabric,
                 "polish": it.polish,
                 "customization": it.customization,
+                "spec_notes": it.spec_notes,
                 "qty": it.qty,
                 "unit": it.unit,
                 "unit_price": it.unit_price,

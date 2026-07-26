@@ -58,6 +58,7 @@ export default async function EditQuotePage({ params }: Props) {
     fabric: str(it.fabric),
     polish: str(it.polish),
     customization: str(it.customization),
+    spec_notes: str(it.spec_notes),
   }));
 
   const initial: QuoteBuilderInitial = {

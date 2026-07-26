@@ -39,6 +39,7 @@ class QuoteItemIn(BaseModel):
     fabric: str | None = None
     polish: str | None = None
     customization: str | None = None
+    spec_notes: str | None = None
     unit: str | None = None
 
 
@@ -74,8 +75,8 @@ def _compute(items: list[QuoteItemIn], discount: Decimal, place_of_supply: str):
             description=it.description, qty=it.qty, unit_price=it.unit_price, hsn=it.hsn,
             gst_rate=it.gst_rate, line_total=gst.compute_line(it.qty, it.unit_price).line_total,
             product_id=it.product_id, dimensions=it.dimensions, material=it.material,
-            fabric=it.fabric, polish=it.polish, customization=it.customization, unit=it.unit,
-            sort=i,
+            fabric=it.fabric, polish=it.polish, customization=it.customization, spec_notes=it.spec_notes,
+            unit=it.unit, sort=i,
         )
         for i, it in enumerate(items)
     ]

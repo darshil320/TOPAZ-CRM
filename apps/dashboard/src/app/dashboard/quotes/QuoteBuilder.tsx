@@ -49,6 +49,7 @@ function emptyLine(key: string): LineDraft {
     fabric: "",
     polish: "",
     customization: "",
+    spec_notes: "",
   };
 }
 
@@ -67,6 +68,7 @@ function toItemPayload(line: LineDraft) {
     fabric: opt(line.fabric),
     polish: opt(line.polish),
     customization: opt(line.customization),
+    spec_notes: opt(line.spec_notes),
   };
 }
 

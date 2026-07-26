@@ -35,6 +35,7 @@ export interface LineDraft {
   fabric: string;
   polish: string;
   customization: string;
+  spec_notes: string;
 }
 
 /** An item as sent to the server action (snake_case, matches QuoteItemIn). */
@@ -51,6 +52,7 @@ export interface QuoteItemPayload {
   fabric: string | null;
   polish: string | null;
   customization: string | null;
+  spec_notes: string | null;
 }
 
 /** Full payload the builder submits to createQuote / updateQuote. */

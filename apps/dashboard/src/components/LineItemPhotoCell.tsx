@@ -3,13 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import MediaUpload from "@/components/media/MediaUpload";
+import { createJobCard } from "@/lib/jobCard/actions";
 
 export default function LineItemPhotoCell({
   entityType,
   entityId,
+  parentId,
 }: {
   entityType: "quotation_item" | "order_item";
   entityId: string;
+  parentId?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -17,7 +20,11 @@ export default function LineItemPhotoCell({
 
   function handleUploaded() {
     setOpen(false);
-    startTransition(() => {
+    startTransition(async () => {
+      if (parentId) {
+        const source = entityType === "quotation_item" ? "quotation" : "order";
+        await createJobCard(source, parentId);
+      }
       router.refresh();
     });
   }

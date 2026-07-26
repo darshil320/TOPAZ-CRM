@@ -41,6 +41,7 @@ function blankInitial(customerId: string, validUntil: string, terms: string): Qu
         fabric: "",
         polish: "",
         customization: "",
+        spec_notes: "",
       },
     ],
   };
