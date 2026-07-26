@@ -11,6 +11,7 @@ import { orderStatusChip } from "../status";
 import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
 import ReceiptDownloadButton from "./ReceiptDownloadButton";
+import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -51,6 +52,37 @@ export default async function OrderDetailPage({ params }: Props) {
   const intra = Number(order.igst) === 0;
   const paid = out?.paid ?? 0;
   const outstanding = out?.outstanding ?? order.grand_total;
+
+  // Fetch production media photos for this order's items
+  const itemIds = (items ?? []).map((i) => i.id);
+  const { data: rawMedia } =
+    itemIds.length > 0
+      ? await supabase
+          .from("media")
+          .select("id, entity_id, storage_key, mime, created_at")
+          .eq("entity_type", "order_item")
+          .in("entity_id", itemIds)
+          .eq("status", "ready")
+          .order("created_at", { ascending: false })
+      : { data: [] };
+
+  const orderPhotos: ProductionPhoto[] = [];
+  for (const m of rawMedia ?? []) {
+    const matchingItem = (items ?? []).find((i) => i.id === m.entity_id);
+    const stageObj = one(matchingItem?.production_stage_defs as { label_en: string } | null);
+    const { data: signed } = await supabase.storage.from("media").createSignedUrl(m.storage_key, 3600);
+    if (signed?.signedUrl) {
+      orderPhotos.push({
+        id: m.id,
+        orderItemId: m.entity_id,
+        itemDescription: matchingItem?.description ?? "Item",
+        stageCode: matchingItem?.current_stage ?? null,
+        stageLabel: stageObj?.label_en ?? matchingItem?.current_stage ?? null,
+        imageUrl: signed.signedUrl,
+        createdAt: m.created_at,
+      });
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-28 sm:pb-8">
@@ -173,6 +205,17 @@ export default async function OrderDetailPage({ params }: Props) {
             </tbody>
           </table>
         </div>
+
+        {/* Production Photo Gallery & WhatsApp Sharing */}
+        <div className="px-4 pb-4 bg-sf">
+          <OrderProductionPhotos
+            customerName={customer?.name ?? "Customer"}
+            customerPhone={customer?.phone ?? null}
+            orderNo={order.order_no}
+            photos={orderPhotos}
+          />
+        </div>
+
         {/* Total calculation footer */}
         <div className="border-t border-ln p-4 bg-sf2">
           <dl className="ml-auto max-w-xs space-y-1.5 text-body">
