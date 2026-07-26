@@ -118,11 +118,17 @@ create table if not exists order_item_assignments (
     id             uuid primary key default gen_random_uuid(),
     order_item_id  uuid not null references order_items(id) on delete cascade,
     workshop_id    uuid not null references workshops(id),
-    allocated_by   uuid references salespersons(id),
-    allocated_at   timestamptz not null default now(),
+    due_date       date,
+    assigned_by    uuid references salespersons(id),
     active         boolean not null default true,
-    deallocated_at timestamptz
+    created_at     timestamptz not null default now(),
+    deactivated_at timestamptz
 );
+
+-- Self-healing migration for existing environments:
+alter table order_item_assignments add column if not exists due_date date;
+alter table order_item_assignments add column if not exists assigned_by uuid references salespersons(id);
+alter table order_item_assignments add column if not exists deactivated_at timestamptz;
 
 create unique index if not exists order_item_assignments_active_uidx
     on order_item_assignments (order_item_id) where active = true;
