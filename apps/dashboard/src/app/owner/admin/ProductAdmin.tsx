@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addProduct, setProductActive } from "./actions";
+import ProductPhotoCell from "./ProductPhotoCell";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Button from "@/components/ui/Button";
 import Pill from "@/components/ui/Pill";
@@ -17,6 +18,8 @@ export interface AdminProduct {
   base_price: number | null;
   unit: string | null;
   active: boolean;
+  /** Catalog photo (0027) — inherited by job card lines referencing this product. */
+  primary_media_id: string | null;
 }
 
 export default function ProductAdmin({ products }: { products: AdminProduct[] }) {
@@ -174,6 +177,7 @@ export default function ProductAdmin({ products }: { products: AdminProduct[] })
                   <th className="py-2.5 px-4">HSN</th>
                   <th className="py-2.5 px-4">GST Rate</th>
                   <th className="py-2.5 px-4">Base Price</th>
+                  <th className="py-2.5 px-4">Photo</th>
                   <th className="py-2.5 px-4 text-right">Status</th>
                 </tr>
               </thead>
@@ -196,6 +200,9 @@ export default function ProductAdmin({ products }: { products: AdminProduct[] })
                     <td className="py-2.5 px-4 font-mono text-t2">{p.gst_rate}%</td>
                     <td className="py-2.5 px-4 font-semibold font-mono text-t1">
                       {p.base_price != null ? `₹${p.base_price.toLocaleString("en-IN")}` : "—"}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <ProductPhotoCell productId={p.id} hasPhoto={p.primary_media_id != null} />
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       <button

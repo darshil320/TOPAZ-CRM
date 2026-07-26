@@ -12,6 +12,7 @@ import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
 import ReceiptDownloadButton from "./ReceiptDownloadButton";
 import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
+import JobCardActions from "@/components/JobCardActions";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -204,6 +205,20 @@ export default async function OrderDetailPage({ params }: Props) {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Job card — the money-free spec sheet, for the customer and the workshop.
+            "Send to workshop" only shows once something is actually allocated,
+            otherwise the API would 409 with nobody to send to. */}
+        <div className="px-4 py-3 border-t border-ln bg-sf">
+          <SectionHeader label="Job Card" />
+          <div className="mt-2">
+            <JobCardActions
+              source="order"
+              entityId={order.id}
+              canSendToWorkshop={(items ?? []).some((it) => it.workshop_id)}
+            />
+          </div>
         </div>
 
         {/* Production Photo Gallery & WhatsApp Sharing */}

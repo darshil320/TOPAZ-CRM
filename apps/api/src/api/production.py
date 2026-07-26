@@ -69,7 +69,12 @@ async def unallocated(caller_uid: str = Depends(get_caller_uid)) -> dict:
         if caller.role not in ("owner", "admin", "salesperson"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Your role cannot allocate production work")
-        items = await repo.unallocated_items(session)
+        # Scope the queue the same way the write path is scoped: a salesperson may
+        # only allocate their assigned customers' items, so listing everyone else's
+        # customer names and order contents would leak without enabling any action.
+        items = await repo.unallocated_items(
+            session, salesperson_id=None if caller.is_admin else caller.salesperson_id
+        )
     return {"items": items}
 
 

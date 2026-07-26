@@ -52,6 +52,14 @@ class CompleteRequest(BaseModel):
 
 async def _authorize_upload(session, caller: authz.Caller, entity_type: str, entity_id: UUID) -> None:
     """Who may attach media to this entity."""
+    # A CATALOG photo belongs to no customer — it is reused across every future
+    # quote and order line for that product, so a bad one is a company-wide defect,
+    # not one customer's problem. Gate it on the same owner/admin role that already
+    # governs the products table (products_insert/products_update RLS, 0013).
+    if entity_type == "product":
+        authz.assert_admin(caller, action="upload catalog photos")
+        return
+
     if caller.role == "workshop_manager":
         workshop_id = await repo.workshop_id_for_entity(session, entity_type, entity_id)
         if workshop_id is None or not await _manages(session, caller, workshop_id):
@@ -85,10 +93,6 @@ async def sign_upload(req: SignUploadRequest, caller_uid: str = Depends(get_call
     except media_entities.MediaRuleError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=str(exc)) from exc
-    if req.mime not in settings.MEDIA_ALLOWED_MIME:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Unsupported image type '{req.mime}'")
-
     table = media_entities.table_for(req.entity_type)
     if table is None:                       # unreachable after validate_request; defensive
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -153,6 +157,9 @@ async def complete_upload(media_id: UUID, req: CompleteRequest,
     for having succeeded twice is a support ticket, not a safety feature.
     """
     settings = get_settings()
+    # Cheap pre-check on the client's claim. It is NOT the enforcement point —
+    # the browser PUTs straight to a signed URL, so `req.bytes` is only a claim.
+    # The real size comes from Storage below.
     if req.bytes > settings.MEDIA_MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -173,21 +180,36 @@ async def complete_upload(media_id: UUID, req: CompleteRequest,
         if row["status"] == "ready":
             return {"id": str(media_id), "status": "ready", "thumb_pending": row["thumb_key"] is None}
 
-        # Verify the object is really there; otherwise a client that never finished
-        # its PUT would leave a 'ready' row that renders as a broken tile forever.
+        # Ask STORAGE how big it really is. Two jobs at once: a client that never
+        # finished its PUT must not leave a 'ready' row (a broken tile forever), and
+        # the size ceiling must be enforced against the object rather than against
+        # the client's self-reported number — otherwise a caller PUTs 500 MB and
+        # reports `{"bytes": 1}`.
         try:
-            present = storage.object_exists(settings.MEDIA_BUCKET, row["storage_key"])
+            actual_bytes = storage.object_size(settings.MEDIA_BUCKET, row["storage_key"])
         except storage.StorageError as exc:
             logger.error("Storage stat failed for %s: %s", row["storage_key"], exc)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
                                 detail="Could not verify the upload — try again") from exc
-        if not present:
+        if actual_bytes is None:
             await repo.mark_failed(session, media_id)
             await session.commit()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail="No file was received — request a new upload URL")
+        if actual_bytes > settings.MEDIA_MAX_BYTES:
+            # Mark it failed so the oversized object is a GC target rather than a
+            # live row the gallery would try to render.
+            await repo.mark_failed(session, media_id)
+            await session.commit()
+            logger.warning("Oversized upload %s: %d bytes (claimed %d, max %d)",
+                           media_id, actual_bytes, req.bytes, settings.MEDIA_MAX_BYTES)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Image too large ({actual_bytes} bytes, max {settings.MEDIA_MAX_BYTES})",
+            )
 
-        await repo.mark_ready(session, media_id, size_bytes=req.bytes)
+        # Persist the VERIFIED size, never the claimed one.
+        await repo.mark_ready(session, media_id, size_bytes=actual_bytes)
         await session.commit()
 
     # Thumbnails are best-effort: the row is committed, and the gallery falls back to

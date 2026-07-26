@@ -32,7 +32,10 @@ export default async function AdminPage() {
 
   const supabase = await createServerSupabaseClient();
   const [{ data: products }, { data: settingsRows }, { data: salespersons }, workshopResult] = await Promise.all([
-    supabase.from("products").select("id, name, category, hsn, gst_rate, base_price, unit, active").order("name"),
+    supabase
+      .from("products")
+      .select("id, name, category, hsn, gst_rate, base_price, unit, active, primary_media_id")
+      .order("name"),
     supabase.from("app_settings").select("key, value"),
     supabase.from("salespersons").select("id, name, role").eq("active", true).order("name"),
     listWorkshops(false),

@@ -22,10 +22,12 @@ from src.services.media_entities import (
     validate_request,
 )
 
-# The exact CHECK constraint values from supabase/migrations/0025_media.sql —
-# hand-copied so a source edit that silently drifts from the migration fails here.
+# The exact CHECK constraint values from supabase/migrations/0025_media.sql, as
+# widened by 0027_job_cards.sql ('product', 'quotation_item') — hand-copied so a
+# source edit that silently drifts from the migration fails here.
 MIGRATION_ENTITY_TYPES = frozenset(
-    {"customer", "order", "order_item", "production_event", "delivery"}
+    {"customer", "order", "order_item", "production_event", "delivery",
+     "product", "quotation_item"}
 )
 MIGRATION_KINDS = frozenset(
     {"reference", "drawing", "site", "production", "finished", "delivery"}

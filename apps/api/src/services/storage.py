@@ -71,11 +71,14 @@ def signed_upload_url(bucket: str, key: str, expires_in: int = 900) -> str:
     return f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1{signed}"
 
 
-def object_exists(bucket: str, key: str) -> bool:
-    """True if the object is really present. Used by /media/{id}/complete so a
-    client that never finished its upload cannot mark a row 'ready' (a phantom row
-    renders as a broken tile forever). Raises StorageError only when Storage is
-    unconfigured/unreachable — a clean 404 returns False."""
+def object_size(bucket: str, key: str) -> int | None:
+    """Actual byte size of a stored object, or None if it is not there.
+
+    The size must come from Storage, never from the client: the browser PUTs
+    straight to a signed URL, so a self-reported byte count at /complete is just a
+    claim. Raises StorageError only when Storage is unconfigured/unreachable — a
+    clean 404 returns None.
+    """
     base, headers = _base_and_headers()
     url = f"{base}/object/info/{bucket}/{key}"
     try:
@@ -83,10 +86,21 @@ def object_exists(bucket: str, key: str) -> bool:
     except httpx.HTTPError as exc:
         raise StorageError(f"Stat {bucket}/{key} failed: {exc}") from exc
     if resp.status_code == 404:
-        return False
+        return None
     if resp.status_code >= 400:
         raise StorageError(f"Stat {bucket}/{key} failed: HTTP {resp.status_code}")
-    return True
+    try:
+        body = resp.json()
+    except ValueError as exc:
+        raise StorageError(f"Stat {bucket}/{key} returned a non-JSON body") from exc
+    # Supabase has moved this field between top level and `metadata` across
+    # versions; accept either rather than silently reporting 0 bytes.
+    raw = body.get("size")
+    if raw is None and isinstance(body.get("metadata"), dict):
+        raw = body["metadata"].get("size")
+    if raw is None:
+        raise StorageError(f"Stat {bucket}/{key} returned no size")
+    return int(raw)
 
 
 def download_bytes(bucket: str, key: str) -> bytes:

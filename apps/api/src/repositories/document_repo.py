@@ -36,6 +36,28 @@ async def latest_storage_key(
     return None if row is None else str(row[0])
 
 
+async def latest_storage_keys(
+    session: AsyncSession, entity_type: str, entity_id: UUID, kind: str
+) -> list[str]:
+    """Every storage key from the MOST RECENT render, in page order.
+
+    A job card rendered as images files one row per page under a single version,
+    so the newest render is "all rows at max(version)". Ordered by storage_key,
+    which carries the zero-padded page suffix — page 10 must not sort before page 2.
+    """
+    result = await session.execute(
+        text(
+            "SELECT storage_key FROM documents"
+            " WHERE entity_type = :et AND entity_id = :eid AND kind = :kind"
+            "   AND version = (SELECT max(version) FROM documents"
+            "                   WHERE entity_type = :et AND entity_id = :eid AND kind = :kind)"
+            " ORDER BY storage_key"
+        ),
+        {"et": entity_type, "eid": str(entity_id), "kind": kind},
+    )
+    return [str(r[0]) for r in result.all()]
+
+
 async def insert_document(
     session: AsyncSession,
     *,

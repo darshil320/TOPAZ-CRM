@@ -22,8 +22,20 @@ const TIMEOUT_MS = 30_000;
 
 const NOT_CONFIGURED = "Photo uploads are not configured — set DASHBOARD_API_KEY on the dashboard.";
 
-/** Entity types the API will accept (`services/media_entities.ENTITY_TABLES`). */
-export type MediaEntityType = "customer" | "order" | "order_item" | "production_event" | "delivery";
+/**
+ * Entity types the API will accept (`services/media_entities.ENTITY_TABLES`).
+ * `product` is the reusable CATALOG photo — upload the sofa once and every future
+ * quote/order line inherits it on its job card; `quotation_item` is the per-line
+ * override for a custom piece (migration 0027).
+ */
+export type MediaEntityType =
+  | "customer"
+  | "order"
+  | "order_item"
+  | "production_event"
+  | "delivery"
+  | "product"
+  | "quotation_item";
 
 /** Media kinds (`media.kind` CHECK constraint). */
 export type MediaKind = "reference" | "drawing" | "site" | "production" | "finished" | "delivery";

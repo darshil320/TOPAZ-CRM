@@ -700,6 +700,7 @@ export type Database = {
           production_done_at: string | null
           qty: number
           sort: number
+          spec_notes: string | null
           unit: string | null
           unit_price: number
           workshop_id: string | null
@@ -724,6 +725,7 @@ export type Database = {
           production_done_at?: string | null
           qty: number
           sort?: number
+          spec_notes?: string | null
           unit?: string | null
           unit_price: number
           workshop_id?: string | null
@@ -748,6 +750,7 @@ export type Database = {
           production_done_at?: string | null
           qty?: number
           sort?: number
+          spec_notes?: string | null
           unit?: string | null
           unit_price?: number
           workshop_id?: string | null
@@ -880,6 +883,7 @@ export type Database = {
           hsn: string
           id: string
           name: string
+          primary_media_id: string | null
           unit: string | null
           updated_at: string
         }
@@ -892,6 +896,7 @@ export type Database = {
           hsn?: string
           id?: string
           name: string
+          primary_media_id?: string | null
           unit?: string | null
           updated_at?: string
         }
@@ -904,10 +909,19 @@ export type Database = {
           hsn?: string
           id?: string
           name?: string
+          primary_media_id?: string | null
           unit?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_primary_media_id_fkey"
+            columns: ["primary_media_id"]
+            isOneToOne: false
+            referencedRelation: "media"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quotations: {
         Row: {
@@ -1028,6 +1042,7 @@ export type Database = {
           qty: number
           quotation_id: string
           sort: number
+          spec_notes: string | null
           unit: string | null
           unit_price: number
         }
@@ -1046,6 +1061,7 @@ export type Database = {
           qty: number
           quotation_id: string
           sort?: number
+          spec_notes?: string | null
           unit?: string | null
           unit_price: number
         }
@@ -1064,6 +1080,7 @@ export type Database = {
           qty?: number
           quotation_id?: string
           sort?: number
+          spec_notes?: string | null
           unit?: string | null
           unit_price?: number
         }

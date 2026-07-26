@@ -26,6 +26,10 @@ ENTITY_TABLES: dict[str, str] = {
     "order_item": "order_items",
     "production_event": "production_events",
     "delivery": "deliveries",
+    # Job cards (0027): 'product' is the reusable CATALOG photo, the other two are
+    # per-line overrides for custom pieces.
+    "product": "products",
+    "quotation_item": "quotation_items",
 }
 
 # Every entity_type the CHECK constraint allows, including the not-yet-buildable one.
@@ -44,6 +48,9 @@ VALID_PAIRINGS: dict[str, frozenset[str]] = {
     "order_item": frozenset({"reference", "drawing", "production", "finished"}),
     "production_event": frozenset({"production", "finished"}),
     "delivery": frozenset({"delivery"}),
+    # A catalog photo is a 'reference' shot of the product, nothing else.
+    "product": frozenset({"reference"}),
+    "quotation_item": frozenset({"reference", "drawing"}),
 }
 
 # Upload mime → file extension. Also the allowlist: an unmapped mime is rejected.

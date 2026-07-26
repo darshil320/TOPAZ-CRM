@@ -45,6 +45,57 @@ export async function addProduct(input: ProductInput): Promise<{ error: string |
   }
 }
 
+/**
+ * Point a product at its CATALOG photo (migration 0027).
+ *
+ * This is what makes the photo reusable: every quote and order line referencing
+ * the product inherits it on the job card, so the same sofa is never re-uploaded.
+ * A line can still override with its own photo, which always wins.
+ *
+ * The media row itself is created by MediaUpload through the FastAPI media route;
+ * this only records which one is primary, and `products` RLS already restricts
+ * that write to owner/admin.
+ */
+export async function setProductPrimaryPhoto(
+  id: string,
+  mediaId: string | null,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+
+    // Server Actions are callable RPC, not just whatever the UI sends — so verify
+    // the media row really is THIS product's catalog photo before pointing at it.
+    // `primary_media_id` is a bare FK to media(id): without this check a caller
+    // could aim it at a customer's 'site' photo (a home interior), which the job
+    // card would then inline and WhatsApp to an outside vendor workshop.
+    // job_card_repo enforces the same triple at read time; both layers matter.
+    if (mediaId) {
+      const { data: media, error: lookupError } = await supabase
+        .from("media")
+        .select("id")
+        .eq("id", mediaId)
+        .eq("entity_type", "product")
+        .eq("entity_id", id)
+        .eq("status", "ready")
+        .maybeSingle();
+      if (lookupError) return { error: lookupError.message };
+      if (!media) {
+        return { error: "That image is not a finished catalog photo for this product." };
+      }
+    }
+
+    const { error } = await supabase
+      .from("products")
+      .update({ primary_media_id: mediaId })
+      .eq("id", id);
+    if (error) return { error: error.message };
+    revalidatePath("/owner/admin");
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Server error" };
+  }
+}
+
 export async function setProductActive(id: string, active: boolean): Promise<{ error: string | null }> {
   try {
     const supabase = await createServerSupabaseClient();

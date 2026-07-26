@@ -117,6 +117,14 @@ async def entity_exists(session: AsyncSession, table: str, entity_id: UUID) -> b
 
     if table not in ENTITY_TABLES.values():
         raise ValueError(f"Refusing to query non-whitelisted table '{table}'")
+    # A whitelisted entity type whose table has not shipped yet (e.g. 'delivery' →
+    # `deliveries`, which lands in Phase 2C) must produce a clean "no such entity",
+    # not an UndefinedTableError surfacing as a 500.
+    exists = await session.execute(
+        text("SELECT to_regclass(:qualified) IS NOT NULL"), {"qualified": f"public.{table}"}
+    )
+    if not exists.scalar_one():
+        return False
     result = await session.execute(
         text(f"SELECT 1 FROM {table} WHERE id = :id"), {"id": str(entity_id)}
     )
@@ -140,6 +148,12 @@ async def customer_id_for_entity(
             " JOIN order_items oi ON oi.id = pe.order_item_id"
             " JOIN orders o ON o.id = oi.order_id WHERE pe.id = :id"
         ),
+        "quotation_item": (
+            "SELECT q.customer_id FROM quotation_items qi"
+            " JOIN quotations q ON q.id = qi.quotation_id WHERE qi.id = :id"
+        ),
+        # 'product' is deliberately absent: a catalog photo belongs to no customer,
+        # so it is gated on the admin role instead (api/media.py::_authorize_upload).
     }
     sql = queries.get(entity_type)
     if sql is None:

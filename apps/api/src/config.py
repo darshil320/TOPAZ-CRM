@@ -91,8 +91,30 @@ class Settings(BaseSettings):
     MEDIA_THUMB_EDGE_PX: int = 400
     # JPEG quality for generated thumbnails.
     MEDIA_THUMB_QUALITY: int = 80
-    # Accepted upload types. Anything else is rejected at sign-upload (422).
-    MEDIA_ALLOWED_MIME: tuple[str, ...] = ("image/jpeg", "image/png", "image/webp")
+    # Accepted upload types live in ONE place: services/media_entities.MIME_EXTENSIONS,
+    # which also owns the mime→extension mapping the Storage key depends on. A second
+    # list here would be a decision point that silently does nothing when widened.
+
+    # Ceiling on a single photo inlined into a job card PDF. Distinct from
+    # MEDIA_MAX_BYTES: the renderer prefers 400px thumbnails, but falls back to the
+    # full original whenever the thumbnail worker hasn't run, so without this a
+    # multi-item card could pull tens of MB into the worker (plus ~33% base64) and
+    # produce a PDF too big for WhatsApp to accept.
+    JOB_CARD_MAX_INLINE_BYTES: int = 2_000_000
+
+    # Job card delivery format. 'image' (default) sends JPEGs that open INLINE in
+    # WhatsApp — no PDF viewer, no download, no taps, which is the whole point for a
+    # workshop manager on a cheap Android. 'pdf' keeps the printable document for
+    # anyone who wants to file or print it. Both render from the SAME HTML template.
+    JOB_CARD_FORMAT: str = "image"
+    # Fixed render width so every job card looks identical on every handset.
+    JOB_CARD_IMAGE_WIDTH_PX: int = 1000
+    # 2x device pixel ratio — small text must survive WhatsApp's own recompression.
+    JOB_CARD_IMAGE_SCALE: int = 2
+    JOB_CARD_IMAGE_QUALITY: int = 82
+    # Rows per image. One tall JPEG of a 15-item order is an unreadable ribbon;
+    # several legible images beat one useless one.
+    JOB_CARD_ITEMS_PER_IMAGE: int = 4
 
     # Supabase project URL + service-role key — used by the worker to fetch the
     # private face-crop for the salesperson arrival alert. If either is unset the

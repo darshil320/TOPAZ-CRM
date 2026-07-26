@@ -159,9 +159,17 @@ async def active_assignment(session: AsyncSession, order_item_id: UUID) -> dict 
     return None if row is None else dict(row)
 
 
-async def unallocated_items(session: AsyncSession, *, limit: int = 200) -> list[dict]:
+async def unallocated_items(
+    session: AsyncSession, *, salesperson_id: str | None = None, limit: int = 200
+) -> list[dict]:
     """Items of confirmed/in-production orders with no workshop yet — the allocate
-    page's queue. Served by order_items_unallocated_idx."""
+    page's queue. Served by order_items_unallocated_idx.
+
+    `salesperson_id` scopes the queue to that person's assigned customers. It is
+    passed for the `salesperson` role and omitted for owner/admin, mirroring the
+    write path: allocate() already refuses an unassigned customer, so an unscoped
+    read would list customer names and order contents a salesperson cannot act on.
+    """
     result = await session.execute(
         text(
             "SELECT oi.id, oi.description, oi.qty, oi.unit, oi.dimensions, oi.material,"
@@ -171,9 +179,13 @@ async def unallocated_items(session: AsyncSession, *, limit: int = 200) -> list[
             " JOIN orders o ON o.id = oi.order_id"
             " JOIN customers c ON c.id = o.customer_id"
             " WHERE oi.workshop_id IS NULL AND o.status IN ('confirmed', 'in_production')"
+            "   AND (:sp IS NULL OR EXISTS ("
+            "        SELECT 1 FROM customer_assignments ca"
+            "         WHERE ca.customer_id = o.customer_id AND ca.active = true"
+            "           AND ca.salesperson_id = cast(:sp as uuid)))"
             " ORDER BY o.expected_delivery_date NULLS LAST, o.created_at, oi.sort"
             " LIMIT :limit"
         ),
-        {"limit": limit},
+        {"limit": limit, "sp": salesperson_id},
     )
     return [dict(m) for m in result.mappings().all()]

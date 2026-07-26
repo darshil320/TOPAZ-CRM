@@ -29,6 +29,7 @@ def create_celery_app() -> Celery:
             "src.tasks.receipts",
             "src.tasks.payment_reminders",
             "src.tasks.media",
+            "src.tasks.job_card",
         ],
     )
 

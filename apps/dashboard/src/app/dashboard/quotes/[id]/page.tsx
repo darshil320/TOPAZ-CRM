@@ -6,6 +6,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { stateName } from "../states";
 import { statusChip } from "../status";
 import QuoteActions from "../QuoteActions";
+import JobCardActions from "@/components/JobCardActions";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -163,6 +164,13 @@ export default async function QuoteDetailPage({ params }: Props) {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      {/* Job card — the visual spec sheet that goes alongside the priced quote.
+          No workshop send here: a quotation has no allocation yet. */}
+      <Card className="space-y-3">
+        <SectionHeader label="Job Card" />
+        <JobCardActions source="quotation" entityId={quote.id} />
       </Card>
 
       {/* Totals */}

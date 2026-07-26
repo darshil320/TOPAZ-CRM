@@ -9,6 +9,7 @@ Routes:
   /api/workshops             — workshops CRUD (Phase 2B)
   /api/media                 — signed upload → complete → thumbnail (Phase 2B)
   /api/production            — allocate an order item to a workshop (Phase 2B)
+  /api/job-cards             — render/send the money-free spec sheet (Phase 2B)
   /api/health                — liveness probe
 """
 
@@ -16,6 +17,7 @@ from fastapi import FastAPI
 
 from .api.auth import router as auth_router
 from .api.enrollment import router as enrollment_router
+from .api.job_cards import router as job_cards_router
 from .api.media import router as media_router
 from .api.orders import router as orders_router
 from .api.payments import router as payments_router
@@ -46,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(workshops_router, prefix="/api")
     app.include_router(media_router, prefix="/api")
     app.include_router(production_router, prefix="/api")
+    app.include_router(job_cards_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
 
