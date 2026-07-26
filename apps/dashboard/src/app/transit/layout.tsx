@@ -32,7 +32,7 @@ export default async function TransitLayout({ children }: { children: React.Reac
           </div>
           <div>
             <h1 className="text-sm font-bold text-white tracking-tight">
-              ટોપાઝ ટ્રાન્ઝિટ / Topaz Transit
+              टोपाज़ ट्रांज़िट / Topaz Transit
             </h1>
             <p className="text-[11px] text-slate-400 font-medium">
               {sp.name} <span className="text-slate-500">· {sp.role}</span>

@@ -43,9 +43,7 @@ export default async function WorkshopPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-xl">
         <div>
-          <h2 className="text-lg font-extrabold text-white">
-            મારું ઉત્પાદન કામ / My Production Queue
-          </h2>
+          <h2 className="text-lg font-extrabold text-white">मेरा प्रोडक्शन काम / My Production Queue</h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {items.length} item{items.length === 1 ? "" : "s"} assigned
             {overdueCount > 0 && (
@@ -58,7 +56,7 @@ export default async function WorkshopPage() {
             {workshops.length} site{workshops.length === 1 ? "" : "s"}
           </span>
           <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-            {isLeadSomewhere ? "મુખ્ય / Lead" : "સહાયક / Sub-manager"}
+            {isLeadSomewhere ? "मुख्य प्रबंधक / Lead" : "सहायक प्रबंधक / Sub-manager"}
           </span>
         </div>
       </div>
@@ -73,9 +71,7 @@ export default async function WorkshopPage() {
       {workshops.length === 0 && !error && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
           <Factory className="w-10 h-10 text-slate-600 mx-auto" />
-          <h3 className="text-base font-bold text-white">
-            કોઈ વર્કશોપ સોંપાયું નથી / No workshop assigned
-          </h3>
+          <h3 className="text-base font-bold text-white">कोई वर्कशॉप असाइन नहीं है / No workshop assigned</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
             Ask the owner to add you to a workshop&apos;s staff list (Admin → Workshops →
             Staff). Until then there is nothing here to show you.

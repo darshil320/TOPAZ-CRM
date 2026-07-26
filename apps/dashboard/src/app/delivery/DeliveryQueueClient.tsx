@@ -86,7 +86,7 @@ export default function DeliveryQueueClient({
     const notes = notesMap[delivery.id];
 
     if (!photo?.mediaId) {
-      setError("📷 ઇન્સ્ટોલેશન પ્રૂફ ફોટો જરૂરી છે / Proof of installation photo required");
+      setError("📷 इंस्टॉलेशन प्रूफ फोटो जरूरी है / Proof of installation photo required");
       return;
     }
 
@@ -105,7 +105,7 @@ export default function DeliveryQueueClient({
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
         <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-        <h3 className="text-base font-bold text-white">કોઈ ડીલિવરી બાકી નથી / No Pending Deliveries!</h3>
+        <h3 className="text-base font-bold text-white">कोई डिलीवरी बाकी नहीं / No Pending Deliveries!</h3>
         <p className="text-xs text-slate-400 max-w-sm mx-auto">
           All scheduled deliveries have been completed with installation proof.
         </p>
@@ -173,7 +173,7 @@ export default function DeliveryQueueClient({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-emerald-400" />
-                  <span>ઇન્સ્ટોલેશન પ્રૂફ ફોટો / Installation Proof Photo</span>
+                  <span>इंस्टॉलेशन प्रूफ फोटो / Installation Proof Photo</span>
                   <span className="text-red-400 font-bold">*</span>
                 </span>
 
@@ -242,11 +242,11 @@ export default function DeliveryQueueClient({
               className="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isPending ? (
-                <span>ડીલિવરી પૂરતી થઈ રહી છે… / Processing…</span>
+                <span>डिलीवरी पूरी हो रही है… / Processing…</span>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>✓ ડીલિવરી અને ઇન્સ્ટોલેશન પૂર્ણ / Mark Delivered & Installed</span>
+                  <span>✓ डिलीवरी और इंस्टॉलेशन पूर्ण / Mark Delivered & Installed</span>
                 </>
               )}
             </button>

@@ -48,7 +48,7 @@ export async function pickupAction(
   vehicleNo?: string,
   note?: string,
 ): Promise<StepResult> {
-  if (!mediaId) return { error: "માલનો ફોટો પાડો / Take a photo of the goods first" };
+  if (!mediaId) return { error: "सामान का फ़ोटो लें / Take a photo of the goods first" };
   return step(transferId, "pickup", {
     media_id: mediaId,
     vehicle_no: vehicleNo?.trim() || null,
@@ -72,6 +72,6 @@ export async function deliverAction(
   mediaId: string,
   note?: string,
 ): Promise<StepResult> {
-  if (!mediaId) return { error: "પહોંચાડ્યાનો ફોટો પાડો / Photograph the delivered goods" };
+  if (!mediaId) return { error: "डिलीवरी का फ़ोटो लें / Photograph the delivered goods" };
   return step(transferId, "deliver", { media_id: mediaId, note: note ?? null });
 }

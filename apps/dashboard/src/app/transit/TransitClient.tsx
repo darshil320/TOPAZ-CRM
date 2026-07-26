@@ -57,7 +57,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
     const slotId = `${run.id}:pickup`;
     const photo = photos.slot(slotId);
     if (!photo.mediaId) {
-      setError("📷 માલનો ફોટો પાડો / Photograph the goods before collecting");
+      setError("📷 सामान का फ़ोटो लें / Photograph the goods before collecting");
       return;
     }
     startTransition(async () => {
@@ -95,7 +95,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
     const slotId = `${run.id}:deliver`;
     const photo = photos.slot(slotId);
     if (!photo.mediaId) {
-      setError("📷 પહોંચાડ્યાનો ફોટો પાડો / Photograph the delivered goods");
+      setError("📷 डिलीवरी का फ़ोटो लें / Photograph the delivered goods");
       return;
     }
     startTransition(async () => {
@@ -154,7 +154,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   )}
                 </div>
                 <p className="text-xs text-slate-400 font-mono">
-                  {items.length || run.item_count || 0} નંગ / item(s)
+                  {items.length || run.item_count || 0} आइटम / item(s)
                   {run.vehicle_no && ` · ${run.vehicle_no}`}
                 </p>
               </div>
@@ -174,14 +174,14 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
             {/* From → To, with the two things a driver actually needs: address + phone */}
             <div className="grid gap-2 sm:grid-cols-2">
               <SiteCard
-                heading="ક્યાંથી / Collect from"
+                heading="कहाँ से / Collect from"
                 name={run.from_workshop_name}
                 address={run.from_workshop_address}
                 phone={run.from_workshop_phone}
                 accent="amber"
               />
               <SiteCard
-                heading="ક્યાં / Deliver to"
+                heading="कहाँ / Deliver to"
                 name={run.to_workshop_name}
                 address={run.to_workshop_address}
                 phone={run.to_workshop_phone}
@@ -191,7 +191,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
 
             {run.status === "ready" && run.expected_pickup_at && (
               <p className="text-[11px] font-mono text-slate-400">
-                ઉપાડવાનો સમય / Pickup by {pickupDue.label}
+                पिकअप समय / Pickup by {pickupDue.label}
                 {pickupDue.overdue && (
                   <span className="text-red-300 font-bold"> · {pickupDue.relative}</span>
                 )}
@@ -201,7 +201,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
             {/* The goods themselves */}
             <div className="space-y-2">
               <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5" /> માલ / Goods
+                <Package className="w-3.5 h-3.5" /> सामान / Goods
               </p>
               <ul className="space-y-2">
                 {items.map((line) => (
@@ -240,7 +240,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                 <div className="space-y-3">
                   <input
                     type="text"
-                    placeholder="ગાડી નંબર / Vehicle no. (optional)"
+                    placeholder="गाड़ी नंबर / Vehicle no. (optional)"
                     value={vehicle[run.id] ?? run.vehicle_no ?? ""}
                     onChange={(e) => setVehicle((p) => ({ ...p, [run.id]: e.target.value }))}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
@@ -248,7 +248,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   <CameraField
                     slotId={`${run.id}:pickup`}
                     entityId={run.id}
-                    label="ઉપાડતી વખતનો ફોટો / Photo at collection"
+                    label="कलेक्शन का फ़ोटो / Photo at collection"
                     required
                     photo={photos.slot(`${run.id}:pickup`)}
                     onFile={photos.upload}
@@ -260,7 +260,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                       onClick={() => handlePickup(run)}
                       disabled={isPending || !photos.slot(`${run.id}:pickup`).mediaId}
                       icon={<Truck className="w-4 h-4" />}
-                      label="✓ માલ ઉપાડ્યો / Collected"
+                      label="✓ सामान उठाया / Collected"
                     />
                     <CancelButton onClick={() => setStep(run.id, null)} />
                   </div>
@@ -270,7 +270,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   onClick={() => setStep(run.id, "pickup")}
                   disabled={isPending}
                   icon={<Truck className="w-4 h-4" />}
-                  label="માલ ઉપાડો / Collect goods"
+                  label="सामान उठाएं / Collect goods"
                 />
               )
             )}
@@ -281,14 +281,14 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   onClick={() => handleOnRoad(run)}
                   disabled={isPending}
                   icon={<ArrowRight className="w-4 h-4" />}
-                  label="રસ્તામાં / On the road"
+                  label="रास्ते में / On the road"
                 />
                 <button
                   type="button"
                   onClick={() => setStep(run.id, "deliver")}
                   className="py-3 px-3.5 rounded-xl text-xs font-bold text-emerald-300 border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 shrink-0"
                 >
-                  પહોંચાડ્યું / Delivered
+                  पहुँच गया / Delivered
                 </button>
               </div>
             )}
@@ -299,7 +299,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   <CameraField
                     slotId={`${run.id}:deliver`}
                     entityId={run.id}
-                    label="પહોંચાડ્યાનો ફોટો / Photo at delivery"
+                    label="डिलीवरी का फ़ोटो / Photo at delivery"
                     required
                     photo={photos.slot(`${run.id}:deliver`)}
                     onFile={photos.upload}
@@ -311,13 +311,13 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                       onClick={() => handleDeliver(run)}
                       disabled={isPending || !photos.slot(`${run.id}:deliver`).mediaId}
                       icon={<Send className="w-4 h-4" />}
-                      label="✓ પહોંચાડ્યું / Delivered"
+                      label="✓ पहुँच गया / Delivered"
                       tone="emerald"
                     />
                     <CancelButton onClick={() => setStep(run.id, null)} />
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    પહોંચાડ્યા પછી ત્યાંના મુખ્ય મેનેજર સ્વીકારશે.{" "}
+                    पहुँचाने के बाद वहाँ के मुख्य मैनेजर स्वीकार करेंगे।{" "}
                     <span className="text-slate-500">
                       The destination lead confirms receipt on their own phone — that is what
                       closes the handover.
@@ -329,7 +329,7 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
                   onClick={() => setStep(run.id, "deliver")}
                   disabled={isPending}
                   icon={<Send className="w-4 h-4" />}
-                  label="પહોંચાડ્યું / Mark delivered"
+                  label="पहुँच गया दर्ज करें / Mark delivered"
                   tone="emerald"
                 />
               )
@@ -421,7 +421,7 @@ function CancelButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="py-3 px-3.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white border border-slate-700 shrink-0"
     >
-      રદ / Cancel
+      रद्द / Cancel
     </button>
   );
 }

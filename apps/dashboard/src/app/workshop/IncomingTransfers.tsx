@@ -41,7 +41,7 @@ export default function IncomingTransfers({
     setError(null);
     const photo = photos.slot(transfer.id);
     if (!photo.mediaId) {
-      setError("📷 માલનો ફોટો પાડો / Take a photo of the goods as they arrived");
+      setError("📷 सामान की फ़ोटो लें / Take a photo of the goods as they arrived");
       return;
     }
     startTransition(async () => {
@@ -61,7 +61,7 @@ export default function IncomingTransfers({
       <div className="flex items-center gap-2">
         <Truck className="w-4 h-4 text-sky-400" />
         <h3 className="text-sm font-extrabold text-white">
-          આવી રહ્યું છે / Incoming
+          आ रहा है / Incoming
           <span className="ml-2 text-xs font-mono font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">
             {rows.length}
           </span>
@@ -105,7 +105,7 @@ export default function IncomingTransfers({
                   <span>{transfer.to_workshop_name}</span>
                 </p>
                 <p className="text-xs text-slate-400 font-mono">
-                  {transfer.item_count ?? transfer.items?.length ?? 0} નંગ / item(s)
+                  {transfer.item_count ?? transfer.items?.length ?? 0} आइटम / item(s)
                   {transfer.vehicle_no && ` · ${transfer.vehicle_no}`}
                   {transfer.courier_name && ` · ${transfer.courier_name}`}
                 </p>
@@ -139,7 +139,7 @@ export default function IncomingTransfers({
                   <CameraField
                     slotId={transfer.id}
                     entityId={transfer.id}
-                    label="માલ મળ્યાનો ફોટો / Photo on arrival"
+                    label="सामान मिलने की फ़ोटो / Photo on arrival"
                     required
                     photo={photo}
                     onFile={photos.upload}
@@ -154,14 +154,14 @@ export default function IncomingTransfers({
                       className="flex-1 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-40"
                     >
                       <PackageCheck className="w-4 h-4" />
-                      <span>✓ સ્વીકારો / Confirm receipt</span>
+                      <span>✓ स्वीकार करें / Confirm receipt</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setOpen(null)}
                       className="py-3 px-3.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white border border-slate-700"
                     >
-                      રદ / Cancel
+                      रद्द / Cancel
                     </button>
                   </div>
                 </div>
@@ -175,14 +175,14 @@ export default function IncomingTransfers({
                   <PackageCheck className="w-4 h-4" />
                   <span>
                     {arrived
-                      ? "માલ મળ્યો / Goods arrived — receive"
-                      : "રસ્તામાં નથી નીકળ્યો / Not dispatched yet"}
+                      ? "सामान आ गया — स्वीकार करें / Goods arrived — receive"
+                      : "अभी रास्ते में नहीं निकला / Not dispatched yet"}
                   </span>
                 </button>
               )
             ) : (
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                માલ સ્વીકારવાનું કામ મુખ્ય મેનેજરનું છે.{" "}
+                सामान स्वीकार करने का काम मुख्य मैनेजर का है।{" "}
                 <span className="text-slate-500">
                   Only the workshop lead can accept custody of an incoming consignment.
                 </span>

@@ -29,9 +29,9 @@ export default async function TransitPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-xl">
         <div>
-          <h2 className="text-lg font-extrabold text-white">આજની ટ્રિપ / Today&apos;s runs</h2>
+          <h2 className="text-lg font-extrabold text-white">आज की ट्रिप / Today&apos;s runs</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            {pending} ઉપાડવાનું / to collect
+            {pending} कलेक्ट करना है / to collect
             {onRoad > 0 && <span className="text-sky-300 font-bold"> · {onRoad} on the road</span>}
           </p>
         </div>
@@ -50,10 +50,9 @@ export default async function TransitPage() {
       {runs.length === 0 && !error ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
           <PackageCheck className="w-12 h-12 text-emerald-400 mx-auto" />
-          <h3 className="text-base font-bold text-white">કોઈ ટ્રિપ બાકી નથી / No runs pending</h3>
+          <h3 className="text-base font-bold text-white">कोई ट्रिप बाकी नहीं / No runs pending</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            Nothing to move between workshops right now. New runs appear here as soon as a
-            workshop hands goods over.
+            वर्कशॉप्स के बीच अभी कुछ भी मूव नहीं करना है। जैसे ही कोई वर्कशॉप सामान हैंडओवर करेगा, नए रन यहाँ दिखाई देंगे।
           </p>
         </div>
       ) : (

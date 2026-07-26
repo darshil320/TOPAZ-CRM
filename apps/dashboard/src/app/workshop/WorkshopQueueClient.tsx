@@ -76,7 +76,7 @@ export default function WorkshopQueueClient({
 
     if (photoRequired && !photo.mediaId) {
       setError(
-        `📷 ${currentDef?.label_gu || currentDef?.label_en || "આ"} સ્ટેજ માટે ફોટો ફરજિયાત છે / Photo required for this stage`,
+        `📷 ${currentDef?.label_gu || currentDef?.label_en || "इस"} स्टेज के लिए फ़ोटो जरूरी है / Photo required for this stage`,
       );
       return;
     }
@@ -100,14 +100,14 @@ export default function WorkshopQueueClient({
         // tap the API would refuse.
         setItems((prev) => prev.filter((i) => i.id !== item.id));
         setNotice(
-          `📦 ${res.transfer.transfer_no} — માલ મોકલવા તૈયાર / ready to send. ` +
+          `📦 ${res.transfer.transfer_no} — सामान भेजने के लिए तैयार / ready to send. ` +
             `A driver will collect it.`,
         );
         return;
       }
       if (res.done) {
         setItems((prev) => prev.filter((i) => i.id !== item.id));
-        setNotice("✅ છેલ્લું સ્ટેજ પૂર્ણ / Final stage complete.");
+        setNotice("✅ आखिरी स्टेज पूर्ण / Final stage complete.");
         return;
       }
       setItems((prev) =>
@@ -139,7 +139,7 @@ export default function WorkshopQueueClient({
 
   function submitBlock(itemId: string) {
     if (!blockNote.trim()) {
-      setError("અવરોધનું કારણ લખો / Type a reason for the blocker");
+      setError("अवरोध का कारण लिखें / Type a reason for the blocker");
       return;
     }
     setError(null);
@@ -168,7 +168,7 @@ export default function WorkshopQueueClient({
         return;
       }
       setItems((prev) => prev.filter((i) => i.id !== item.id));
-      setNotice(`📦 ${res.transferNo} — માલ મોકલવા તૈયાર / ready to send.`);
+      setNotice(`📦 ${res.transferNo} — सामान भेजने के लिए तैयार / ready to send.`);
     });
   }
 
@@ -176,7 +176,7 @@ export default function WorkshopQueueClient({
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
         <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-        <h3 className="text-base font-bold text-white">કોઈ કામ બાકી નથી / All caught up!</h3>
+        <h3 className="text-base font-bold text-white">कोई काम बाकी नहीं / All caught up!</h3>
         <p className="text-xs text-slate-400 max-w-sm mx-auto">
           Nothing is waiting for production at your workshop right now.
         </p>
@@ -247,12 +247,12 @@ export default function WorkshopQueueClient({
                   <span className="text-xs font-semibold text-slate-300">{item.customer_name}</span>
                   {item.blocked && (
                     <span className="text-[11px] font-bold text-red-400 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                      <ShieldAlert className="w-3 h-3" /> અવરોધિત / BLOCKED
+                      <ShieldAlert className="w-3 h-3" /> अवरोधित / BLOCKED
                     </span>
                   )}
                   {inTransit && (
                     <span className="text-[11px] font-bold text-sky-300 bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Truck className="w-3 h-3" /> રસ્તામાં / IN TRANSIT
+                      <Truck className="w-3 h-3" /> रास्ते में / IN TRANSIT
                     </span>
                   )}
                 </div>
@@ -289,7 +289,7 @@ export default function WorkshopQueueClient({
               <span className="flex items-center gap-1.5 min-w-0">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">
-                  પહોંચાડવાનું / Due: <span className="font-mono">{due.label}</span>
+                  पहुँचाने का समय / Due: <span className="font-mono">{due.label}</span>
                 </span>
               </span>
               <span className="font-mono text-[11px] shrink-0">{due.relative}</span>
@@ -341,7 +341,7 @@ export default function WorkshopQueueClient({
 
             {inTransit ? (
               <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 text-xs text-sky-200 leading-relaxed">
-                આ માલ બીજા વર્કશોપ જઈ રહ્યો છે. પહોંચ્યા પછી ત્યાંના મુખ્ય મેનેજર સ્વીકારશે.
+                यह सामान दूसरे वर्कशॉप जा रहा है। पहुँचने के बाद वहाँ के मुख्य मैनेजर स्वीकार करेंगे।
                 <br />
                 <span className="text-sky-300/80">
                   These goods are on their way to another workshop. Stage updates resume once
@@ -354,7 +354,7 @@ export default function WorkshopQueueClient({
                   <CameraField
                     slotId={item.id}
                     entityId={item.id}
-                    label="સ્ટેજ ફોટો / Stage photo"
+                    label="स्टेज फ़ोटो / Stage photo"
                     required={photoRequired}
                     photo={photo}
                     onFile={photos.upload}
@@ -373,7 +373,7 @@ export default function WorkshopQueueClient({
                     >
                       <Send className="w-4 h-4" />
                       <span>
-                        📦 મોકલો / Hand over to {item.next_workshop_name}
+                        📦 भेजें / Hand over to {item.next_workshop_name}
                       </span>
                     </button>
                   ) : (
@@ -389,11 +389,11 @@ export default function WorkshopQueueClient({
                       className="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isPending ? (
-                        <span>પ્રક્રિયા ચાલુ છે… / Working…</span>
+                        <span>प्रक्रिया जारी है… / Working…</span>
                       ) : (
                         <>
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>✓ સ્ટેજ પૂર્ણ / Stage done</span>
+                          <span>✓ स्टेज पूर्ण / Stage done</span>
                           <ArrowRight className="w-4 h-4 ml-auto" />
                         </>
                       )}
@@ -411,13 +411,13 @@ export default function WorkshopQueueClient({
                     }`}
                   >
                     <AlertOctagon className="w-4 h-4" />
-                    <span>{item.blocked ? "ખોલો / Unblock" : "અવરોધ / Block"}</span>
+                    <span>{item.blocked ? "खोलें / Unblock" : "अवरोध / Block"}</span>
                   </button>
                 </div>
 
                 {legFinished && !canHandOver && item.next_workshop_name && !isLead && (
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    આ લેગ પૂરો થયો — મુખ્ય મેનેજર માલ મોકલશે.{" "}
+                    यह लेग पूरा हो गया — मुख्य मैनेजर सामान भेजेंगे।{" "}
                     <span className="text-slate-500">
                       This leg is finished; your workshop lead hands the goods over.
                     </span>
@@ -429,11 +429,11 @@ export default function WorkshopQueueClient({
             {showBlockModal === item.id && (
               <div className="mt-1 p-3.5 bg-red-950/40 border border-red-500/40 rounded-xl space-y-3">
                 <span className="text-xs font-bold text-red-300 block">
-                  અવરોધનું કારણ લખો / Reason for the blocker
+                  अवरोध का कारण लिखें / Reason for the blocker
                 </span>
                 <input
                   type="text"
-                  placeholder="દા.ત. કાપડ આવ્યું નથી / e.g. fabric delayed from vendor"
+                  placeholder="उदा. कपड़ा नहीं आया / e.g. fabric delayed from vendor"
                   value={blockNote}
                   onChange={(e) => setBlockNote(e.target.value)}
                   className="w-full bg-slate-950 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
@@ -444,7 +444,7 @@ export default function WorkshopQueueClient({
                     onClick={() => setShowBlockModal(null)}
                     className="text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-white"
                   >
-                    રદ / Cancel
+                    रद्द / Cancel
                   </button>
                   <button
                     type="button"
@@ -452,7 +452,7 @@ export default function WorkshopQueueClient({
                     disabled={isPending || !blockNote.trim()}
                     className="text-xs font-bold bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 disabled:opacity-50"
                   >
-                    સેવ / Save blocker
+                    सेव करें / Save blocker
                   </button>
                 </div>
               </div>

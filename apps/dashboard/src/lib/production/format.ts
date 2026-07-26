@@ -116,12 +116,12 @@ export function spanLabel(
   return from === to ? pick(from) : `${pick(from)} → ${pick(to)}`;
 }
 
-/** Human label for a consignment status, Gujarati first (the PWA's language rule). */
+/** Human label for a consignment status, Hindi first. */
 export const TRANSFER_STATUS_LABEL: Record<string, string> = {
-  ready: "ઉપાડવાનું બાકી / Awaiting pickup",
-  picked_up: "ઉપાડ્યું / Collected",
-  in_transit: "રસ્તામાં / In transit",
-  delivered: "પહોંચ્યું / Delivered",
-  received: "સ્વીકાર્યું / Received",
-  cancelled: "રદ / Cancelled",
+  ready: "उठाना बाकी / Awaiting pickup",
+  picked_up: "उठा लिया / Collected",
+  in_transit: "रास्ते में / In transit",
+  delivered: "पहुँच गया / Delivered",
+  received: "स्वीकार किया / Received",
+  cancelled: "रद्द / Cancelled",
 };

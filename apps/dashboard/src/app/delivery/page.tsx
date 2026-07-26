@@ -60,7 +60,7 @@ export default async function DeliveryPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-xl">
         <div>
-          <h2 className="text-lg font-extrabold text-white">ડીલિવરી કામ / Delivery & Installation Queue</h2>
+          <h2 className="text-lg font-extrabold text-white">डिलीवरी काम / Delivery & Installation Queue</h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {deliveries.length} order{deliveries.length === 1 ? "" : "s"} scheduled for delivery & installation
           </p>
