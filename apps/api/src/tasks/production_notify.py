@@ -17,11 +17,15 @@ DESIGN RULES this file obeys:
     about it is whoever holds the post now.
   * **Money-blind.** The audiences (workshop leads, couriers) have no money access
     anywhere else in this system; a rupee figure here would walk past all of it.
-  * **Gated on WA_MEDIA_ENABLED? No** — these are text sends, not media. But they ARE
-    outbound Cloud API sends to a handset, so the 24-hour rule applies: a manager who
-    has never messaged the business number will not receive them until the
-    `transfer_assigned` / `leg_overdue` templates clear Meta review (STATE.md external
-    dependencies). tasks/whatsapp logs the rejection rather than dropping it silently.
+  * **Always the approved template, never free text.** Unlike the customer-facing
+    send path (tasks/quotes.py), which branches on the 24h window using `messages`'
+    last-inbound tracking, there is no equivalent table for STAFF — nothing records
+    when a workshop lead or courier last texted the business number. Sending the
+    approved template unconditionally is simpler and correct: it reaches the
+    recipient whether or not they have an open session. Three templates cover every
+    alert kind here, submitted and approved 2026-07-27 (see
+    services/transit_messages.py's module docstring for the exact registered text):
+    `topaz_transfer_incoming`, `topaz_transfer_status`, `topaz_production_alert`.
 """
 
 import asyncio
@@ -29,7 +33,6 @@ import logging
 
 from sqlalchemy import text
 
-from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import alert_repo, transfer_repo, workshop_staff_repo
 from ..services import transit_messages
@@ -50,19 +53,22 @@ _TRANSFER_AUDIENCE: dict[str, tuple[str, ...]] = {
 }
 
 
-async def _send_text(to: str | None, body: str, *, what: str) -> bool:
-    """One send. Returns False (and logs) instead of raising when there is nobody to
-    send to — a vendor workshop with no phone number on file is a normal state."""
+async def _send_template(to: str | None, template_name: str, params: list[dict], *, what: str) -> bool:
+    """One approved-template send. Returns False (and logs) instead of raising when
+    there is nobody to send to — a vendor workshop with no phone number on file is a
+    normal state — or when Meta rejects the send (e.g. the template is still In
+    review): a notification failure must never look like a failed handover."""
     if not to:
         logger.info("No recipient for %s — skipped", what)
         return False
-    from .whatsapp import send_wa_text
+    from .whatsapp import send_wa_template
 
     try:
-        await asyncio.to_thread(send_wa_text, to, body)
+        await asyncio.to_thread(send_wa_template, to, template_name, params)
         return True
     except Exception as exc:  # noqa: BLE001 — a failed notification is not a failed handover
-        logger.warning("Notification send failed (%s → %s): %s", what, to, exc)
+        logger.warning("Notification send failed (%s → %s, template %s): %s",
+                       what, to, template_name, exc)
         return False
 
 
@@ -78,8 +84,17 @@ async def _courier_phone(session, transfer: dict) -> str | None:
     return str(found[0]) if found and found[0] else None
 
 
+#  Which template each transfer edge sends through, and how its params are filled.
+_STATUS_TEXT: dict[str, str] = {
+    "picked_up": "Picked up",
+    "in_transit": "On the road",
+    "delivered": "Delivered",
+    "received": "Received",
+    "cancelled": "Cancelled",
+}
+
+
 async def _run_transfer(kind: str, payload: dict) -> dict:
-    settings = get_settings()
     transfer_id = payload.get("transfer_id")
     if not transfer_id:
         logger.warning("notify_transfer_event(%s) with no transfer_id: %s", kind, payload)
@@ -100,30 +115,28 @@ async def _run_transfer(kind: str, payload: dict) -> dict:
         to_lead = await workshop_staff_repo.lead_contact(session, transfer["to_workshop_id"])
         courier_phone = await _courier_phone(session, transfer)
 
-    dashboard = f"{settings.DASHBOARD_URL}/workshop" if settings.DASHBOARD_URL else None
     from_name = str(transfer["from_workshop_name"])
     to_name = str(transfer["to_workshop_name"])
 
     if kind in ("created", "assigned"):
-        body = transit_messages.transfer_assigned(
+        template_name = transit_messages.TEMPLATE_TRANSFER_INCOMING
+        params = transit_messages.transfer_incoming_params(
             transfer_no=transfer["transfer_no"], from_workshop=from_name,
             to_workshop=to_name, item_count=len(items), due_at=transfer["due_at"],
-            dashboard_url=dashboard,
         )
-    elif kind in ("picked_up", "in_transit", "delivered"):
-        body = transit_messages.transfer_picked_up(
-            transfer_no=transfer["transfer_no"], to_workshop=to_name,
-            courier_name=transfer.get("courier_name"),
+    elif kind in ("picked_up", "in_transit", "delivered", "received", "cancelled"):
+        template_name = transit_messages.TEMPLATE_TRANSFER_STATUS
+        # 'cancelled' leaves the goods at the ORIGIN — every other edge is framed
+        # around the destination, which is where the reader's attention belongs.
+        workshop_name = from_name if kind == "cancelled" else to_name
+        note = (
+            transfer.get("cancel_reason") if kind == "cancelled"
+            else transfer.get("vehicle_no") if kind == "picked_up"
+            else None
         )
-    elif kind == "received":
-        body = transit_messages.transfer_received(
-            transfer_no=transfer["transfer_no"], to_workshop=to_name,
-            item_count=len(items),
-        )
-    elif kind == "cancelled":
-        body = (
-            f"❌ રદ / Cancelled — {transfer['transfer_no']} "
-            f"({from_name} → {to_name})"
+        params = transit_messages.transfer_status_params(
+            transfer_no=transfer["transfer_no"], status_text=_STATUS_TEXT[kind],
+            workshop_name=workshop_name, note=note,
         )
     else:
         logger.info("notify_transfer_event: nothing to say for kind '%s'", kind)
@@ -140,7 +153,7 @@ async def _run_transfer(kind: str, payload: dict) -> dict:
 
     sent = 0
     for label, phone in targets:
-        if await _send_text(phone, body, what=f"transfer.{kind}/{label}"):
+        if await _send_template(phone, template_name, params, what=f"transfer.{kind}/{label}"):
             sent += 1
     logger.info("transfer notification %s for %s: %d sent", kind, transfer["transfer_no"], sent)
     return {"sent": sent}
@@ -165,7 +178,6 @@ async def _run_production(kind: str, payload: dict) -> dict:
     if not item_id:
         return {"sent": 0}
 
-    settings = get_settings()
     async with make_task_session() as session:
         row = await session.execute(
             text(
@@ -195,14 +207,16 @@ async def _run_production(kind: str, payload: dict) -> dict:
         )
         await session.commit()
 
-    body = (
-        f"⛔ *કામ અટક્યું / Production blocked*\n"
-        f"{item['order_no']} · {item['description']}\n"
-        f"{item['workshop_name'] or 'workshop'}\n"
-        f"કારણ / Reason: {item['blocker_note'] or '—'}\n"
-        f"નિયત સમય / Due: {transit_messages.format_ist(item['due_at'])}"
+    params = transit_messages.production_alert_params(
+        order_no=item["order_no"], item_description=item["description"],
+        workshop_name=item["workshop_name"] or "workshop", issue="Blocked",
+        detail=f"Reason: {item['blocker_note']}" if item["blocker_note"]
+               else f"Due: {transit_messages.format_ist(item['due_at'])}",
     )
-    sent = int(await _send_text(owner_phone, body, what="production.blocked/owner"))
+    sent = int(await _send_template(
+        owner_phone, transit_messages.TEMPLATE_PRODUCTION_ALERT, params,
+        what="production.blocked/owner",
+    ))
     logger.info("production blocked notification: alert %s, %d sent", alert_id, sent)
     return {"sent": sent, "alert_id": str(alert_id)}
 

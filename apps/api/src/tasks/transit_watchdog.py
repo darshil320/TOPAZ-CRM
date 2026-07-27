@@ -23,7 +23,6 @@ import logging
 
 from sqlalchemy import text
 
-from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import alert_repo, route_repo, transfer_repo, workshop_staff_repo
 from ..services import transit_messages
@@ -53,21 +52,22 @@ async def _already_alerted_today(session, *, customer_id: str, type_: str, detai
     return result.first() is not None
 
 
-async def _send(to: str | None, body: str, *, what: str) -> bool:
+async def _send_template(to: str | None, template_name: str, params: list[dict], *, what: str) -> bool:
     if not to:
         logger.info("watchdog: no recipient for %s", what)
         return False
-    from .whatsapp import send_wa_text
+    from .whatsapp import send_wa_template
 
     try:
-        await asyncio.to_thread(send_wa_text, to, body)
+        await asyncio.to_thread(send_wa_template, to, template_name, params)
         return True
     except Exception as exc:  # noqa: BLE001 — a failed alert must not abort the scan
-        logger.warning("watchdog send failed (%s → %s): %s", what, to, exc)
+        logger.warning("watchdog send failed (%s → %s, template %s): %s",
+                       what, to, template_name, exc)
         return False
 
 
-async def _scan_overdue_legs(session, settings) -> dict:
+async def _scan_overdue_legs(session) -> dict:
     legs = await route_repo.overdue_active_legs(session)
     owner_phone = await alert_repo.get_owner_whatsapp(session)
     alerted = 0
@@ -87,59 +87,57 @@ async def _scan_overdue_legs(session, settings) -> dict:
         await alert_repo.create_alert(
             session, customer_id=leg["customer_id"], type_="leg_overdue", detail=detail
         )
-        link = (
-            f"{settings.DASHBOARD_URL}/dashboard/orders/{leg['order_id']}"
-            if settings.DASHBOARD_URL else None
+        params = transit_messages.production_alert_params(
+            order_no=str(leg["order_no"]), item_description=str(leg["description"]),
+            workshop_name=str(leg["workshop_name"]),
+            issue=("Blocked — " if leg["blocked"] else "") + transit_messages.overdue_by(leg["due_at"]),
+            detail=f"Was due {transit_messages.format_ist(leg['due_at'])}",
         )
-        body = transit_messages.leg_overdue(
-            item_description=str(leg["description"]), order_no=str(leg["order_no"]),
-            workshop=str(leg["workshop_name"]), due_at=leg["due_at"],
-            blocked=bool(leg["blocked"]), dashboard_url=link,
-        )
-        await _send(owner_phone, body, what=f"leg_overdue/{leg['order_no']}")
+        await _send_template(owner_phone, transit_messages.TEMPLATE_PRODUCTION_ALERT, params,
+                             what=f"leg_overdue/{leg['order_no']}")
         # The workshop's own lead hears about it too — the owner cannot fix a delay, the
         # floor can.
         lead = await workshop_staff_repo.lead_contact(session, leg["workshop_id"])
         if lead and lead["whatsapp"] and lead["whatsapp"] != owner_phone:
-            await _send(lead["whatsapp"], body, what=f"leg_overdue/lead/{leg['order_no']}")
+            await _send_template(lead["whatsapp"], transit_messages.TEMPLATE_PRODUCTION_ALERT,
+                                 params, what=f"leg_overdue/lead/{leg['order_no']}")
         alerted += 1
 
     await session.commit()
     return {"overdue_legs": len(legs), "alerted": alerted, "deduped": skipped}
 
 
-async def _scan_stale_pickups(session, settings) -> dict:
+async def _scan_stale_pickups(session) -> dict:
     stale = await transfer_repo.stale_pickups(session)
     owner_phone = await alert_repo.get_owner_whatsapp(session)
     alerted = 0
 
     for transfer in stale:
-        body = transit_messages.pickup_overdue(
-            transfer_no=str(transfer["transfer_no"]),
-            from_workshop=str(transfer["from_workshop_name"]),
-            to_workshop=str(transfer["to_workshop_name"]),
-            expected_pickup_at=transfer["expected_pickup_at"],
+        params = transit_messages.transfer_status_params(
+            transfer_no=str(transfer["transfer_no"]), status_text="Pickup pending",
+            workshop_name=str(transfer["from_workshop_name"]),
+            note=f"Expected {transit_messages.format_ist(transfer['expected_pickup_at'])}",
         )
         # No `alerts` row for this one: `alerts.customer_id` is NOT NULL and a
         # consignment can legitimately carry several customers' items, so there is no
         # single honest customer to file it against. Picking one would put a false
         # alert on that customer's timeline. The WhatsApp line to the owner and the
         # origin lead is the signal; the consignment row itself is the record.
-        await _send(owner_phone, body, what=f"pickup_overdue/{transfer['transfer_no']}")
+        await _send_template(owner_phone, transit_messages.TEMPLATE_TRANSFER_STATUS, params,
+                             what=f"pickup_overdue/{transfer['transfer_no']}")
         lead = await workshop_staff_repo.lead_contact(session, transfer["from_workshop_id"])
         if lead and lead["whatsapp"] and lead["whatsapp"] != owner_phone:
-            await _send(lead["whatsapp"], body,
-                        what=f"pickup_overdue/lead/{transfer['transfer_no']}")
+            await _send_template(lead["whatsapp"], transit_messages.TEMPLATE_TRANSFER_STATUS,
+                                 params, what=f"pickup_overdue/lead/{transfer['transfer_no']}")
         alerted += 1
 
     return {"stale_pickups": len(stale), "alerted": alerted}
 
 
 async def _run() -> dict:
-    settings = get_settings()
     async with make_task_session() as session:
-        legs = await _scan_overdue_legs(session, settings)
-        pickups = await _scan_stale_pickups(session, settings)
+        legs = await _scan_overdue_legs(session)
+        pickups = await _scan_stale_pickups(session)
     result = {**legs, **{f"pickup_{k}": v for k, v in pickups.items()}}
     logger.info("transit watchdog: %s", result)
     return result

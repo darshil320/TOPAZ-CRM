@@ -1,43 +1,85 @@
-"""Pure message copy for production/transit notifications (module 14).
+"""Staff-facing WhatsApp copy for production/transit alerts (module 14).
 
-Copy lives here, not inside the Celery tasks, for the reason every other message
-builder in this repo does: it is the part that is worth unit-testing (a manager
-misreading which workshop the goods are going to is a real cost) and the part that has
-no business touching the network.
+Three Meta templates, submitted 2026-07-27, cover every alert kind this module
+sends — mirrors the house registry pattern in services/templates.py
+(FollowupTemplate.meta_params → meta_template_params), but for STAFF recipients
+rather than customers:
 
-AUDIENCE IS STAFF, NOT CUSTOMERS. These go to a manager's or a courier's handset, so:
-  * Gujarati first, English second — the same rule the workshop PWA follows (module 10):
-    the target reader is a 45-year-old floor manager, and English is the fallback.
-  * No money, ever. Workshop and courier audiences are money-blind by design; a rupee
-    figure in a transit alert would leak straight past every RLS boundary built for it.
-  * They are FREE-FORM text sends. Meta's 24-hour rule applies to a staff handset
-    exactly as it does to a customer's, so a manager who has never messaged the business
-    number will not receive these until the templates below are approved:
-        transfer_assigned   — a consignment is on its way to you
-        leg_overdue         — an item's deadline has passed
-    Until then the in-window text path works and the out-of-window send is logged as a
-    failure rather than silently dropped (tasks/whatsapp records the send result).
+  topaz_transfer_incoming  — a consignment is heading to a workshop
+  topaz_transfer_status    — a consignment's state changed (picked up/delivered/
+                              received/cancelled)
+  topaz_production_alert   — something needs a human: a missed deadline or a
+                              blocked item
+
+WHY ALWAYS THE TEMPLATE, NEVER FREE TEXT (unlike the customer-facing send path in
+tasks/quotes.py, which branches on the 24h window): that branch works for customers
+because `messages` tracks each customer's last inbound message. There is no
+equivalent table for STAFF — nothing records when a workshop lead or courier last
+texted the business number — so there is no reliable window to check. Sending the
+approved template unconditionally is simpler and correct: it reaches the recipient
+whether or not they have an open session, with identical wording either way.
+
+All three are Utility category (transactional, not marketing) — same category as
+`payment_due` — so they do not require marketing consent (these recipients are staff,
+not customers, and consent tracking does not apply to them regardless).
+
+MONEY: every parameter built here comes from a money-blind projection (transfer_repo,
+route_repo, production_repo money-blind reads) — no function in this file may ever be
+handed a price, and none accepts one.
 """
 
 from datetime import datetime, timedelta, timezone
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
+TEMPLATE_TRANSFER_INCOMING = "topaz_transfer_incoming"
+TEMPLATE_TRANSFER_STATUS = "topaz_transfer_status"
+TEMPLATE_PRODUCTION_ALERT = "topaz_production_alert"
+
+# Fixed body text a human read at submission time (WhatsApp Manager), kept here so a
+# change to the registered template is a one-line diff against what Meta actually
+# approved, not a guess from the param builders alone.
+#
+# topaz_transfer_incoming:
+#   🚚 Incoming goods — {{transfer_no}}
+#
+#   From: {{from_workshop}}
+#   To: {{to_workshop}}
+#   Items: {{item_count}}
+#   Due: {{due_at}}
+#
+# topaz_transfer_status:
+#   📦 {{transfer_no}} update
+#
+#   Status: {{status_text}}
+#   Workshop: {{workshop_name}}
+#   {{note}}
+#
+# topaz_production_alert:
+#   ⚠️ Action needed — {{order_no}}
+#
+#   Item: {{item_description}}
+#   Workshop: {{workshop_name}}
+#   Issue: {{issue}}
+#   {{detail}}
+
+# Meta named parameters are always sent as text, always filled — an approved template
+# renders its fixed wording around whatever is supplied, so an empty string reads as a
+# blank line rather than the absent line free text would have. This is the one filler
+# a param may fall back to; never the empty string.
+_EMPTY = "—"
+
 
 def format_ist(moment: datetime | None) -> str:
-    """'Thu 30 Jul, 6:00 PM' in IST — the format the workshop card and the WhatsApp
-    line both use, so a manager comparing the two sees the same string.
-
-    Returns an em dash for None rather than 'None': a missing deadline is a real state
-    (a leg planned without days), and it must read as absent, not as a bug.
-    """
+    """'Thu 30 Jul, 6:00 PM' in IST — the same string a workshop card renders, so a
+    manager comparing the WhatsApp line to their screen sees an identical value."""
     if moment is None:
-        return "—"
+        return _EMPTY
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     local = moment.astimezone(IST)
-    # The 12-hour part is assembled by hand rather than with %-I: the dash flag is a
-    # GNU extension and this string is built on macOS in dev and Linux in prod.
+    # Built by hand rather than with %-I: that flag is a GNU extension, and this runs
+    # on macOS in dev and Linux in prod.
     hour12 = local.hour % 12 or 12
     meridiem = "AM" if local.hour < 12 else "PM"
     return f"{local.strftime('%a %d %b')}, {hour12}:{local.strftime('%M')} {meridiem}"
@@ -46,7 +88,7 @@ def format_ist(moment: datetime | None) -> str:
 def overdue_by(due_at: datetime | None, *, now: datetime | None = None) -> str:
     """Human-readable lateness: '3 days late', '5 hours late', 'due now'."""
     if due_at is None:
-        return ""
+        return _EMPTY
     now = now or datetime.now(timezone.utc)
     if due_at.tzinfo is None:
         due_at = due_at.replace(tzinfo=timezone.utc)
@@ -62,87 +104,60 @@ def overdue_by(due_at: datetime | None, *, now: datetime | None = None) -> str:
     return "due now"
 
 
-def transfer_assigned(
+def _named(**kwargs: object) -> list[dict]:
+    """Meta named-parameter body components. Every value is stringified; a falsy
+    value becomes `_EMPTY` rather than an empty string, matching what a human
+    reviewing the sent message should see instead of a blank line."""
+    return [
+        {"type": "text", "parameter_name": name, "text": str(value) if value else _EMPTY}
+        for name, value in kwargs.items()
+    ]
+
+
+def transfer_incoming_params(
     *,
     transfer_no: str,
     from_workshop: str,
     to_workshop: str,
     item_count: int,
     due_at: datetime | None,
-    dashboard_url: str | None = None,
-) -> str:
-    """To the DESTINATION lead (and the courier): goods are coming."""
-    items = f"{item_count} નંગ / {item_count} item{'s' if item_count != 1 else ''}"
-    body = (
-        f"🚚 *માલ આવી રહ્યો છે / Incoming goods*\n"
-        f"{transfer_no} · {items}\n"
-        f"{from_workshop} → *{to_workshop}*\n"
-        f"પહોંચવાનો સમય / Due: {format_ist(due_at)}"
-    )
-    if dashboard_url:
-        body += f"\n\nસ્વીકારો / Receive → {dashboard_url}"
-    return body
-
-
-def transfer_picked_up(*, transfer_no: str, to_workshop: str,
-                       courier_name: str | None = None) -> str:
-    who = courier_name or "ડ્રાઇવર / driver"
-    return (
-        f"📦 *માલ નીકળ્યો / Goods collected*\n"
-        f"{transfer_no} · {who}\n"
-        f"જઈ રહ્યો છે / Heading to: *{to_workshop}*"
+) -> list[dict]:
+    return _named(
+        transfer_no=transfer_no,
+        from_workshop=from_workshop,
+        to_workshop=to_workshop,
+        item_count=item_count,
+        due_at=format_ist(due_at),
     )
 
 
-def transfer_received(*, transfer_no: str, to_workshop: str, item_count: int) -> str:
-    return (
-        f"✅ *માલ મળ્યો / Goods received*\n"
-        f"{transfer_no} · {item_count} નંગ / item{'s' if item_count != 1 else ''}\n"
-        f"*{to_workshop}* પર કામ શરૂ / work can start"
-    )
-
-
-def leg_overdue(
-    *,
-    item_description: str,
-    order_no: str,
-    workshop: str,
-    due_at: datetime | None,
-    blocked: bool,
-    now: datetime | None = None,
-    dashboard_url: str | None = None,
-) -> str:
-    """To the owner and the order's salesperson: a workshop has missed its deadline.
-
-    Says whether the item is BLOCKED, because the two situations need opposite
-    responses — a blocked item needs the blocker cleared, an unblocked late item needs
-    somebody to ask why nothing is happening.
-    """
-    late = overdue_by(due_at, now=now)
-    reason = "\n⛔ અવરોધિત / BLOCKED — કારણ તપાસો / check the blocker" if blocked else ""
-    body = (
-        f"⏰ *સમય વીતી ગયો / Deadline missed*\n"
-        f"{order_no} · {item_description}\n"
-        f"{workshop} · {late}\n"
-        f"નિયત સમય / Was due: {format_ist(due_at)}{reason}"
-    )
-    if dashboard_url:
-        body += f"\n\n{dashboard_url}"
-    return body
-
-
-def pickup_overdue(
+def transfer_status_params(
     *,
     transfer_no: str,
-    from_workshop: str,
-    to_workshop: str,
-    expected_pickup_at: datetime | None,
-    now: datetime | None = None,
-) -> str:
-    """To the owner and the origin lead: a consignment is packed and nobody came."""
-    return (
-        f"🕒 *માલ ઉપાડવાનો બાકી / Pickup pending*\n"
-        f"{transfer_no} · {from_workshop} → {to_workshop}\n"
-        f"ઉપાડવાનો સમય / Expected: {format_ist(expected_pickup_at)}"
-        f" ({overdue_by(expected_pickup_at, now=now)})"
+    status_text: str,
+    workshop_name: str,
+    note: str | None = None,
+) -> list[dict]:
+    return _named(
+        transfer_no=transfer_no,
+        status_text=status_text,
+        workshop_name=workshop_name,
+        note=note,
+    )
+
+
+def production_alert_params(
+    *,
+    order_no: str,
+    item_description: str,
+    workshop_name: str,
+    issue: str,
+    detail: str | None = None,
+) -> list[dict]:
+    return _named(
+        order_no=order_no,
+        item_description=item_description,
+        workshop_name=workshop_name,
+        issue=issue,
+        detail=detail,
     )
