@@ -14,6 +14,13 @@ import ReceiptDownloadButton from "./ReceiptDownloadButton";
 import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
 import JobCardActions from "@/components/JobCardActions";
 import LineItemPhotoCell from "@/components/LineItemPhotoCell";
+import RouteModal from "../../production/allocate/RouteModal";
+import { listWorkshops } from "@/lib/workshops";
+import { listRouteTemplates } from "@/lib/production/reads";
+import type { StageDef } from "@/lib/production/types";
+
+// Mirrors api/production.py's own gate: only these roles may plan production.
+const ROUTABLE_ROLES = new Set(["owner", "admin", "salesperson"]);
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -34,18 +41,45 @@ export default async function OrderDetailPage({ params }: Props) {
     .single();
   if (!order) notFound();
 
-  const [{ data: items }, { data: out }, { data: schedule }, { data: payments }, { data: timeline }] =
-    await Promise.all([
-      supabase
-        .from("order_items")
-        .select("*, workshops(name, type), production_stage_defs(label_en, label_gu)")
-        .eq("order_id", id)
-        .order("sort", { ascending: true }),
-      supabase.from("order_outstanding").select("grand_total, paid, outstanding").eq("order_id", id).single(),
-      supabase.from("payment_schedules").select("*").eq("order_id", id).order("due_date", { ascending: true }),
-      supabase.from("payments").select("*").eq("order_id", id).order("paid_at", { ascending: false }),
-      supabase.from("audit_log").select("action, changed_at, payload").eq("entity", "orders").eq("entity_id", id).order("changed_at", { ascending: false }).limit(20),
-    ]);
+  const canRoute = ROUTABLE_ROLES.has(sp.role ?? "");
+
+  const [
+    { data: items },
+    { data: out },
+    { data: schedule },
+    { data: payments },
+    { data: timeline },
+    { data: stageRows },
+    workshopList,
+    templateList,
+  ] = await Promise.all([
+    supabase
+      .from("order_items")
+      .select("*, workshops(name, type), production_stage_defs(label_en, label_gu)")
+      .eq("order_id", id)
+      .order("sort", { ascending: true }),
+    supabase.from("order_outstanding").select("grand_total, paid, outstanding").eq("order_id", id).single(),
+    supabase.from("payment_schedules").select("*").eq("order_id", id).order("due_date", { ascending: true }),
+    supabase.from("payments").select("*").eq("order_id", id).order("paid_at", { ascending: false }),
+    supabase.from("audit_log").select("action, changed_at, payload").eq("entity", "orders").eq("entity_id", id).order("changed_at", { ascending: false }).limit(20),
+    // Only needed to power RouteModal below — skip the round trips for roles that
+    // could never open it (accounts/workshop_manager/delivery never see this button).
+    canRoute
+      ? supabase
+          .from("production_stage_defs")
+          .select("code, sort, label_en, label_gu, photo_required, active")
+          .eq("active", true)
+          .order("sort")
+      : Promise.resolve({ data: null }),
+    canRoute ? listWorkshops(false) : Promise.resolve({ workshops: [], error: null }),
+    canRoute ? listRouteTemplates(true) : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const stages = (stageRows ?? []) as StageDef[];
+  const routeWorkshops = workshopList.workshops
+    .filter((w) => w.active)
+    .map((w) => ({ id: w.id, name: w.name, type: w.type, openItemCount: w.open_item_count ?? 0 }));
+  const todayISO = new Date().toISOString().slice(0, 10);
 
   const customer = one(order.customers as { name: string | null; phone: string | null } | null);
   const quote = one(order.quotations as { quote_no: string } | null);
@@ -175,7 +209,7 @@ export default async function OrderDetailPage({ params }: Props) {
                       <LineItemPhotoCell entityType="order_item" entityId={it.id} parentId={order.id} />
 
                       {/* Workshop & Production Stage Badge */}
-                      <div className="pt-1">
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
                         {workshop ? (
                           <div className="inline-flex items-center gap-1.5 text-[11px] bg-sf2 border border-ln px-2.5 py-1 rounded-card shadow-sh flex-wrap">
                             <span className="text-t3 font-medium">Workshop:</span>
@@ -189,7 +223,25 @@ export default async function OrderDetailPage({ params }: Props) {
                               </>
                             )}
                           </div>
-                        ) : (
+                        ) : null}
+                        {/* Plan/re-plan a multi-workshop route — and the ONLY place a
+                            deadline (with a time) gets set. Shown even when the item
+                            already sits at a single workshop from the old plain-
+                            allocate path: the API replans forward from wherever the
+                            item currently is, it does not require starting fresh. */}
+                        {canRoute && it.production_done_at === null && (
+                          <RouteModal
+                            itemId={it.id}
+                            itemDescription={it.description}
+                            orderNo={order.order_no}
+                            customerName={customer?.name ?? "Customer"}
+                            workshops={routeWorkshops}
+                            stages={stages}
+                            templates={templateList.data?.templates ?? []}
+                            todayISO={todayISO}
+                          />
+                        )}
+                        {!workshop && (
                           <Link
                             href="/dashboard/production/allocate"
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-warn bg-warnS border border-warn/30 px-2.5 py-1 rounded-card hover:border-warn transition-all shadow-sh"
