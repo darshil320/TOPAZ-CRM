@@ -6,6 +6,7 @@ Routes:
   /api/whatsapp/webhook      — Meta Cloud API inbound events (Layer 2)
   /api/whatsapp/send         — dashboard → outbound message (Layer 2)
   /api/auth/link-salesperson — dashboard → first-login auth linking (Layer 3)
+  /api/auth/send-sms-hook    — Supabase Send SMS Auth Hook → WhatsApp OTP (module 14)
   /api/workshops             — workshops CRUD + staff roster (Phase 2B · module 14)
   /api/media                 — signed upload → complete → thumbnail (Phase 2B)
   /api/production            — allocate + the stage machine (Phase 2B · modules 08/09)
@@ -18,6 +19,7 @@ Routes:
 from fastapi import FastAPI
 
 from .api.auth import router as auth_router
+from .api.auth_hooks import router as auth_hooks_router
 from .api.enrollment import router as enrollment_router
 from .api.job_cards import router as job_cards_router
 from .api.media import router as media_router
@@ -45,6 +47,9 @@ def create_app() -> FastAPI:
     app.include_router(recognition_router, prefix="/api")
     app.include_router(whatsapp_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    # Called directly by Supabase's infra, signed with Standard Webhooks — no
+    # DASHBOARD_API_KEY dependency (see api/auth_hooks.py's module docstring).
+    app.include_router(auth_hooks_router, prefix="/api")
     app.include_router(quotations_router, prefix="/api")
     app.include_router(orders_router, prefix="/api")
     app.include_router(payments_router, prefix="/api")

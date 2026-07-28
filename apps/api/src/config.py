@@ -130,6 +130,18 @@ class Settings(BaseSettings):
     # routes fail closed (503).
     SUPABASE_JWT_SECRET: str | None = None
 
+    # ── Login OTP via WhatsApp (module 14 follow-up) ────────────────────────
+    # Signing secret Supabase hands you when you create the "Send SMS" Auth Hook
+    # pointed at POST /api/auth/send-sms-hook — copy it verbatim (Supabase's own
+    # display format, `v1,whsec_...`). If unset, the hook endpoint fails closed
+    # (401 on every call) rather than accepting an unsigned request.
+    SUPABASE_SEND_SMS_HOOK_SECRET: str | None = None
+    # Meta template name for the login code — an AUTHENTICATION-category template
+    # (services/auth_otp.py explains why that category, not Utility). Not
+    # hardcoded at the call site: the client may need to rename or re-submit it.
+    WA_OTP_TEMPLATE_NAME: str = "topaz_login_otp"
+    WA_OTP_TEMPLATE_LANG: str = "en"
+
     @field_validator("DATABASE_URL")
     @classmethod
     def require_asyncpg_scheme(cls, v: str) -> str:
