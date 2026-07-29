@@ -43,6 +43,15 @@ def _post_wa_payload(payload: dict) -> str | None:
         headers={"Authorization": f"Bearer {settings.WA_TOKEN}"},
         timeout=15,
     )
+    if resp.status_code >= 400:
+        # httpx.HTTPStatusError's own str() is just "400 Bad Request for url ...' — it
+        # drops Meta's actual error body, which is the ONLY thing that says WHY (wrong
+        # template name, param-count mismatch, template not yet approved, etc). Logged
+        # here, once, so every WhatsApp send failure across the whole app — not just
+        # this one call site — is diagnosable from the log line instead of needing a
+        # second round trip to reproduce it.
+        logger.error("WhatsApp API error %s sending to %s: %s",
+                    resp.status_code, payload.get("to"), resp.text)
     resp.raise_for_status()
     wamid = resp.json().get("messages", [{}])[0].get("id")
     logger.info("WhatsApp message sent to %s: wamid=%s", payload.get("to"), wamid)
