@@ -41,32 +41,34 @@ export default async function RootPage() {
             You're authenticated as <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">{user.phone ?? user.email}</span> but no salesperson record exists for this account.
           </p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Run the seed SQL in Supabase Studio to link your account, then reload this page.
+            Ask your owner/admin to add you under <span className="font-semibold text-slate-600">Owner → Salespersons</span> — the WhatsApp number there must match{" "}
+            <span className="font-mono text-slate-600">{user.phone ?? user.email}</span> exactly. Reload this page once that's done; linking is automatic.
           </p>
-          <div className="mt-5 p-3 bg-slate-50 rounded-xl text-left">
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Supabase Studio → SQL Editor</p>
-            <pre className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap break-all font-mono">
+          <details className="mt-5 text-left">
+            <summary className="cursor-pointer text-[11px] font-semibold text-slate-400 hover:text-slate-500">
+              Owner bootstrapping the very first account?
+            </summary>
+            <div className="mt-2 p-3 bg-slate-50 rounded-xl">
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Supabase Dashboard → SQL Editor for THIS project
+              </p>
+              <pre className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap break-all font-mono">
 {`INSERT INTO salespersons (auth_uid, name, role, active, whatsapp)
 VALUES (
   '${user.id}',
-  'Darshil',
-  'owner',
+  '<your name>',
+  'owner',  -- or 'admin' / 'salesperson' / 'workshop_manager' / 'accounts' / 'delivery'
   true,
-  '+919426529230'
+  '${user.phone ? (user.phone.startsWith("+") ? user.phone : `+${user.phone}`) : "<this account's WhatsApp number, E.164>"}'
 );`}
-            </pre>
-          </div>
-          <a
-            href="http://127.0.0.1:54323/project/default/sql/new"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Open SQL Editor
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
+              </pre>
+              <p className="mt-2 text-[10px] text-slate-400 leading-relaxed">
+                Only use this for the FIRST account (nobody exists yet to use the
+                Salespersons screen). Every account after that should go through
+                Owner → Salespersons, not raw SQL.
+              </p>
+            </div>
+          </details>
         </div>
       </div>
     );
