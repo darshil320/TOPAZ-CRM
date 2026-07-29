@@ -91,9 +91,12 @@ async def send_sms_hook(request: Request) -> dict:
         # here would report success before delivery was ever attempted.
         # `send_wa_template` is a blocking call (httpx sync) — off the event loop
         # via to_thread, same pattern as tasks/production_notify.py's `_send_template`.
+        # button_params=params (reusing the same OTP value): confirmed empirically
+        # that this template's "Copy code" option compiles to a URL-type button
+        # Meta requires a matching component for — see send_wa_template's docstring.
         wamid = await asyncio.to_thread(
             send_wa_template, to, settings.WA_OTP_TEMPLATE_NAME, params,
-            settings.WA_OTP_TEMPLATE_LANG,
+            settings.WA_OTP_TEMPLATE_LANG, params,
         )
     except Exception as exc:  # noqa: BLE001 — surfaced to Supabase as a hook error, not a 500
         logger.error("send-sms-hook: WhatsApp send failed for %s: %s", to, exc)

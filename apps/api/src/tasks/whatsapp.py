@@ -171,17 +171,33 @@ def send_wa_document(to: str, media_id: str, filename: str, caption: str) -> str
     )
 
 
-def send_wa_template(to: str, template_name: str, params: list[dict], lang: str = "en") -> str | None:
+def send_wa_template(
+    to: str, template_name: str, params: list[dict], lang: str = "en",
+    button_params: list[dict] | None = None,
+) -> str | None:
     """Approved-template send (allowed outside the 24h window).
 
     params: prebuilt body-component parameter objects, e.g.
     {"type": "text", "parameter_name": "customer_name", "text": "Hemant"} —
     our registered templates use NAMED parameter format
     (see services/templates.meta_template_params).
+
+    button_params: only needed for a template that HAS a button — e.g. an
+    Authentication-category template's "Copy code" option, which Meta registers
+    internally as a URL-type button (confirmed empirically: sending one with no
+    button component 400s with "(#131008) buttons: Button at index 0 of type Url
+    requires a parameter" — the WhatsApp Manager UI gives no indication a plain
+    "Copy code" choice produces a button at all). When set, one button component
+    is appended at index 0 carrying these parameters — services/auth_otp.py is the
+    only caller today, reusing the same OTP value for both body and button.
     """
     components = []
     if params:
         components.append({"type": "body", "parameters": params})
+    if button_params:
+        components.append({
+            "type": "button", "sub_type": "url", "index": "0", "parameters": button_params,
+        })
     return _post_wa_payload(
         {
             "messaging_product": "whatsapp",
