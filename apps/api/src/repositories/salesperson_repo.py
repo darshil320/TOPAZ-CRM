@@ -1,4 +1,4 @@
-"""Salesperson repository — first-login auth linking (§19-B)."""
+"""Salesperson repository — first-login auth linking (§19-B) + staff directory reads."""
 
 from uuid import UUID
 
@@ -31,3 +31,25 @@ async def link_salesperson_by_phone(
     )
     row = result.first()
     return UUID(str(row.id)) if row else None
+
+
+async def list_active_notifiable(session: AsyncSession) -> list[dict]:
+    """Every active staff member with a WhatsApp number — the audience for a
+    showroom-wide broadcast (new kiosk registration, etc).
+
+    Deliberately unfiltered by role: the client's own ask was "every salesperson,
+    owner, everyone" for this specific alert, unlike the REPEAT-visit alert (which
+    targets one assigned salesperson) or module 14's alerts (workshop/delivery
+    only). If a narrower audience is ever wanted, filter the CALLER's list, not
+    this query — keeping the query role-agnostic means it never silently drops a
+    new role added later (e.g. today's new `workshop_manager`/`delivery` rows
+    still get pinged here, matching "everyone" literally).
+    """
+    result = await session.execute(
+        text(
+            "SELECT id, name, whatsapp FROM salespersons"
+            " WHERE active = true AND whatsapp IS NOT NULL"
+            " ORDER BY created_at"
+        )
+    )
+    return [dict(m) for m in result.mappings().all()]

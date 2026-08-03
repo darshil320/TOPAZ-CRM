@@ -286,6 +286,59 @@ def send_salesperson_alert(
 
 @celery_app.task(
     bind=True,
+    name="src.tasks.whatsapp.send_new_registration_alert",
+    max_retries=3,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def send_new_registration_alert(
+    self,
+    staff_whatsapp: str,
+    customer_name: str | None,
+    primary_interest: str | None,
+) -> None:
+    """WhatsApp alert to ONE staff member that a new customer just registered at
+    the kiosk. Called once per active staff member (api/enrollment.py fans this
+    out — one Celery task per recipient, matching how send_salesperson_alert is
+    already dispatched, so one person's retry/failure never blocks another's).
+
+    Broadcasts to EVERY active salesperson regardless of role, per the client's
+    own words: "every salesperson, owner, everyone" — this is a stand-in for the
+    entrance-camera arrival alert while the camera hardware is not yet installed
+    (docs/HARDWARE_SPEC.md). Once the camera is live, REPEAT visits still alert
+    only the assigned salesperson (send_salesperson_alert); this one is
+    specifically the "brand new person, nobody's assigned yet" broadcast.
+
+    Free-form text, same as send_salesperson_alert — carries the identical 24h-
+    window caveat (a staff member who has never messaged the business number
+    from their own phone will not receive this until they do, or until this is
+    upgraded to an approved template the way module 14's staff alerts were).
+    """
+    settings = get_settings()
+    display = (customer_name or "A new customer").title()
+    interest_line = f"\nInterested in: {primary_interest}" if primary_interest else ""
+    dashboard_link = f"{settings.DASHBOARD_URL}/dashboard/walkins"
+
+    body = (
+        f"🆕 *New customer registered!*\n\n"
+        f"{display} just signed up at the kiosk.{interest_line}\n"
+        f"Claim them → {dashboard_link}"
+    )
+    try:
+        send_wa_text(staff_whatsapp, body)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in _RETRYABLE_STATUS_CODES:
+            raise self.retry(exc=exc)
+        logger.error(
+            "New-registration alert failed (non-retryable %s) for staff %s",
+            exc.response.status_code, staff_whatsapp,
+        )
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(
+    bind=True,
     name="src.tasks.whatsapp.send_intent_alert",
     max_retries=3,
     default_retry_delay=10,

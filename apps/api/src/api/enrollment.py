@@ -28,6 +28,7 @@ from ..repositories.enrollment_repo import (
     find_pending_consent_token,
 )
 from ..repositories.followup_repo import schedule_followup
+from ..repositories.salesperson_repo import list_active_notifiable
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -91,11 +92,28 @@ async def enroll(
                 + timedelta(minutes=settings.WELCOME_FOLLOWUP_DELAY_MINUTES),
             )
 
+        # Every kiosk enrollment IS a new customer row (enroll_customer never
+        # updates an existing one) — so this fires exactly once per real
+        # registration, no NEW-vs-REPEAT check needed the way the camera
+        # pipeline (tasks/recognition.py) requires for its own alert.
+        staff = await list_active_notifiable(session)
+
         await session.commit()
 
+    # Fired AFTER commit, one Celery task per recipient (matches
+    # send_salesperson_alert's own dispatch shape) — a slow/failed send to one
+    # staff member's phone must never block or duplicate another's, and the
+    # enrollment itself must not roll back over a notification problem.
+    from ..tasks.whatsapp import send_new_registration_alert
+
+    for person in staff:
+        send_new_registration_alert.delay(
+            person["whatsapp"], req.name, req.primary_interest,
+        )
+
     logger.info(
-        "Enrolled customer=%s consent=%s face=%s welcome_followup=%s",
-        customer_id, consent_id, enrolled, followup_id,
+        "Enrolled customer=%s consent=%s face=%s welcome_followup=%s notified=%d staff",
+        customer_id, consent_id, enrolled, followup_id, len(staff),
     )
     return {
         "consent_id": str(consent_id),
