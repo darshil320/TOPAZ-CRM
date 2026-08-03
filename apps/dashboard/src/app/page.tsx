@@ -44,6 +44,17 @@ export default async function RootPage() {
             Ask your owner/admin to add you under <span className="font-semibold text-slate-600">Owner → Salespersons</span> — the WhatsApp number there must match{" "}
             <span className="font-mono text-slate-600">{user.phone ?? user.email}</span> exactly. Reload this page once that's done; linking is automatic.
           </p>
+          <p className="text-xs text-slate-400 leading-relaxed mt-2">
+            Already added? Right after a brand-new phone's first-ever login, the
+            number can take one extra reload to fully register — try the button below
+            before assuming anything is wrong.
+          </p>
+          <a
+            href="/"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+          >
+            Try again
+          </a>
           <details className="mt-5 text-left">
             <summary className="cursor-pointer text-[11px] font-semibold text-slate-400 hover:text-slate-500">
               Owner bootstrapping the very first account?

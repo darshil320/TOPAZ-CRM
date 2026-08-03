@@ -309,23 +309,17 @@ def send_new_registration_alert(
     only the assigned salesperson (send_salesperson_alert); this one is
     specifically the "brand new person, nobody's assigned yet" broadcast.
 
-    Free-form text, same as send_salesperson_alert — carries the identical 24h-
-    window caveat (a staff member who has never messaged the business number
-    from their own phone will not receive this until they do, or until this is
-    upgraded to an approved template the way module 14's staff alerts were).
+    Sent via the approved `topaz_new_customer` Utility template (client asked for
+    guaranteed delivery — see services/registration_alert.py) rather than free
+    text: a staff member has no `last_inbound_at`-style tracking the way a
+    customer does, so there is no reliable 24h-window to even check before
+    falling back, unlike the customer-facing send path in tasks/quotes.py.
     """
-    settings = get_settings()
-    display = (customer_name or "A new customer").title()
-    interest_line = f"\nInterested in: {primary_interest}" if primary_interest else ""
-    dashboard_link = f"{settings.DASHBOARD_URL}/dashboard/walkins"
+    from ..services.registration_alert import TEMPLATE_NEW_CUSTOMER, new_customer_params
 
-    body = (
-        f"🆕 *New customer registered!*\n\n"
-        f"{display} just signed up at the kiosk.{interest_line}\n"
-        f"Claim them → {dashboard_link}"
-    )
+    params = new_customer_params(customer_name, primary_interest)
     try:
-        send_wa_text(staff_whatsapp, body)
+        send_wa_template(staff_whatsapp, TEMPLATE_NEW_CUSTOMER, params)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in _RETRYABLE_STATUS_CODES:
             raise self.retry(exc=exc)
