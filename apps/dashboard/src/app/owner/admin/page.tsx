@@ -13,7 +13,7 @@ import WorkshopStaffAdmin, { type StaffWorkshop } from "./WorkshopStaffAdmin";
 import RouteTemplateAdmin from "./RouteTemplateAdmin";
 import StagePlanAdmin from "./StagePlanAdmin";
 import { listWorkshops } from "@/lib/workshops";
-import { listRouteTemplates, listStageDefaults, listWorkshopStaff } from "@/lib/production/reads";
+import { listAllWorkshopStaff, listRouteTemplates, listStageDefaults } from "@/lib/production/reads";
 import type { StageDef } from "@/lib/production/types";
 import { addWorkshop, updateWorkshop, deactivateWorkshop } from "./actions";
 
@@ -43,6 +43,19 @@ export default async function AdminPage({ searchParams }: Props) {
   if (!isOwnerRole(sp)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
+
+  // ─── ONLY WHAT THIS TAB RENDERS ──────────────────────────────────────────────
+  // This page has three tabs and used to load ALL of their data on every visit:
+  // opening "System Settings" fetched the product catalog, the workshops, the route
+  // templates, the stage defaults AND a staff roster per workshop — four API
+  // round-trips plus N more, to render a four-field form. The tab is known here (it
+  // is a URL param, and switching tabs is a navigation), so each tab now pays only
+  // for itself.
+  const NONE = Promise.resolve({ data: null, error: null });
+  const productionTab = tab === "production";
+  const catalogTab = tab === "catalog";
+  const settingsTab = tab === "settings";
+
   const [
     { data: products },
     { data: settingsRows },
@@ -51,38 +64,46 @@ export default async function AdminPage({ searchParams }: Props) {
     workshopResult,
     templateResult,
     stageDefaultsResult,
+    rosterResult,
   ] = await Promise.all([
-    supabase
-      .from("products")
-      .select("id, name, category, hsn, gst_rate, base_price, unit, active, primary_media_id")
-      .order("name"),
-    supabase.from("app_settings").select("key, value"),
-    supabase.from("salespersons").select("id, name, role").eq("active", true).order("name"),
-    supabase
-      .from("production_stage_defs")
-      .select("code, sort, label_en, label_gu, photo_required, active")
-      .eq("active", true)
-      .order("sort"),
-    listWorkshops(false),
-    listRouteTemplates(false),
-    listStageDefaults(),
+    catalogTab
+      ? supabase
+          .from("products")
+          .select("id, name, category, hsn, gst_rate, base_price, unit, active, primary_media_id")
+          .order("name")
+      : NONE,
+    settingsTab ? supabase.from("app_settings").select("key, value") : NONE,
+    // The manager/staff pickers live on the production tab only.
+    productionTab
+      ? supabase.from("salespersons").select("id, name, role").eq("active", true).order("name")
+      : NONE,
+    productionTab
+      ? supabase
+          .from("production_stage_defs")
+          .select("code, sort, label_en, label_gu, photo_required, active")
+          .eq("active", true)
+          .order("sort")
+      : NONE,
+    productionTab ? listWorkshops(false) : Promise.resolve({ workshops: [], error: null }),
+    productionTab ? listRouteTemplates(false) : NONE,
+    productionTab ? listStageDefaults() : NONE,
+    // ONE call for every roster — see listAllWorkshopStaff. This was a loop of one
+    // API call per active workshop, issued after the wave above had already
+    // finished, so it was a second serial hop that grew with the workshop count.
+    productionTab ? listAllWorkshopStaff() : NONE,
   ]);
 
-  const activeWorkshops = workshopResult.workshops.filter((w) => w.active);
-  const rosters = await Promise.all(
-    activeWorkshops.map(async (w) => ({
-      workshop: w,
-      result: await listWorkshopStaff(w.id),
-    })),
-  );
-  const staffWorkshops: StaffWorkshop[] = rosters.map(({ workshop, result }) => ({
-    id: workshop.id,
-    name: workshop.name,
-    type: workshop.type,
-    active: workshop.active,
-    staff: result.data?.staff ?? [],
-  }));
-  const rosterError = rosters.find(({ result }) => result.error)?.result.error ?? null;
+  const rosters = rosterResult.data?.rosters ?? {};
+  const staffWorkshops: StaffWorkshop[] = workshopResult.workshops
+    .filter((w) => w.active)
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      type: w.type,
+      active: w.active,
+      staff: rosters[w.id] ?? [],
+    }));
+  const rosterError = rosterResult.error;
 
   const settingsMap = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
   const settings: AdminSettings = {

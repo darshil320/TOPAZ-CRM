@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { StatCard, StatCardGrid } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import ListRow from "@/components/ui/ListRow";
+import { selectInChunks } from "@/lib/supabase/inChunks";
 
 import OpenBalancesListClient from "./OpenBalancesListClient";
 
@@ -36,14 +37,18 @@ export default async function PaymentsPage() {
   // them. `order_outstanding` is an aggregate over orders ⋈ payments (0016), so
   // selecting it whole summed every payment ever taken — then discarded every row
   // outside the 500 above. Same figures, bounded work.
+  //
+  // Chunked: 500 ids in one `.in()` is ~18 KB of query string, over the URL limit.
+  // See lib/supabase/inChunks.
   const orderIds = (orders ?? []).map((o) => o.id);
-  const { data: outstanding } =
-    orderIds.length > 0
-      ? await supabase
-          .from("order_outstanding")
-          .select("order_id, outstanding")
-          .in("order_id", orderIds)
-      : { data: [] };
+  const { data: outstanding, error: outstandingError } = await selectInChunks<{
+    // Both nullable in the generated types: `order_outstanding` is a VIEW, so
+    // PostgREST cannot infer NOT NULL from the grouped columns (0016).
+    order_id: string | null;
+    outstanding: number | null;
+  }>(orderIds, (chunk) =>
+    supabase.from("order_outstanding").select("order_id, outstanding").in("order_id", chunk),
+  );
 
   const collectedToday = (todayPays ?? []).reduce(
     (sum, p) => sum + (p.kind === "refund" ? -Number(p.amount) : Number(p.amount)),
@@ -78,6 +83,16 @@ export default async function PaymentsPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader title="Payments" subtitle="Collections, open balances, and aging tracking" />
+
+      {/* Said out loud rather than swallowed: with the balances unread, every order
+          looks fully paid, and "no money outstanding" is the single most dangerous
+          thing this page could get wrong. */}
+      {outstandingError && (
+        <div className="rounded-md border border-warn/20 bg-warnS px-4 py-3 text-caption font-semibold text-warn">
+          Outstanding balances could not be loaded, so the figures below are incomplete.
+          Refresh to retry.
+        </div>
+      )}
 
       <StatCardGrid>
         <StatCard label="Collected today" value={formatINR(collectedToday)} />

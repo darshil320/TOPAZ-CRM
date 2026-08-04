@@ -2,6 +2,27 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
 import ProductionBoardClient, { ProductionItem, StageDef } from "./ProductionBoardClient";
+import { selectInChunks } from "@/lib/supabase/inChunks";
+
+/** A production photo row, as this board's drawer needs it. */
+type BoardMediaRow = {
+  id: string;
+  entity_id: string;
+  storage_key: string;
+  created_at: string;
+  stage_code: string | null;
+  salespersons?: { name: string | null } | { name: string | null }[] | null;
+};
+
+/** One stage event on an item's timeline. */
+type BoardEventRow = {
+  id: string;
+  order_item_id: string;
+  kind: string;
+  stage_code: string;
+  note: string | null;
+  at: string;
+};
 
 export default async function ProductionPage() {
   const sp = await getCurrentSalesperson();
@@ -35,25 +56,33 @@ export default async function ProductionPage() {
   // every production event in the database — and then thrown away for the ~95% that
   // belong to finished items the board does not render. That cost grows forever;
   // the board's size does not.
+  //
+  // Chunked, because the id list travels in the query string: a busy floor with
+  // hundreds of open items would otherwise build a URL past the gateway's limit and
+  // the read would fail outright rather than degrade. See lib/supabase/inChunks.
   const boardItemIds = ((rawItems as any[]) ?? []).map((r) => r.id as string);
-  const [{ data: mediaRows }, { data: eventRows }] =
-    boardItemIds.length > 0
-      ? await Promise.all([
-          supabase
-            .from("media")
-            // `stage_code` (0036) is what makes the drawer's photo captions real — before
-            // it, every tile was hardcoded to the string "production".
-            .select("id, entity_id, storage_key, mime, created_at, stage_code, salespersons(name)")
-            .eq("entity_type", "order_item")
-            .eq("status", "ready")
-            .in("entity_id", boardItemIds),
-          supabase
-            .from("production_events")
-            .select("id, order_item_id, kind, stage_code, note, at")
-            .in("order_item_id", boardItemIds)
-            .order("at", { ascending: true }),
-        ])
-      : [{ data: [] }, { data: [] }];
+  const [{ data: mediaRows }, { data: eventRows }] = await Promise.all([
+    selectInChunks<BoardMediaRow>(boardItemIds, (chunk) =>
+      supabase
+        .from("media")
+        // `stage_code` (0036) is what makes the drawer's photo captions real — before
+        // it, every tile was hardcoded to the string "production".
+        .select("id, entity_id, storage_key, mime, created_at, stage_code, salespersons(name)")
+        .eq("entity_type", "order_item")
+        .eq("status", "ready")
+        .in("entity_id", chunk),
+    ),
+    selectInChunks<BoardEventRow>(boardItemIds, (chunk) =>
+      supabase
+        .from("production_events")
+        .select("id, order_item_id, kind, stage_code, note, at")
+        .in("order_item_id", chunk)
+        // Ordered per chunk; re-sorted below, since chunk boundaries would otherwise
+        // interleave the timeline.
+        .order("at", { ascending: true }),
+    ),
+  ]);
+  const orderedEvents = [...(eventRows ?? [])].sort((a, b) => a.at.localeCompare(b.at));
 
   // ONE batched sign for every photo on the board. Signing them one at a time in this
   // loop was a sequential HTTPS round-trip per photo, so the board got slower with
@@ -101,7 +130,7 @@ export default async function ProductionPage() {
 
   // Group events by order_item_id
   const eventMap = new Map<string, { id: string; kind: string; stageCode: string; note: string | null; at: string }[]>();
-  for (const ev of eventRows ?? []) {
+  for (const ev of orderedEvents) {
     const list = eventMap.get(ev.order_item_id) || [];
     list.push({
       id: ev.id,

@@ -55,11 +55,13 @@ picker filters on it, so a part-delivered order stays schedulable.
 
 ### Performance pass — one deploy-order rule: API before dashboard
 
-The dashboard's batched image signing (`lib/media/actions.ts::getMediaUrls`) now calls a new
-route, **`POST /api/media/urls`**. Deploy the **API first**. A dashboard that is live against
-an older API gets a 404 from it and renders placeholder tiles instead of photos — line-item
-thumbnails and the production galleries — with the rest of every page unaffected. Nothing
-breaks permanently and no data is at risk; it self-heals the moment the API is up.
+The dashboard now calls two new routes: **`POST /api/media/urls`** (batched image signing,
+`lib/media/actions.ts::getMediaUrls`) and **`GET /api/workshops/staff`** (every workshop's
+roster in one call, replacing one call per workshop on the admin tab). Deploy the **API
+first**. A dashboard live against an older API gets 404s from both and degrades visibly but
+harmlessly — placeholder tiles instead of line-item/production photos, and a "could not load"
+banner on the admin page's staff card. Nothing breaks permanently, no data is at risk, and it
+self-heals the moment the API is up.
 
 The other changes in that pass need no coordination: HTTP routes now share one pooled DB
 connection instead of opening (and discarding) a TLS connection per request — see
@@ -90,6 +92,34 @@ What it fixes, all of it measured off the actual read paths:
 It lands **ahead of** `migrations_pending/0041`/`0042`, so promoting those later is an
 out-of-order push (`supabase db push` may need `--include-all`). That is inherent to
 holding them back and nothing in `0043` touches what they change.
+
+### RLS InitPlan hoisting (`0044`) — push any time, but read this first
+
+`0044_rls_initplan_hoisting.sql` rewrites the RLS policies on the customer / quote /
+order / payment read surface so the helper functions are evaluated **once per statement**
+instead of **once per row**. `is_owner()` and `is_role(...)` become `(select is_owner())`,
+and `is_assigned_to_customer(col)` becomes
+`col in (select my_assigned_customer_ids())` — a new parameterless helper added by the
+same migration. Measured on a 2 000-order table with the caller assigned to 300 of them:
+**36.8 ms → 0.9 ms, same 300 rows** (~39x). Every list in the dashboard was paying this.
+
+**It must not change who can see what, and that is tested, not asserted.**
+`apps/api/tests/test_rls_initplan_equivalence.py` evaluates the old predicate and the new
+one over every row of every rewritten table, for seven personas (owner, assigned
+salesperson, unrelated salesperson, accounts, workshop_manager, a JWT with no staff row,
+and no claims at all) and requires the admitted id sets to be **identical** — 115 cases.
+It also asserts the plan really does hoist, and that the fixture contains rows the
+assigned salesperson cannot see, so the equivalence checks cannot pass vacuously. If any
+of that goes red, the migration is wrong. The pre-existing `test_rls.py` /
+`test_rls_phase2a.py` suites are unchanged, by design.
+
+Only scanned tables were rewritten. The workshop, routing, stage-plan, transfer and
+**delivery** policies are deliberately untouched: they are read by primary key, and the
+delivery ones are already being rewritten by the pending `0041`/`0042`. So
+`is_assigned_to_customer()` still exists and is still used — do not delete it.
+
+Safe to push before or after the API/dashboard deploy: no application code references
+`my_assigned_customer_ids()`, and the policies keep their names and their meaning.
 
 **Ops step, unchanged from `0037`:** sync the challan counter with their paper book before
 the first challan is generated, or the app starts at `T.F 1` and duplicates numbers they

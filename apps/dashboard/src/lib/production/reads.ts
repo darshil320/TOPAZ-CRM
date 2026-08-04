@@ -116,17 +116,36 @@ export async function listStageDefaults() {
   return apiCall<{ stages: StageDefWithDefault[] }>("/api/stage-plan/stage-defs");
 }
 
+export interface WorkshopStaffRow {
+  id: string;
+  salesperson_id: string;
+  role: "lead" | "sub";
+  active: boolean;
+  salesperson_name: string;
+  salesperson_whatsapp: string | null;
+  salesperson_role: string;
+  created_at: string;
+}
+
 export async function listWorkshopStaff(workshopId: string, activeOnly = true) {
-  return apiCall<{
-    staff: {
-      id: string;
-      salesperson_id: string;
-      role: "lead" | "sub";
-      active: boolean;
-      salesperson_name: string;
-      salesperson_whatsapp: string | null;
-      salesperson_role: string;
-      created_at: string;
-    }[];
-  }>(`/api/workshops/${workshopId}/staff?active=${activeOnly ? "true" : "false"}`);
+  return apiCall<{ staff: WorkshopStaffRow[] }>(
+    `/api/workshops/${workshopId}/staff?active=${activeOnly ? "true" : "false"}`,
+  );
+}
+
+/**
+ * EVERY workshop's roster in one call, keyed by workshop id.
+ *
+ * Use this, not `listWorkshopStaff` in a loop: the admin tab needs a card per
+ * workshop, and one call per workshop meant the page's load time grew with the
+ * number of workshops — each one a Vercel→Railway→Supabase round-trip for data the
+ * API can return from a single join.
+ *
+ * A workshop with nobody on it is absent from the map; the caller already has the
+ * workshop list and renders the empty state from that.
+ */
+export async function listAllWorkshopStaff(activeOnly = true) {
+  return apiCall<{ rosters: Record<string, WorkshopStaffRow[]> }>(
+    `/api/workshops/staff?active=${activeOnly ? "true" : "false"}`,
+  );
 }

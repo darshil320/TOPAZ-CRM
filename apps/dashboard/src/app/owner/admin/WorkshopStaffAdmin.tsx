@@ -15,7 +15,6 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Crown, Loader2, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -56,7 +55,6 @@ export default function WorkshopStaffAdmin({
   staffOptions: StaffOption[];
   loadError: string | null;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [rosters, setRosters] = useState<Record<string, StaffRow[]>>(
     Object.fromEntries(workshops.map((w) => [w.id, w.staff])),
@@ -81,7 +79,9 @@ export default function WorkshopStaffAdmin({
       }
       if (res.staff) setRosters((prev) => ({ ...prev, [workshopId]: res.staff! }));
       setPick((prev) => ({ ...prev, [workshopId]: { id: "", role: "sub" } }));
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   }
 
@@ -94,7 +94,6 @@ export default function WorkshopStaffAdmin({
         return;
       }
       if (res.staff) setRosters((prev) => ({ ...prev, [workshopId]: res.staff! }));
-      router.refresh();
     });
   }
 

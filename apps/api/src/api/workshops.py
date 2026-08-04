@@ -230,6 +230,28 @@ async def my_workshops(caller_uid: str = Depends(get_caller_uid)) -> dict:
     return {"workshops": workshops}
 
 
+@router.get("/staff")
+async def list_all_staff(active: bool = True,
+                         caller_uid: str = Depends(get_caller_uid)) -> dict:
+    """EVERY workshop's roster, keyed by workshop id, in ONE call.
+
+    The admin tab renders a roster card per workshop. Fetching them one at a time cost
+    an HTTP round-trip, a caller verification and a query PER WORKSHOP — the page's
+    load time scaled with the number of workshops, for data that is one join.
+
+    Registered ABOVE `/{workshop_id}/staff` on purpose: FastAPI matches in declaration
+    order, and although the two paths differ in segment count today, keeping the
+    literal first is what stops a future `/{workshop_id}` GET from swallowing it.
+
+    Same audience as the per-workshop route: any active staff member. A name and the
+    word 'lead' carry no money.
+    """
+    async with get_api_session() as session:
+        await authz.resolve_caller(session, caller_uid)
+        rosters = await staff_repo.list_staff_all(session, active_only=active)
+    return {"rosters": rosters}
+
+
 @router.get("/{workshop_id}/staff")
 async def list_staff(workshop_id: UUID, active: bool = True,
                      caller_uid: str = Depends(get_caller_uid)) -> dict:

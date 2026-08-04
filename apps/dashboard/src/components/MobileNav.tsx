@@ -125,15 +125,15 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
             }`}
           >
             {/* Handle and Close */}
-            <div className="relative flex justify-center pt-3 pb-1 mb-1">
-              <div className="w-10 h-1 rounded-full bg-sf3 mt-1" />
+            <div className="relative flex justify-center pt-4 pb-2 mb-1">
+              <div className="w-12 h-1.5 rounded-full bg-ln mt-2" />
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
-                className="absolute right-4 top-2 p-1 text-t3 hover:bg-sf3 rounded-full transition-colors"
+                className="absolute right-4 top-3 w-8 h-8 flex items-center justify-center rounded-full bg-sf2 border border-ln text-t2 hover:bg-sf3 hover:text-t1 transition-all shadow-sm"
                 aria-label="Close menu"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 

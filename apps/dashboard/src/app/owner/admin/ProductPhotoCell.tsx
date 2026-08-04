@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import MediaUpload from "@/components/media/MediaUpload";
 import { setProductPrimaryPhoto } from "./actions";
 
@@ -24,7 +23,6 @@ export default function ProductPhotoCell({
   productId: string;
   hasPhoto: boolean;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -40,7 +38,9 @@ export default function ProductPhotoCell({
         return;
       }
       setOpen(false);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   }
 

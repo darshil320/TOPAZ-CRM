@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { saveSetting } from "./actions";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Button from "@/components/ui/Button";
@@ -14,7 +13,6 @@ export interface AdminSettings {
 }
 
 export default function SettingsAdmin({ initial }: { initial: AdminSettings }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +34,9 @@ export default function SettingsAdmin({ initial }: { initial: AdminSettings }) {
         return;
       }
       setSaved(true);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   };
 

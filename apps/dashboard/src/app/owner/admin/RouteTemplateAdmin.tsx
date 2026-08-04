@@ -15,7 +15,6 @@
  */
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Plus, PowerOff, Route as RouteIcon, X } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -43,7 +42,6 @@ export default function RouteTemplateAdmin({
   stages: StageDef[];
   loadError: string | null;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -94,7 +92,9 @@ export default function RouteTemplateAdmin({
       setShowForm(false);
       setName("");
       setLegs([]);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   }
 
@@ -106,7 +106,6 @@ export default function RouteTemplateAdmin({
         setError(res.error);
         return;
       }
-      router.refresh();
     });
   }
 

@@ -15,7 +15,6 @@
  */
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { CalendarClock, Check, Loader2 } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -32,7 +31,6 @@ export default function StagePlanAdmin({
   stages: StageDefWithDefault[];
   loadError: string | null;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(stages.map((s) => [s.code, s.default_days?.toString() ?? ""])),
@@ -71,7 +69,9 @@ export default function StagePlanAdmin({
         return;
       }
       setSavedCode(code);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   }
 

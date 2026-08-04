@@ -83,6 +83,42 @@ async def list_staff(session: AsyncSession, workshop_id: UUID, *, active_only: b
     return [dict(m) for m in result.mappings().all()]
 
 
+async def list_staff_all(
+    session: AsyncSession, *, active_only: bool = True
+) -> dict[str, list[dict]]:
+    """EVERY workshop's roster in ONE query, keyed by workshop id.
+
+    The admin tab shows a roster card per workshop. Asking for them one workshop at a
+    time meant one HTTP call → one caller verification → one query EACH, so the page
+    got slower with every workshop the business added. Same rows, same order, one
+    round-trip.
+
+    A workshop with an empty roster is absent from the map; the caller renders "no
+    staff yet" from the workshop list it already has, which is where the set of
+    workshops belongs anyway.
+    """
+    result = await session.execute(
+        text(
+            f"SELECT {', '.join(f's.{f}' for f in _FIELDS)},"
+            "       p.name AS salesperson_name, p.whatsapp AS salesperson_whatsapp,"
+            "       p.role AS salesperson_role, p.active AS salesperson_active"
+            " FROM workshop_staff s"
+            " JOIN salespersons p ON p.id = s.salesperson_id"
+            " JOIN workshops w ON w.id = s.workshop_id"
+            " WHERE (:active_only = false OR s.active = true)"
+            # Same ordering as list_staff, with workshop as the outer key so the
+            # grouping below preserves it.
+            " ORDER BY s.workshop_id, s.active DESC, (s.role = 'lead') DESC, lower(p.name)"
+        ),
+        {"active_only": active_only},
+    )
+    rosters: dict[str, list[dict]] = {}
+    for row in result.mappings().all():
+        entry = dict(row)
+        rosters.setdefault(str(entry["workshop_id"]), []).append(entry)
+    return rosters
+
+
 async def get_membership(
     session: AsyncSession, *, workshop_id: UUID, salesperson_id: UUID
 ) -> dict | None:

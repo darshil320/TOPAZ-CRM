@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { addProduct, setProductActive } from "./actions";
 import ProductPhotoCell from "./ProductPhotoCell";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -23,7 +22,6 @@ export interface AdminProduct {
 }
 
 export default function ProductAdmin({ products }: { products: AdminProduct[] }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -46,14 +44,15 @@ export default function ProductAdmin({ products }: { products: AdminProduct[] })
       }
       setForm({ name: "", category: "", hsn: "9403", gst_rate: "18", base_price: "", unit: "nos" });
       setShowAddForm(false);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   };
 
   const toggle = (id: string, active: boolean) => {
     startTransition(async () => {
       await setProductActive(id, active);
-      router.refresh();
     });
   };
 

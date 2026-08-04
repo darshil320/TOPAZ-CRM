@@ -17,14 +17,17 @@ export default async function PipelinePage() {
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
+  // Filtered to the board's own stages IN THE QUERY, not after it. This was fetching
+  // 500 rows of any stage and discarding the off-board ones in JS, so once a shop has
+  // 500+ closed deals the limit is spent on `won`/`lost` rows the board never shows
+  // and live cards silently fall off it. Cheaper and correct.
   const { data: rows } = await supabase
     .from("pipeline_stages")
     .select("stage, updated_at, customers(id, name, primary_interest)")
+    .in("stage", [...BOARD_STAGES])
     .limit(500);
 
-  const onBoard = new Set<string>(BOARD_STAGES);
   const cards: BoardCard[] = (rows ?? [])
-    .filter((r) => onBoard.has(r.stage))
     .map((r) => {
       const c = Array.isArray(r.customers) ? r.customers[0] : r.customers;
       return {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { addSalesperson, type StaffRole } from "./actions";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -26,7 +25,6 @@ export default function AddSalespersonForm() {
   const [role, setRole] = useState<StaffRole>("salesperson");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +38,9 @@ export default function AddSalespersonForm() {
       setName("");
       setWhatsapp("");
       setRole("salesperson");
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   };
 

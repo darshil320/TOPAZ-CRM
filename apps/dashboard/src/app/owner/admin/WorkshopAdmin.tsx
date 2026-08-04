@@ -13,7 +13,6 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, X, Pencil, PowerOff } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Button from "@/components/ui/Button";
@@ -192,7 +191,6 @@ export default function WorkshopAdmin({
   onUpdate: (id: string, values: WorkshopFormValues) => Promise<{ error: string | null }>;
   onDeactivate: (id: string) => Promise<{ error: string | null }>;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<WorkshopFormValues>(EMPTY_FORM);
@@ -213,7 +211,9 @@ export default function WorkshopAdmin({
       }
       setAddForm(EMPTY_FORM);
       setShowAddForm(false);
-      router.refresh();
+      // No router.refresh(): the action revalidates this page, so its own response
+      // already carries the fresh tree. Refreshing too re-rendered the whole admin
+      // page a second time per save.
     });
   }
 
@@ -232,7 +232,6 @@ export default function WorkshopAdmin({
         return;
       }
       setEditingId(null);
-      router.refresh();
     });
   }
 
@@ -245,7 +244,6 @@ export default function WorkshopAdmin({
         setRowError({ id, message: result.error });
         return;
       }
-      router.refresh();
     });
   }
 
