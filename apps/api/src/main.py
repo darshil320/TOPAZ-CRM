@@ -18,8 +18,12 @@ Routes:
   /api/health                — liveness probe
 """
 
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import ProgrammingError
 
 from .config import get_settings
 from .api.auth import router as auth_router
@@ -39,6 +43,23 @@ from .api.stage_plan import router as stage_plan_router
 from .api.transfers import router as transfers_router
 from .api.whatsapp import router as whatsapp_router
 from .api.workshops import router as workshops_router
+
+logger = logging.getLogger(__name__)
+
+# Postgres SQLSTATEs for "the schema this code expects is not there".
+#   42703 undefined_column · 42P01 undefined_table · 42883 undefined_function
+# These mean exactly one thing in this system: the API has been deployed ahead of its
+# migrations. Deploy order is API-then-migrations in practice (Railway redeploys on push;
+# `supabase db push` is a separate manual step), so this window is real, not theoretical.
+_MISSING_SCHEMA_SQLSTATES = {"42703", "42P01", "42883"}
+
+
+def _sqlstate(exc: BaseException) -> str | None:
+    """The SQLSTATE behind a SQLAlchemy wrapper, if the driver exposed one."""
+    orig = getattr(exc, "orig", None)
+    # asyncpg exposes `sqlstate`; psycopg2 uses `pgcode`. Check both rather than
+    # depending on which driver a given deployment happens to use.
+    return getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
 
 
 def create_app() -> FastAPI:
@@ -95,6 +116,39 @@ def create_app() -> FastAPI:
     app.include_router(documents_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
+
+    @app.exception_handler(ProgrammingError)
+    async def missing_schema_handler(request: Request, exc: ProgrammingError) -> JSONResponse:
+        """Turn "column X does not exist" into a sentence an operator can act on.
+
+        WHY THIS EXISTS: the deployed API can run ahead of the database. Railway redeploys
+        on push, while applying migrations is a separate manual step — so between the two,
+        a route whose feature needs a new column answers 500, and the dashboard renders the
+        bare "Request failed (500)". That tells a showroom owner nothing and sends them to
+        us; naming the actual cause sends them to the one command that fixes it.
+
+        Only the three "missing schema" SQLSTATEs are translated. Every other
+        ProgrammingError is a genuine bug and is re-raised so it keeps its 500 and its
+        traceback — swallowing those would hide real defects behind a reassuring message.
+        """
+        state = _sqlstate(exc)
+        if state not in _MISSING_SCHEMA_SQLSTATES:
+            raise exc
+        logger.error(
+            "Missing schema on %s %s (SQLSTATE %s) — the API is deployed ahead of its "
+            "migrations: %s",
+            request.method, request.url.path, state, exc.orig,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "detail": (
+                    "This feature is not enabled on the database yet — its migration has "
+                    "not been applied. Ask the developer to run the pending migrations, "
+                    "then reload."
+                )
+            },
+        )
 
     @app.get("/api/health", include_in_schema=False)
     async def health() -> dict:

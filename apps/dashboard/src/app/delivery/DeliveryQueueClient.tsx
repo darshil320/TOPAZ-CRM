@@ -1,7 +1,17 @@
 "use client";
 
+/**
+ * The driver's queue. One card per RUN, one block per DROP inside it (0040).
+ *
+ * A run can visit two customers, so a card that showed one name and one phone number would
+ * be wrong about half the lorry. Each drop gets its own Call button, its own address and its
+ * own tick list — and the ticks are now PERSISTED (`delivery_items.received`) instead of
+ * being collected and thrown away, which is what makes "the customer got 2 of 3 pieces" a
+ * fact the office can see.
+ */
+
 import { useMemo, useState, useTransition, useRef } from "react";
-import { CheckCircle2, Camera, Phone, ImagePlus, Loader2, Check, SearchX } from "lucide-react";
+import { CheckCircle2, Camera, Phone, ImagePlus, Loader2, Check, SearchX, MapPin } from "lucide-react";
 import { completeDeliveryAction } from "./actions";
 import { signUpload, completeUpload, type MediaMime } from "@/lib/media/actions";
 import PwaFilterBar, { type FilterChip } from "@/components/pwa/PwaFilterBar";
@@ -31,7 +41,8 @@ export default function DeliveryQueueClient({
   const [photos, setPhotos] = useState<Record<string, PhotoState>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   /**
-   * Per delivery, which lines the driver has ticked off as handed over (0039).
+   * Per delivery, which LINES the driver has ticked off as handed over. Keyed by
+   * `delivery_items.id` because that is the row the tick is written to.
    *
    * Starts EMPTY rather than all-ticked: a pre-checked list is a list nobody reads, and
    * the point of the checklist is that the driver looks at the goods.
@@ -46,22 +57,28 @@ export default function DeliveryQueueClient({
   // the chips are those three questions, not a mirror of the status column.
   const today = todayISO();
 
+  const linesOf = (delivery: DeliveryQueueItem) =>
+    delivery.stops.flatMap((stop) => stop.lines);
+
   const searchable = useMemo(
     () =>
-      deliveries.map((d) => ({
-        delivery: d,
+      deliveries.map((delivery) => ({
+        delivery,
         text: haystack(
-          d.order_no,
-          d.customer_name,
-          d.customer_phone,
-          d.items_summary,
-          d.vehicle_no,
-          d.eway_bill_no,
-          d.notes,
-          d.scheduled_date,
+          ...delivery.stops.flatMap((stop) => [
+            stop.customerName,
+            stop.customerPhone,
+            stop.address,
+            ...stop.orderNos,
+          ]),
+          delivery.items_summary,
+          delivery.vehicle_no,
+          delivery.eway_bill_no,
+          delivery.notes,
+          delivery.scheduled_date,
         ),
-        overdue: d.scheduled_date < today,
-        isToday: d.scheduled_date === today,
+        overdue: delivery.scheduled_date < today,
+        isToday: delivery.scheduled_date === today,
       })),
     [deliveries, today],
   );
@@ -160,11 +177,20 @@ export default function DeliveryQueueClient({
     });
   }
 
+  function toggleAll(delivery: DeliveryQueueItem) {
+    const all = linesOf(delivery).map((line) => line.id);
+    setTickedMap((prev) => ({
+      ...prev,
+      [delivery.id]: (prev[delivery.id] ?? []).length === all.length ? [] : all,
+    }));
+  }
+
   function handleComplete(delivery: DeliveryQueueItem) {
     setError(null);
     const photo = photos[delivery.id];
     const notes = notesMap[delivery.id];
     const ticked = tickedMap[delivery.id] ?? [];
+    const allLines = linesOf(delivery);
 
     if (!photo?.mediaId) {
       setError("📷 इंस्टॉलेशन प्रूफ फोटो जरूरी है / Proof of installation photo required");
@@ -173,24 +199,29 @@ export default function DeliveryQueueClient({
     // EVERY line ticked, or an explicit note saying what happened. A short delivery with
     // no explanation is the case that turns into an argument a week later, and the driver
     // is the only person who can still see the lorry.
-    if (delivery.lines.length > 0 && ticked.length < delivery.lines.length) {
+    if (allLines.length > 0 && ticked.length < allLines.length) {
       if (ticked.length === 0) {
         setError("सामान टिक करें / Tick the items you handed over.");
         return;
       }
       if (!notes?.trim()) {
         setError(
-          `${ticked.length}/${delivery.lines.length} सामान — कारण लिखें / ` +
-            `Only ${ticked.length} of ${delivery.lines.length} items ticked. Write a note saying what happened to the rest.`,
+          `${ticked.length}/${allLines.length} सामान — कारण लिखें / ` +
+            `Only ${ticked.length} of ${allLines.length} items ticked. Write a note saying what happened to the rest.`,
         );
         return;
       }
     }
 
     startTransition(async () => {
-      // The proof photo is already linked to this delivery by the upload; the
-      // action only needs the note.
-      const res = await completeDeliveryAction(delivery.id, notes);
+      // The un-ticked lines are what gets recorded as NOT received (0040). Everything else
+      // stays received, which is also the column's default — so a fully-ticked run writes
+      // nothing surprising.
+      const notReceived = allLines
+        .map((line) => line.id)
+        .filter((lineId) => !ticked.includes(lineId));
+
+      const res = await completeDeliveryAction(delivery.id, notes, notReceived);
       if (res.error) {
         setError(res.error);
         return;
@@ -255,39 +286,36 @@ export default function DeliveryQueueClient({
       {visible.map((delivery) => {
         const photo = photos[delivery.id];
         const ticked = tickedMap[delivery.id] ?? [];
-        const formattedPhone = (delivery.customer_phone || "").replace(/\D/g, "");
+        const allLines = linesOf(delivery);
+        const multiStop = delivery.stops.length > 1;
 
         return (
           <div
             key={delivery.id}
             className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5 space-y-4 shadow-xl"
           >
-            {/* Header */}
+            {/* Run header — the lorry, not a customer. */}
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded">
-                    {delivery.order_no}
-                  </span>
                   <span className="text-xs font-semibold text-slate-300">
                     Scheduled: {delivery.scheduled_date}
                   </span>
+                  {multiStop && (
+                    <span className="text-[11px] font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded">
+                      {delivery.stops.length} जगह / {delivery.stops.length} drops
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-base font-extrabold text-white">{delivery.customer_name}</h3>
-                {delivery.lines.length === 0 && (
+                {delivery.stops.length === 0 && (
                   // Pre-0039 delivery with no item rows: the summary line is all there is.
                   <p className="text-xs text-slate-400 font-mono">{delivery.items_summary}</p>
                 )}
               </div>
 
-              {formattedPhone && (
-                <a
-                  href={`tel:+${formattedPhone}`}
-                  className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center gap-1.5 text-xs font-bold shrink-0"
-                >
-                  <Phone className="w-4 h-4" /> Call
-                </a>
-              )}
+              <div className="text-right font-mono text-[11px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-1 rounded-md shrink-0">
+                {ticked.length}/{allLines.length}
+              </div>
             </div>
 
             {/* Vehicle & E-Way Bill info if present */}
@@ -302,64 +330,103 @@ export default function DeliveryQueueClient({
               </div>
             )}
 
-            {/* PER-ITEM TICK-OFF (0039). The driver's job is a set of pieces, not an
-                order number — and after part-delivery the run genuinely carries fewer
-                items than the order has. */}
-            {delivery.lines.length > 0 && (
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-300">
-                    सामान / Items on this run
-                    <span className="ml-1.5 font-mono text-slate-500">
-                      {ticked.length}/{delivery.lines.length}
-                    </span>
+            {/* ONE BLOCK PER DROP (0040). Each customer's own name, phone, address and
+                goods — a single header would attribute half the lorry to the wrong person. */}
+            {delivery.stops.map((stop, index) => {
+              const phone = (stop.customerPhone || "").replace(/\D/g, "");
+              return (
+                <div
+                  key={stop.consignmentId ?? `${delivery.id}-stop-${index}`}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {multiStop && (
+                          <span className="text-[11px] font-mono font-bold text-slate-400">
+                            #{index + 1}
+                          </span>
+                        )}
+                        {stop.orderNos.map((orderNo) => (
+                          <span
+                            key={orderNo}
+                            className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-1.5 py-0.5 rounded"
+                          >
+                            {orderNo}
+                          </span>
+                        ))}
+                      </div>
+                      <h3 className="text-sm font-extrabold text-white">{stop.customerName}</h3>
+                      {stop.address && (
+                        <p className="flex items-start gap-1 text-[11px] text-slate-400">
+                          <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                          <span>{stop.address}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {phone && (
+                      <a
+                        href={`tel:+${phone}`}
+                        className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center gap-1.5 text-xs font-bold shrink-0"
+                      >
+                        <Phone className="w-4 h-4" /> Call
+                      </a>
+                    )}
+                  </div>
+
+                  {/* PER-ITEM TICK-OFF. The driver's job is a set of pieces, and after
+                      part-delivery the run genuinely carries fewer items than the order
+                      has. Ticks are written to delivery_items.received on submit. */}
+                  <div className="divide-y divide-slate-800">
+                    {stop.lines.map((line) => (
+                      <label key={line.id} className="flex items-start gap-2.5 py-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-500"
+                          checked={ticked.includes(line.id)}
+                          onChange={() => toggleLine(delivery.id, line.id)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold text-slate-200">
+                            {line.description}
+                          </span>
+                          <span className="block text-[11px] font-mono text-slate-500">
+                            {line.qty} {line.unit || "nos"}
+                            {stop.orderNos.length > 1 ? ` · ${line.orderNo}` : ""}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {allLines.length > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-300">
+                  सामान / Items on this run
+                  <span className="ml-1.5 font-mono text-slate-500">
+                    {ticked.length}/{allLines.length}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTickedMap((prev) => ({
-                        ...prev,
-                        [delivery.id]:
-                          ticked.length === delivery.lines.length
-                            ? []
-                            : delivery.lines.map((l) => l.id),
-                      }))
-                    }
-                    className="text-xs font-bold text-emerald-400"
-                  >
-                    {ticked.length === delivery.lines.length ? "साफ़ / Clear" : "सब / All"}
-                  </button>
-                </div>
-                <div className="divide-y divide-slate-800">
-                  {delivery.lines.map((line) => (
-                    <label
-                      key={line.id}
-                      className="flex items-start gap-2.5 py-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-500"
-                        checked={ticked.includes(line.id)}
-                        onChange={() => toggleLine(delivery.id, line.id)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-slate-200">
-                          {line.description}
-                        </span>
-                        <span className="block text-[11px] font-mono text-slate-500">
-                          {line.qty} {line.unit || "nos"}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                {ticked.length > 0 && ticked.length < delivery.lines.length && (
-                  <p className="text-[11px] font-semibold text-amber-300">
-                    कुछ सामान बाकी — नीचे कारण लिखें / Some items not handed over. Write the
-                    reason in the note below before marking this delivered.
-                  </p>
-                )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleAll(delivery)}
+                  className="text-xs font-bold text-emerald-400"
+                >
+                  {ticked.length === allLines.length ? "साफ़ / Clear" : "सब / All"}
+                </button>
               </div>
+            )}
+
+            {ticked.length > 0 && ticked.length < allLines.length && (
+              <p className="text-[11px] font-semibold text-amber-300">
+                कुछ सामान बाकी — नीचे कारण लिखें / Some items not handed over. Write the
+                reason in the note below before marking this delivered — the office will see
+                exactly which pieces are still outstanding.
+              </p>
             )}
 
             {/* Installation Proof Photo Field */}
@@ -396,7 +463,7 @@ export default function DeliveryQueueClient({
               {photo?.uploading && (
                 <div className="flex items-center gap-2 text-xs text-emerald-400 py-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Compressing & uploading proof photo...</span>
+                  <span>Compressing &amp; uploading proof photo...</span>
                 </div>
               )}
 
@@ -440,7 +507,7 @@ export default function DeliveryQueueClient({
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>✓ डिलीवरी और इंस्टॉलेशन पूर्ण / Mark Delivered & Installed</span>
+                  <span>✓ डिलीवरी और इंस्टॉलेशन पूर्ण / Mark Delivered &amp; Installed</span>
                 </>
               )}
             </button>

@@ -105,11 +105,33 @@ def _product_label(item: dict) -> str:
     return description
 
 
+def _orders_covered(items: list[dict]) -> list[str]:
+    """The distinct order numbers on this challan, in the order the lines print. Pure.
+
+    A CONSIGNMENT can span several of one customer's orders (0040): the Central Table off
+    ORD-41 and the Sofa off ORD-58 on one lorry for one recipient is ONE challan and ONE
+    signature. Deduplicated by first appearance rather than sorted, so the list reads in the
+    same sequence as the table above it.
+    """
+    seen: list[str] = []
+    for item in items:
+        order_no = str(item.get("order_no") or "").strip()
+        if order_no and order_no not in seen:
+            seen.append(order_no)
+    return seen
+
+
 def build_challan_context(challan: dict) -> dict:
     """Pure: every display value the challan template needs."""
     customer = challan.get("customer") or {}
     delivery = challan.get("delivery") or {}
     items_in = list(challan.get("items") or [])
+    orders = _orders_covered(items_in)
+    # Their paper has no order column. So the order number rides as a sub-label under the
+    # product, and ONLY when the challan actually covers more than one order — printing
+    # "ORD-…" on every line of a single-order run is noise on a document a customer reads
+    # at their front door, and their sample carries no such line.
+    spans_multiple_orders = len(orders) > 1
 
     return {
         "seller": CHALLAN_SELLER,
@@ -129,10 +151,18 @@ def build_challan_context(challan: dict) -> dict:
             "notes": delivery.get("notes") or "",
         },
         "items": [
-            {"sr": i + 1, "product": _product_label(item)}
+            {
+                "sr": i + 1,
+                "product": _product_label(item),
+                "order_no": (
+                    str(item.get("order_no") or "") if spans_multiple_orders else ""
+                ),
+            }
             for i, item in enumerate(items_in)
         ],
         "item_count": len(items_in),
+        "orders": orders,
+        "spans_multiple_orders": spans_multiple_orders,
         # Blank rather than "0/-" when unknown: their form leaves the line to be written
         # in by hand, and printing a figure we are not sure of on a document the driver
         # collects against is worse than printing nothing.

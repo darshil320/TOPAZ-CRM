@@ -214,6 +214,13 @@ async def unallocated_items(
     passed for the `salesperson` role and omitted for owner/admin, mirroring the
     write path: allocate() already refuses an unassigned customer, so an unscoped
     read would list customer names and order contents a salesperson cannot act on.
+
+    THE CAST APPEARS ON BOTH USES OF :sp AND MUST. asyncpg PREPARES the statement, so
+    Postgres has to resolve every parameter's type before any value is bound — and a bare
+    `:sp IS NULL` offers nothing to infer from. Postgres does not carry the type backwards
+    from the `cast(:sp as uuid)` further down, so it gave up with
+    `AmbiguousParameterError: could not determine data type of parameter $1` and the
+    allocate page 500'd for EVERY caller. Casting at both sites pins the type once.
     """
     result = await session.execute(
         text(
@@ -224,7 +231,7 @@ async def unallocated_items(
             " JOIN orders o ON o.id = oi.order_id"
             " JOIN customers c ON c.id = o.customer_id"
             " WHERE oi.workshop_id IS NULL AND o.status IN ('confirmed', 'in_production')"
-            "   AND (:sp IS NULL OR EXISTS ("
+            "   AND (cast(:sp as uuid) IS NULL OR EXISTS ("
             "        SELECT 1 FROM customer_assignments ca"
             "         WHERE ca.customer_id = o.customer_id AND ca.active = true"
             "           AND ca.salesperson_id = cast(:sp as uuid)))"

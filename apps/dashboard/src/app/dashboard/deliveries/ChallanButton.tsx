@@ -1,7 +1,12 @@
 "use client";
 
 /**
- * Generate / download one delivery's challan (0037).
+ * Generate / download one CONSIGNMENT's challan (0037, per-consignment since 0040).
+ *
+ * One button per recipient on the run, not one per run: a mixed-customer lorry produces two
+ * documents, and a single button would silently hand one customer the other's paperwork.
+ * `recipientName` is rendered when a run has more than one, so the two buttons are
+ * distinguishable at a glance.
  *
  * Rendering is a queued headless-browser job, so this polls for the PDF rather than
  * blocking on a request that would time out. A 404 from the URL endpoint is the expected
@@ -22,14 +27,18 @@ const POLL_INTERVAL_MS = 1500;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function ChallanButton({
-  deliveryId,
-  orderId,
+  consignmentId,
+  orderIds,
   challanNo,
+  recipientName,
 }: {
-  deliveryId: string;
-  orderId?: string;
+  consignmentId: string;
+  /** Every order this challan covers — for cache revalidation after a render. */
+  orderIds?: string[];
   /** Non-null once a number has been allocated — i.e. it has been generated before. */
   challanNo?: string | null;
+  /** Shown only when the run has more than one recipient. */
+  recipientName?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -44,14 +53,14 @@ export default function ChallanButton({
     setError(null);
     setStatus(null);
     startTransition(async () => {
-      const existing = await getChallanUrlAction(deliveryId);
+      const existing = await getChallanUrlAction(consignmentId);
       if (existing.url) {
         open(existing.url);
         return;
       }
 
       setStatus("Generating…");
-      const queued = await generateChallanAction(deliveryId, orderId);
+      const queued = await generateChallanAction(consignmentId, orderIds);
       if (queued.error) {
         setStatus(null);
         setError(queued.error);
@@ -60,7 +69,7 @@ export default function ChallanButton({
 
       for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
         await sleep(POLL_INTERVAL_MS);
-        const ready = await getChallanUrlAction(deliveryId);
+        const ready = await getChallanUrlAction(consignmentId);
         if (ready.url) {
           setStatus(null);
           open(ready.url);
@@ -87,7 +96,10 @@ export default function ChallanButton({
         ) : (
           <FileText className="h-3.5 w-3.5" strokeWidth={2} />
         )}
-        <span>{status ?? (challanNo ? "Challan" : "Generate challan")}</span>
+        <span>
+          {status ?? (challanNo ? "Challan" : "Generate challan")}
+          {recipientName ? ` · ${recipientName}` : ""}
+        </span>
       </button>
       {challanNo && !error && (
         <span className="font-mono text-[10.5px] tabular-nums text-t3">{challanNo}</span>

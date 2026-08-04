@@ -57,6 +57,11 @@ See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse 
   is owner-only by design, §19-A.2).
 - `coverage_requests` (primary-on-leave coverage) is schema + RLS only — no repo, task,
   or UI. Build before relying on it.
+- **`supabase/migrations_pending/` holds two finished migrations that must NOT be pushed
+  yet** (`0041`, `0042` — the tail of the 0040 multi-order-delivery rollout). They are
+  outside `supabase/migrations/` because `supabase db push` applies everything in that
+  directory and `0042` drops `deliveries.order_id`. Read that directory's README before
+  promoting either; the deploy order is in `docs/DEPLOYMENT.md`.
 - `conversations` table (meeting notes) is defined, RLS'd, indexed, but has **zero**
   reads/writes anywhere in the app. Either build the meeting-notes feature that was
   presumably intended, or drop the table in a migration — don't leave it silently dead.

@@ -620,6 +620,11 @@ export type Database = {
           customer_id: string
           discount_amount: number
           expected_delivery_date: string | null
+          /**
+           * Derived from order_items.delivered_at by trigger (0040). Deliberately NOT
+           * part of `status`: status is the sales pipeline, this is goods-out-the-door.
+           */
+          fulfillment_status: "not_delivered" | "partially_delivered" | "fully_delivered"
           grand_total: number
           id: string
           igst: number
@@ -640,6 +645,7 @@ export type Database = {
           customer_id: string
           discount_amount?: number
           expected_delivery_date?: string | null
+          fulfillment_status?: "not_delivered" | "partially_delivered" | "fully_delivered"
           grand_total?: number
           id?: string
           igst?: number
@@ -660,6 +666,7 @@ export type Database = {
           customer_id?: string
           discount_amount?: number
           expected_delivery_date?: string | null
+          fulfillment_status?: "not_delivered" | "partially_delivered" | "fully_delivered"
           grand_total?: number
           id?: string
           igst?: number
@@ -709,6 +716,10 @@ export type Database = {
           polish: string | null
           product_id: string | null
           production_done_at: string | null
+          /** Set when the piece physically went out on a completed run (0039). */
+          delivered_at: string | null
+          /** Atomic claim for the "item finished" WhatsApp (0038). */
+          ready_notified_at: string | null
           transit_transfer_id: string | null
           qty: number
           sort: number
@@ -735,6 +746,8 @@ export type Database = {
           polish?: string | null
           product_id?: string | null
           production_done_at?: string | null
+          delivered_at?: string | null
+          ready_notified_at?: string | null
           transit_transfer_id?: string | null
           qty: number
           sort?: number
@@ -761,6 +774,8 @@ export type Database = {
           polish?: string | null
           product_id?: string | null
           production_done_at?: string | null
+          delivered_at?: string | null
+          ready_notified_at?: string | null
           transit_transfer_id?: string | null
           qty?: number
           sort?: number
@@ -1791,6 +1806,15 @@ export type Database = {
           order_item_id: string
           /** Denorm of deliveries.status, maintained by trigger (0039). */
           delivery_status: string | null
+          /** Denorm of order_items.order_id — the ORIGINATING order (0040). */
+          order_id: string | null
+          /** Denorm of orders.customer_id — the recipient (0040). */
+          customer_id: string | null
+          /** The recipient's paperwork group on this run (0040). */
+          consignment_id: string | null
+          /** Did this piece change hands? Written by the driver PWA; defaults true (0040). */
+          received: boolean
+          received_at: string | null
           created_at: string
         }
         Insert: {
@@ -1801,11 +1825,12 @@ export type Database = {
           created_at?: string
         }
         Update: {
-          id?: string
-          delivery_id?: string
-          order_item_id?: string
-          delivery_status?: string | null
-          created_at?: string
+          /**
+           * `received` is the ONLY client-writable column — 0040 grants UPDATE on that
+           * column alone. Repointing order_item_id or consignment_id would move goods
+           * between runs, or onto another customer's challan, with no audit trail.
+           */
+          received?: boolean
         }
         Relationships: [
           {
@@ -1822,10 +1847,75 @@ export type Database = {
             referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "delivery_items_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_consignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      /**
+       * One per (delivery, customer) = one challan (0040). A run for two customers has
+       * two; a run carrying two orders of ONE customer has one, covering both.
+       * READ-ONLY from the browser: written by schedule_delivery(jsonb) and numbered by
+       * the challan worker.
+       */
+      delivery_consignments: {
+        Row: {
+          id: string
+          delivery_id: string
+          customer_id: string
+          challan_no: string | null
+          delivery_address: string | null
+          delivery_rent: number | null
+          dp_code: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "delivery_consignments_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_consignments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
+      /**
+       * Per-order delivered-item counts and Not/Partially/Fully (0040). The truth;
+       * orders.fulfillment_status is its indexed mirror.
+       */
+      order_fulfillment: {
+        Row: {
+          order_id: string | null
+          item_count: number | null
+          delivered_count: number | null
+          fulfillment: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_pkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_outstanding: {
         Row: {
           grand_total: number | null
@@ -1853,22 +1943,41 @@ export type Database = {
       }
       is_owner: { Args: never; Returns: boolean }
       /**
-       * Creates a delivery and its item lines in ONE transaction (0039).
-       * SECURITY INVOKER — the caller's own RLS still authorizes the write.
-       * Returns the new delivery's id.
+       * Creates a lorry run, its per-customer consignments and its item lines in ONE
+       * transaction, for items drawn from ANY NUMBER OF ORDERS (0040).
+       *
+       * ONE jsonb argument on purpose: 0039's ten-argument signature could not be grown
+       * without leaving an ambiguous overload behind. SECURITY DEFINER — the function
+       * authorizes every distinct order itself, because a with-check on the deliveries
+       * header cannot see items that do not exist yet.
+       *
+       * Returns the new delivery's id. Raises (surfaced as a PostgREST error) on an empty
+       * or duplicated selection, an unknown item, an order the caller may not write, a
+       * consignment for a customer with no goods, or a double-booked item.
        */
       schedule_delivery: {
         Args: {
-          p_order_id: string
-          p_scheduled_date: string
-          p_driver: string | null
-          p_item_ids: string[]
-          p_vehicle_no?: string | null
-          p_eway_bill_no?: string | null
-          p_notes?: string | null
-          p_delivery_address?: string | null
-          p_delivery_rent?: number | null
-          p_dp_code?: string | null
+          p_delivery: {
+            /** ISO date. Defaults to today server-side when omitted. */
+            scheduled_date?: string | null
+            driver_salesperson_id?: string | null
+            vehicle_no?: string | null
+            eway_bill_no?: string | null
+            notes?: string | null
+            /** order_items.id — may span several orders and several customers. */
+            items: string[]
+            /**
+             * Optional paperwork per recipient. The consignments themselves are DERIVED
+             * from the goods; an entry here only fills in that recipient's challan
+             * fields, and an entry for a customer with nothing on the lorry is rejected.
+             */
+            consignments?: {
+              customer_id: string
+              delivery_address?: string | null
+              delivery_rent?: number | string | null
+              dp_code?: string | null
+            }[]
+          }
         }
         Returns: string
       }

@@ -45,6 +45,9 @@
   .received { width: 38%; }
   /* An empty cell with a visible height: the tick is written here by hand. */
   td.tick { height: 30px; }
+  /* Quiet by design: the piece is what the customer ticks, the order number is only there
+     so a mixed-order challan can be reconciled later. */
+  .order-ref { font-size: 9px; color: #555; letter-spacing: .3px; margin-top: 2px; }
 
   .money { margin-top: 12px; }
   .money .line { margin: 2px 0; }
@@ -114,7 +117,14 @@
     <tbody>
       {% for item in items %}
       <tr>
-        <td><strong>{{ item.product }}</strong></td>
+        <td>
+          <strong>{{ item.product }}</strong>
+          {#- A consignment may cover more than one of this customer's orders (0040). Their
+              paper has no order column, so it rides as a sub-label — and only when the
+              challan actually spans several orders (build_challan_context blanks it
+              otherwise), keeping a single-order run identical to their sample. #}
+          {% if item.order_no %}<div class="order-ref">{{ item.order_no }}</div>{% endif %}
+        </td>
         <td class="tick"></td>
       </tr>
       {% endfor %}

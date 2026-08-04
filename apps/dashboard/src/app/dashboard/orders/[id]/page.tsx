@@ -8,6 +8,7 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import ListRow from "@/components/ui/ListRow";
 import Pill from "@/components/ui/Pill";
 import { orderStatusChip } from "../status";
+import { fulfillmentLabel } from "../../deliveries/types";
 import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
 import ReceiptDownloadButton from "./ReceiptDownloadButton";
@@ -77,12 +78,24 @@ export default async function OrderDetailPage({ params }: Props) {
       : Promise.resolve({ data: null }),
     // The order's runs, with what travelled on each (0039) and whether its challan has
     // been generated (0037). One order can have several runs once part-delivery is used.
+    //
+    // FILTERED THROUGH THE LINES, NOT `deliveries.order_id` (0040): a run can carry items
+    // from several orders, so "this order's runs" is "runs with a line off this order".
+    //
+    // A filter on an `!inner` embed narrows the RETURNED rows too, so `delivery_items` here
+    // is exactly this order's share of each run — which is what this page is about. That the
+    // lorry also carried somebody else's goods is surfaced from `delivery_consignments`
+    // (more than one recipient) rather than by re-embedding the whole line set.
     supabase
       .from("deliveries")
       .select(
-        "id, status, scheduled_date, delivered_at, vehicle_no, eway_bill_no, challan_no, salespersons(name), delivery_items(order_item_id, order_items(id, description, qty, unit))",
+        "id, status, scheduled_date, delivered_at, vehicle_no, eway_bill_no," +
+          " salespersons(name)," +
+          " delivery_consignments(id, customer_id, challan_no, customers(name))," +
+          " delivery_items!inner(order_item_id, order_id, received," +
+          " order_items(id, description, qty, unit, orders(id, order_no)))",
       )
-      .eq("order_id", id)
+      .eq("delivery_items.order_id", id)
       .order("scheduled_date", { ascending: false }),
     canRoute ? listWorkshops(false) : Promise.resolve({ workshops: [], error: null }),
     canRoute ? listRouteTemplates(true) : Promise.resolve({ data: null, error: null }),
@@ -107,6 +120,10 @@ export default async function OrderDetailPage({ params }: Props) {
   const customer = one(order.customers as { name: string | null; phone: string | null } | null);
   const quote = one(order.quotations as { quote_no: string } | null);
   const chip = orderStatusChip(order.status);
+  // Goods out the door, separate from the sales pipeline (0040). An order sits at 'ready'
+  // while it is part-shipped, so `status` alone cannot say how much has actually gone.
+  const fulfilment = fulfillmentLabel(order.fulfillment_status);
+  const deliveredCount = (items ?? []).filter((it) => it.delivered_at).length;
   // orders carry no place_of_supply column — intra-state iff no IGST was charged.
   const intra = Number(order.igst) === 0;
   const paid = out?.paid ?? 0;
@@ -170,6 +187,14 @@ export default async function OrderDetailPage({ params }: Props) {
               <h1 className="text-title text-t1 font-bold tracking-tight">{order.order_no}</h1>
               <Pill tone={order.status === "installed" || order.status === "closed" ? "pos" : order.status === "cancelled" ? "warn" : "neutral"} dot={false}>
                 {chip.label}
+              </Pill>
+              <Pill tone={fulfilment.tone} dot={false}>
+                {fulfilment.label}
+                {(items ?? []).length > 0 && (
+                  <span className="ml-1 font-mono tabular-nums">
+                    {deliveredCount}/{(items ?? []).length}
+                  </span>
+                )}
               </Pill>
             </div>
             <p className="mt-1 text-body text-t2">
@@ -381,6 +406,12 @@ export default async function OrderDetailPage({ params }: Props) {
                 .map((line) => one<any>(line.order_items))
                 .filter(Boolean);
               const driver = one<{ name: string | null }>(d.salespersons);
+              const consignments = (d.delivery_consignments ?? []) as any[];
+              // This order's customer is the order's customer — a consignment is
+              // per-recipient, so theirs is the one that matches.
+              const ownConsignments = consignments.filter(
+                (consignment: any) => consignment.customer_id === order.customer_id,
+              );
               return (
                 <div
                   key={d.id}
@@ -408,6 +439,14 @@ export default async function OrderDetailPage({ params }: Props) {
                             .map((it: any) => `${it.description} ×${it.qty ?? 1}`)
                             .join(", ")}
                     </p>
+                    {/* The same lorry may have carried another customer's goods (0040).
+                        Worth saying: it explains a shared vehicle on the paperwork and a
+                        second challan number the customer never sees. */}
+                    {consignments.length > 1 && (
+                      <p className="text-[11px] font-semibold text-t3">
+                        Shared run · {consignments.length} recipients
+                      </p>
+                    )}
                     {(d.vehicle_no || d.eway_bill_no) && (
                       <p className="font-mono text-[11px] text-t3">
                         {d.vehicle_no && `Vehicle ${d.vehicle_no}`}
@@ -416,7 +455,23 @@ export default async function OrderDetailPage({ params }: Props) {
                       </p>
                     )}
                   </div>
-                  <ChallanButton deliveryId={d.id} orderId={id} challanNo={d.challan_no} />
+                  {/* One challan per recipient. Only this customer's is shown — the others
+                      are not this order's paperwork, and RLS would have filtered them for a
+                      salesperson who cannot read that customer anyway. */}
+                  <div className="flex flex-col items-end gap-1">
+                    {ownConsignments.length === 0 ? (
+                      <span className="text-caption text-t3">—</span>
+                    ) : (
+                      ownConsignments.map((consignment: any) => (
+                        <ChallanButton
+                          key={consignment.id}
+                          consignmentId={consignment.id}
+                          orderIds={[id]}
+                          challanNo={consignment.challan_no}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
               );
             })}

@@ -25,7 +25,7 @@ DELIVERY = {
     "delivery_rent": None,
     "notes": None,
 }
-ITEMS = [{"description": "CENTER TABLE", "qty": 1}]
+ITEMS = [{"description": "CENTER TABLE", "qty": 1, "order_no": "ORD-2627-0041"}]
 
 
 def challan(**overrides) -> dict:
@@ -116,6 +116,74 @@ def test_a_whole_decimal_quantity_drops_its_paise():
     assert ctx["items"][0]["product"] == "DINING CHAIR × 6"
 
 
+# ─── A consignment can span several of one customer's orders (0040) ──────────
+# One recipient signs ONE challan for everything of theirs on the lorry, even when the
+# pieces came off two different orders. Their paper has no order column, so the order
+# number rides as a sub-label under the product — and ONLY when it is needed to
+# disambiguate, because printing "ORD-…" on every line of a single-order run is noise on a
+# document a customer reads at their front door.
+
+
+def test_a_single_order_consignment_prints_no_order_labels():
+    ctx = challan_html.build_challan_context(challan())
+    assert ctx["spans_multiple_orders"] is False
+    assert ctx["orders"] == ["ORD-2627-0041"]
+    assert ctx["items"][0]["order_no"] == ""
+
+
+def test_a_multi_order_consignment_labels_every_line_with_its_order():
+    ctx = challan_html.build_challan_context(
+        challan(items=[
+            {"description": "CENTER TABLE", "qty": 1, "order_no": "ORD-2627-0041"},
+            {"description": "3-SEATER SOFA", "qty": 1, "order_no": "ORD-2627-0058"},
+        ])
+    )
+    assert ctx["spans_multiple_orders"] is True
+    assert [i["order_no"] for i in ctx["items"]] == ["ORD-2627-0041", "ORD-2627-0058"]
+
+
+def test_the_orders_covered_are_listed_once_each_in_document_order():
+    ctx = challan_html.build_challan_context(
+        challan(items=[
+            {"description": "CENTER TABLE", "qty": 1, "order_no": "ORD-2627-0058"},
+            {"description": "BED", "qty": 1, "order_no": "ORD-2627-0041"},
+            {"description": "3-SEATER SOFA", "qty": 1, "order_no": "ORD-2627-0058"},
+        ])
+    )
+    assert ctx["orders"] == ["ORD-2627-0058", "ORD-2627-0041"]
+    assert ctx["spans_multiple_orders"] is True
+
+
+def test_items_with_no_order_number_do_not_invent_a_multi_order_challan():
+    """A pre-0040 render passes no order_no at all. It must read as a single-order run."""
+    ctx = challan_html.build_challan_context(
+        challan(items=[{"description": "CENTER TABLE", "qty": 1},
+                       {"description": "BED", "qty": 1}])
+    )
+    assert ctx["orders"] == []
+    assert ctx["spans_multiple_orders"] is False
+    assert [i["order_no"] for i in ctx["items"]] == ["", ""]
+
+
+def test_a_multi_order_challan_prints_its_order_numbers():
+    pytest.importorskip("jinja2")
+    html = challan_html.render_challan_html(
+        challan(items=[
+            {"description": "CENTER TABLE", "qty": 1, "order_no": "ORD-2627-0041"},
+            {"description": "3-SEATER SOFA", "qty": 1, "order_no": "ORD-2627-0058"},
+        ])
+    )
+    assert "ORD-2627-0041" in html
+    assert "ORD-2627-0058" in html
+
+
+def test_a_single_order_challan_stays_exactly_their_paper():
+    """No order number anywhere on a one-order run — their sample has no such line."""
+    pytest.importorskip("jinja2")
+    html = challan_html.render_challan_html(challan())
+    assert "ORD-2627-0041" not in html
+
+
 # ─── The two money lines ─────────────────────────────────────────────────────
 def test_balance_uses_their_formatting_plain_digits_and_a_slash_dash():
     """Their sample reads "Balance Amount :- 31500/-" — no ₹, no comma grouping."""
@@ -156,8 +224,11 @@ def test_the_context_carries_no_tax_or_rate_fields_at_all():
     for absent in ("totals", "cgst", "sgst", "igst", "taxable_value", "place_of_supply",
                    "intra", "with_values"):
         assert absent not in ctx, absent
+    # Per line: the tick row, and (0040) which order the piece came off. Never a rate, an
+    # HSN code or a line amount — selecting money we do not print is an invitation to
+    # print it.
     for item in ctx["items"]:
-        assert set(item) == {"sr", "product"}
+        assert set(item) == {"sr", "product", "order_no"}
 
 
 # ─── Rendering ───────────────────────────────────────────────────────────────

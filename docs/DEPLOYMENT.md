@@ -26,6 +26,42 @@ REMAINING: Tracks A–G below.
 > schedule, the assigned driver can complete) and moves the order-status flip + audit
 > row into a SECURITY DEFINER trigger. Apply it before using the dispatch board.
 
+### Multi-order deliveries (`0040`) — a THREE-STEP rollout, in this order
+
+A delivery can now carry finished pieces from several orders and several customers (one
+lorry, the Central Table off ORD-1 and the Sofa off ORD-2). The order of these steps is
+load-bearing — doing them out of order breaks the dispatch board in production.
+
+1. **Push `0040_multi_order_deliveries.sql`.** Purely additive and safe to apply on its
+   own: `deliveries.order_id` stays NOT NULL and trigger-derived, and
+   `delivery_items.received` defaults to TRUE, so the currently deployed API and dashboard
+   keep working unchanged. Nothing about their behaviour changes until step 2.
+2. **Deploy the API, then the dashboard.** The challan moved from the delivery to a new
+   `delivery_consignments` row — one per (delivery, customer), i.e. one per challan — so
+   `/api/documents/challan/{id}` now takes a **consignment** id. The GET falls back to the
+   pre-0040 document key, so challans already rendered stay downloadable. API first: the
+   new dashboard calls the new routes.
+3. **Promote `supabase/migrations_pending/0041`, then (after a release of soak) `0042`.**
+   These retire the old single-order write path and drop `deliveries.order_id`. They live
+   outside `supabase/migrations/` on purpose — `supabase db push` applies everything in that
+   directory, and pushing `0042` before step 2 is live would drop a column the deployed code
+   still reads. See `supabase/migrations_pending/README.md` for each one's gate.
+
+New in `0040` and worth knowing before UAT: `orders.fulfillment_status`
+(`not_delivered` / `partially_delivered` / `fully_delivered`) plus the `order_fulfillment`
+view. It is a SEPARATE column from `orders.status` — an order sits at `ready` while it is
+part-shipped, and the pipeline enum is deliberately untouched. The dispatch board's order
+picker filters on it, so a part-delivered order stays schedulable.
+
+**Ops step, unchanged from `0037`:** sync the challan counter with their paper book before
+the first challan is generated, or the app starts at `T.F 1` and duplicates numbers they
+have already issued by hand:
+
+```sql
+insert into doc_series (series, fiscal_year, last_no) values ('CHL', 'ALL', 66)
+on conflict (series, fiscal_year) do update set last_no = excluded.last_no;
+```
+
 ---
 
 ## TRACK A — Railway env vars: replace every placeholder (YOU · ~30 min)

@@ -11,6 +11,7 @@ import ListRow from "@/components/ui/ListRow";
 import ListFilterBar from "@/components/ui/ListFilterBar";
 import Pill, { type PillTone } from "@/components/ui/Pill";
 import { orderStatusChip } from "./status";
+import { fulfillmentLabel } from "../deliveries/types";
 
 import Pagination from "@/components/ui/Pagination";
 
@@ -47,7 +48,9 @@ export default async function OrdersPage({ searchParams }: Props) {
   let ordersQuery = supabase
     .from("orders")
     .select(
-      "id, order_no, status, grand_total, expected_delivery_date, created_at, customers(name, phone), salespersons(name)",
+      // `fulfillment_status` (0040) is the goods-out-the-door fact, separate from `status`:
+      // an order that is part-shipped stays 'ready', and the list has to be able to say so.
+      "id, order_no, status, fulfillment_status, grand_total, expected_delivery_date, created_at, customers(name, phone), salespersons(name)",
       { count: "exact" },
     );
 
@@ -112,6 +115,7 @@ export default async function OrdersPage({ searchParams }: Props) {
               const customer = Array.isArray(o.customers) ? o.customers[0] : o.customers;
               const owner = Array.isArray(o.salespersons) ? o.salespersons[0] : o.salespersons;
               const due = outstandingByOrder.get(o.id);
+              const fulfilment = fulfillmentLabel(o.fulfillment_status);
 
               return (
                 <ListRow
@@ -123,6 +127,13 @@ export default async function OrdersPage({ searchParams }: Props) {
                       <Pill tone={pillToneForStatus(o.status)} dot={false}>
                         {chip.label}
                       </Pill>
+                      {/* Only when there is something to say: "Not delivered" on every
+                          confirmed order would be noise on a list this long. */}
+                      {o.fulfillment_status && o.fulfillment_status !== "not_delivered" && (
+                        <Pill tone={fulfilment.tone} dot={false}>
+                          {fulfilment.label}
+                        </Pill>
+                      )}
                     </div>
                   }
                   secondary={
