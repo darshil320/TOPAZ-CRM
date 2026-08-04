@@ -19,18 +19,21 @@
  * two-party handover exists to prevent.
  */
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   ArrowRight,
   Clock,
   MapPin,
   Package,
   Phone,
+  SearchX,
   Send,
   Truck,
 } from "lucide-react";
 import CameraField from "@/components/production/CameraField";
 import { usePhotoCapture } from "@/components/production/usePhotoCapture";
+import PwaFilterBar, { type FilterChip } from "@/components/pwa/PwaFilterBar";
+import { haystack, matchesQuery } from "@/lib/textFilter";
 import { TRANSFER_STATUS_LABEL, describeDue } from "@/lib/production/format";
 import type { TransferSummary } from "@/lib/production/types";
 import { deliverAction, inTransitAction, pickupAction } from "./actions";
@@ -43,6 +46,72 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
   const [error, setError] = useState<string | null>(null);
   const [openStep, setOpenStep] = useState<Record<string, Step>>({});
   const [vehicle, setVehicle] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState("");
+  const [chip, setChip] = useState("all");
+
+  /* A driver searches by the thing written on the paperwork or shouted down the
+   * phone: the consignment number, a workshop name, or the order the goods
+   * belong to. All three are in the haystack, along with every item line. */
+  const searchable = useMemo(
+    () =>
+      runs.map((run) => ({
+        run,
+        text: haystack(
+          run.transfer_no,
+          run.from_workshop_name,
+          run.to_workshop_name,
+          run.vehicle_no,
+          run.reason,
+          run.notes,
+          ...(run.items ?? []).map((line) =>
+            haystack(line.description, line.order_no, line.customer_name, line.material),
+          ),
+        ),
+      })),
+    [runs],
+  );
+
+  const matching = useMemo(
+    () => searchable.filter((s) => matchesQuery(s.text, query)),
+    [searchable, query],
+  );
+
+  const chips: FilterChip[] = useMemo(
+    () => [
+      { id: "all", label: "सब / All", count: matching.length },
+      {
+        id: "ready",
+        label: "कलेक्ट / To collect",
+        count: matching.filter((s) => s.run.status === "ready").length,
+      },
+      {
+        id: "on_road",
+        label: "रास्ते में / On road",
+        count: matching.filter((s) => s.run.status === "picked_up" || s.run.status === "in_transit")
+          .length,
+      },
+      {
+        id: "late",
+        label: "देर / Late",
+        count: matching.filter((s) => describeDue(s.run.due_at).overdue).length,
+      },
+    ],
+    [matching],
+  );
+
+  const visible = useMemo(
+    () =>
+      matching
+        .filter((s) => {
+          if (chip === "ready") return s.run.status === "ready";
+          if (chip === "on_road")
+            return s.run.status === "picked_up" || s.run.status === "in_transit";
+          if (chip === "late") return describeDue(s.run.due_at).overdue;
+          return true;
+        })
+        .map((s) => s.run),
+    [matching, chip],
+  );
 
   // Two frames per consignment (collected / delivered), so the slot key carries the
   // step as well as the id — the same consignment holds both at once.
@@ -113,6 +182,17 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
 
   return (
     <div className="space-y-4">
+      <PwaFilterBar
+        query={query}
+        onQueryChange={setQuery}
+        placeholder="कंसाइनमेंट, वर्कशॉप, ऑर्डर / Consignment, workshop, order…"
+        chips={chips}
+        activeChip={chip}
+        onChipChange={setChip}
+        accent="sky"
+        resultLabel={`${visible.length} / ${runs.length}`}
+      />
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-400 flex items-center justify-between gap-3">
           <span>{error}</span>
@@ -122,7 +202,27 @@ export default function TransitClient({ initialRuns }: { initialRuns: TransferSu
         </div>
       )}
 
-      {runs.map((run) => {
+      {visible.length === 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+          <SearchX className="w-10 h-10 text-slate-600 mx-auto" />
+          <h3 className="text-base font-bold text-white">कुछ नहीं मिला / Nothing matches</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            इस खोज या फ़िल्टर में कोई ट्रिप नहीं है। / No run matches this search or filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setChip("all");
+            }}
+            className="text-xs font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30 px-3 py-2 rounded-lg"
+          >
+            साफ़ करें / Clear filters
+          </button>
+        </div>
+      )}
+
+      {visible.map((run) => {
         const due = describeDue(run.due_at);
         const pickupDue = describeDue(run.expected_pickup_at);
         const step = openStep[run.id] ?? null;

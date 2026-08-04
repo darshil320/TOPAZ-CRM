@@ -1,21 +1,33 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Truck, Plus, Calendar, CheckCircle2, Clock, Phone, MapPin, Share2, FileText } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { Truck, Plus, Search, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
-import Link from "next/link";
+import SearchableSelect, { type SelectOption } from "@/components/ui/SearchableSelect";
+import { haystack, matchesQuery } from "@/lib/textFilter";
 import { scheduleDeliveryAction } from "./actions";
+import type { DeliveryRow, ReadyOrderRow, StaffRow } from "./types";
+import { customerOf, driverOf, orderOf } from "./types";
+
+const STATUS_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "in_transit", label: "In transit" },
+  { id: "delivered", label: "Delivered" },
+  { id: "failed", label: "Failed" },
+] as const;
 
 export default function DeliveriesManagementClient({
   deliveries,
   readyOrders,
   staff,
 }: {
-  deliveries: any[];
-  readyOrders: any[];
-  staff: any[];
+  deliveries: DeliveryRow[];
+  readyOrders: ReadyOrderRow[];
+  staff: StaffRow[];
 }) {
   const [showModal, setShowModal] = useState(false);
   const [orderId, setOrderId] = useState("");
@@ -26,6 +38,86 @@ export default function DeliveriesManagementClient({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  /** Orders that already have a run on the board — flagged, not hidden: a
+   * re-delivery after a failed attempt is legitimate, scheduling one twice by
+   * accident is not. */
+  const scheduledOrderIds = useMemo(
+    () => new Set(deliveries.filter((d) => d.status !== "failed").map((d) => d.order_id)),
+    [deliveries],
+  );
+
+  const orderOptions: SelectOption[] = useMemo(
+    () =>
+      readyOrders.map((o) => {
+        const customer = customerOf(o);
+        const already = scheduledOrderIds.has(o.id);
+        return {
+          id: o.id,
+          label: o.order_no,
+          sublabel: `${customer?.name ?? "Customer"} · ${o.status}${already ? " · already scheduled" : ""}`,
+          keywords: haystack(customer?.name, customer?.phone, o.status),
+        };
+      }),
+    [readyOrders, scheduledOrderIds],
+  );
+
+  const staffOptions: SelectOption[] = useMemo(
+    () => staff.map((s) => ({ id: s.id, label: s.name, sublabel: s.role ?? undefined })),
+    [staff],
+  );
+
+  const searchable = useMemo(
+    () =>
+      deliveries.map((d) => {
+        const order = orderOf(d);
+        const customer = customerOf(order);
+        const driver = driverOf(d);
+        return {
+          row: d,
+          text: haystack(
+            order?.order_no,
+            customer?.name,
+            customer?.phone,
+            driver?.name,
+            d.vehicle_no,
+            d.eway_bill_no,
+            d.notes,
+            d.scheduled_date,
+            d.status,
+          ),
+        };
+      }),
+    [deliveries],
+  );
+
+  const matchingQuery = useMemo(
+    () => searchable.filter((s) => matchesQuery(s.text, query)),
+    [searchable, query],
+  );
+
+  const counts = useMemo(() => {
+    const base: Record<string, number> = { all: matchingQuery.length };
+    for (const f of STATUS_FILTERS) {
+      if (f.id === "all") continue;
+      base[f.id] = matchingQuery.filter((s) => s.row.status === f.id).length;
+    }
+    return base;
+  }, [matchingQuery]);
+
+  const visible = useMemo(
+    () =>
+      (statusFilter === "all"
+        ? matchingQuery
+        : matchingQuery.filter((s) => s.row.status === statusFilter)
+      ).map((s) => s.row),
+    [matchingQuery, statusFilter],
+  );
+
+  const isFiltered = query.trim() !== "" || statusFilter !== "all";
 
   function handleSchedule() {
     setError(null);
@@ -51,6 +143,7 @@ export default function DeliveriesManagementClient({
 
       setShowModal(false);
       setOrderId("");
+      setDriverId("");
       setVehicleNo("");
       setEwayBillNo("");
       setNotes("");
@@ -84,17 +177,78 @@ export default function DeliveriesManagementClient({
         </div>
       </div>
 
+      {/* Search + status filters */}
+      <Card className="p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative flex-1 min-w-0">
+          <Search className="w-4 h-4 text-t3 absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.8} />
+          <input
+            type="search"
+            value={query}
+            placeholder="Search order no, customer, mobile, driver, vehicle or E-Way bill…"
+            aria-label="Search deliveries"
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 bg-sf2 border border-ln rounded-md text-ui text-t1 placeholder-t3 focus:outline-none focus:border-acc focus:bg-sf transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setStatusFilter(f.id)}
+                aria-pressed={active}
+                className={`shrink-0 px-2.5 py-1.5 rounded-md border text-caption font-semibold transition-colors flex items-center gap-1.5 ${
+                  active
+                    ? "bg-acc text-white border-acc"
+                    : "bg-sf2 border-ln text-t2 hover:border-accL hover:text-t1"
+                }`}
+              >
+                {f.label}
+                <span className={`font-mono ${active ? "opacity-75" : "text-t3"}`}>
+                  {counts[f.id] ?? 0}
+                </span>
+              </button>
+            );
+          })}
+
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setStatusFilter("all");
+              }}
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-ln bg-sf2 text-caption font-semibold text-t3 hover:text-t1 flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          )}
+        </div>
+      </Card>
+
       {/* Deliveries List Card */}
       <Card className="p-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-ln flex items-center justify-between">
-          <SectionHeader label="Scheduled & Delivered Orders" total={`${deliveries.length} total`} />
+          <SectionHeader
+            label="Scheduled & Delivered Orders"
+            total={isFiltered ? `${visible.length} of ${deliveries.length}` : `${deliveries.length} total`}
+          />
         </div>
 
-        {deliveries.length === 0 ? (
+        {visible.length === 0 ? (
           <div className="p-12 text-center text-t3 space-y-2">
             <Truck className="w-10 h-10 text-t3 mx-auto" />
-            <p className="font-semibold text-t2">No deliveries scheduled yet</p>
-            <p className="text-caption text-t3">Schedule a delivery for completed production orders above.</p>
+            <p className="font-semibold text-t2">
+              {isFiltered ? "No deliveries match this search" : "No deliveries scheduled yet"}
+            </p>
+            <p className="text-caption text-t3">
+              {isFiltered
+                ? "Try a different order number, customer, driver or vehicle."
+                : "Schedule a delivery for completed production orders above."}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -109,29 +263,32 @@ export default function DeliveriesManagementClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-ln2">
-                {deliveries.map((d) => {
-                  const orderObj = Array.isArray(d.orders) ? d.orders[0] : d.orders;
-                  const custObj = orderObj?.customers ? (Array.isArray(orderObj.customers) ? orderObj.customers[0] : orderObj.customers) : null;
-                  const driverObj = Array.isArray(d.salespersons) ? d.salespersons[0] : d.salespersons;
+                {visible.map((d) => {
+                  const order = orderOf(d);
+                  const customer = customerOf(order);
+                  const driver = driverOf(d);
 
                   return (
                     <tr key={d.id} className="hover:bg-sf2 transition-colors">
                       <td className="px-4 py-3 space-y-1">
                         <div className="flex items-center gap-2">
                           <Link href={`/dashboard/orders/${d.order_id}`} className="font-bold text-acc font-mono hover:underline">
-                            {orderObj?.order_no || "ORD-???"}
+                            {order?.order_no || "ORD-???"}
                           </Link>
-                          <Pill tone={orderObj?.status === "ready" ? "pos" : "neutral"} dot={false}>
-                            {orderObj?.status}
+                          <Pill tone={order?.status === "ready" ? "pos" : "neutral"} dot={false}>
+                            {order?.status}
                           </Pill>
                         </div>
-                        <p className="text-nav font-semibold text-t1">{custObj?.name || "Customer"}</p>
+                        <p className="text-nav font-semibold text-t1">{customer?.name || "Customer"}</p>
+                        {customer?.phone && (
+                          <p className="text-caption font-mono text-t3">{customer.phone}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono text-t1 text-caption">
                         {d.scheduled_date}
                       </td>
                       <td className="px-4 py-3 text-caption text-t2 font-medium">
-                        {driverObj?.name || "Unassigned"}
+                        {driver?.name || "Unassigned"}
                       </td>
                       <td className="px-4 py-3 font-mono text-caption text-t3 space-y-0.5">
                         {d.vehicle_no && <div className="text-t1 font-semibold">Vehicle: {d.vehicle_no}</div>}
@@ -139,7 +296,7 @@ export default function DeliveriesManagementClient({
                         {!d.vehicle_no && !d.eway_bill_no && "—"}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Pill tone={d.status === "delivered" ? "pos" : "warn"} dot={false}>
+                        <Pill tone={d.status === "delivered" ? "pos" : d.status === "failed" ? "warn" : "neutral"} dot={false}>
                           {d.status}
                         </Pill>
                       </td>
@@ -173,18 +330,19 @@ export default function DeliveriesManagementClient({
             <div className="space-y-3">
               <div>
                 <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">Select Order *</label>
-                <select
+                <SearchableSelect
+                  options={orderOptions}
                   value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                  className="w-full bg-sf2 border border-ln rounded-card p-2.5 text-caption font-semibold text-t1 focus:outline-none focus:border-acc"
-                >
-                  <option value="">-- Choose Ready / Production Order --</option>
-                  {readyOrders.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.order_no} — {o.customers?.name || "Customer"} ({o.status})
-                    </option>
-                  ))}
-                </select>
+                  onChange={setOrderId}
+                  placeholder="-- Choose Ready / Production Order --"
+                  searchPlaceholder="Search order no, customer or mobile…"
+                  emptyLabel="No ready or in-production orders match"
+                />
+                {orderId && scheduledOrderIds.has(orderId) && (
+                  <p className="mt-1 text-[11px] font-semibold text-warn">
+                    This order already has a delivery on the board — schedule again only if the first attempt failed.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -200,16 +358,14 @@ export default function DeliveriesManagementClient({
 
                 <div>
                   <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">Assign Driver / Staff</label>
-                  <select
+                  <SearchableSelect
+                    options={staffOptions}
                     value={driverId}
-                    onChange={(e) => setDriverId(e.target.value)}
-                    className="w-full bg-sf2 border border-ln rounded-card p-2.5 text-caption font-semibold text-t1 focus:outline-none focus:border-acc"
-                  >
-                    <option value="">-- Select Staff --</option>
-                    {staff.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                    ))}
-                  </select>
+                    onChange={setDriverId}
+                    placeholder="-- Select Staff --"
+                    searchPlaceholder="Search staff by name or role…"
+                    emptyLabel="No staff match"
+                  />
                 </div>
               </div>
 

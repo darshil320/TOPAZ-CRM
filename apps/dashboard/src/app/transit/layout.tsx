@@ -25,7 +25,8 @@ export default async function TransitLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-lg">
+      {/* Fixed h-16: the run list's sticky filter bar pins to `top-16`. */}
+      <header className="sticky top-0 z-40 h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-sky-500 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-sky-500/20">
             <Truck className="w-4 h-4" />

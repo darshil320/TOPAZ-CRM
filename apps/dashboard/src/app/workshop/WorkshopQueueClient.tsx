@@ -21,11 +21,14 @@ import {
   CheckCircle2,
   Clock,
   MapPin,
+  SearchX,
   Send,
   ShieldAlert,
   Sparkles,
   Truck,
 } from "lucide-react";
+import PwaFilterBar, { type FilterChip } from "@/components/pwa/PwaFilterBar";
+import { haystack, matchesQuery } from "@/lib/textFilter";
 import CameraField from "@/components/production/CameraField";
 import { usePhotoCapture } from "@/components/production/usePhotoCapture";
 import { describeDue, legLabel, spanLabel } from "@/lib/production/format";
@@ -54,6 +57,9 @@ export default function WorkshopQueueClient({
   const [notice, setNotice] = useState<string | null>(null);
   const [blockNote, setBlockNote] = useState("");
   const [showBlockModal, setShowBlockModal] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [chip, setChip] = useState("all");
+  const [siteFilter, setSiteFilter] = useState("all");
 
   const photos = usePhotoCapture({ entityType: "order_item", kind: "production" });
 
@@ -64,6 +70,73 @@ export default function WorkshopQueueClient({
   const leadAt = useMemo(
     () => new Set(workshops.filter((w) => w.staff_role === "lead").map((w) => w.id)),
     [workshops],
+  );
+
+  /* ── Search + filters ──────────────────────────────────────────────────────
+   * A lead at three sites can carry forty cards. The questions they actually
+   * ask are "where is this order", "what is late", "what is stuck" and "what is
+   * on a lorry" — one chip each, plus a site selector when they hold more than
+   * one workshop. Stage labels join the haystack in both scripts, so typing
+   * "પોલિશ" finds the same cards as typing "polish". */
+  const searchable = useMemo(
+    () =>
+      items.map((item) => {
+        const stage = stageMap.get(item.current_stage || firstStageCode);
+        return {
+          item,
+          text: haystack(
+            item.order_no,
+            item.customer_name,
+            item.description,
+            item.dimensions,
+            item.material,
+            item.spec_notes,
+            item.workshop_name,
+            item.next_workshop_name,
+            stage?.label_en,
+            stage?.label_gu,
+          ),
+          overdue: describeDue(item.leg_due_at ?? item.due_at).overdue,
+        };
+      }),
+    [items, stageMap, firstStageCode],
+  );
+
+  const matching = useMemo(
+    () =>
+      searchable.filter(
+        (s) =>
+          matchesQuery(s.text, query) &&
+          (siteFilter === "all" || s.item.workshop_id === siteFilter),
+      ),
+    [searchable, query, siteFilter],
+  );
+
+  const chips: FilterChip[] = useMemo(
+    () => [
+      { id: "all", label: "सब / All", count: matching.length },
+      { id: "overdue", label: "देर / Late", count: matching.filter((s) => s.overdue).length },
+      { id: "blocked", label: "अवरोध / Blocked", count: matching.filter((s) => s.item.blocked).length },
+      {
+        id: "transit",
+        label: "रास्ते में / Transit",
+        count: matching.filter((s) => s.item.transit_transfer_id !== null).length,
+      },
+    ],
+    [matching],
+  );
+
+  const visible = useMemo(
+    () =>
+      matching
+        .filter((s) => {
+          if (chip === "overdue") return s.overdue;
+          if (chip === "blocked") return s.item.blocked;
+          if (chip === "transit") return s.item.transit_transfer_id !== null;
+          return true;
+        })
+        .map((s) => s.item),
+    [matching, chip],
   );
 
   function handleAdvance(item: QueueItem) {
@@ -186,6 +259,33 @@ export default function WorkshopQueueClient({
 
   return (
     <div className="space-y-4">
+      <PwaFilterBar
+        query={query}
+        onQueryChange={setQuery}
+        placeholder="ઓર્ડર, ગ્રાહક, વસ્તુ / Order, customer, item…"
+        chips={chips}
+        activeChip={chip}
+        onChipChange={setChip}
+        accent="amber"
+        resultLabel={`${visible.length} / ${items.length}`}
+      >
+        {workshops.length > 1 && (
+          <select
+            value={siteFilter}
+            onChange={(e) => setSiteFilter(e.target.value)}
+            aria-label="Filter by workshop"
+            className="shrink-0 h-9 px-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-bold text-slate-200 focus:outline-none focus:border-amber-500"
+          >
+            <option value="all">બધી સાઇટ / All sites</option>
+            {workshops.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </PwaFilterBar>
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-400 flex items-center justify-between gap-3">
           <span>{error}</span>
@@ -203,7 +303,28 @@ export default function WorkshopQueueClient({
         </div>
       )}
 
-      {items.map((item) => {
+      {visible.length === 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+          <SearchX className="w-10 h-10 text-slate-600 mx-auto" />
+          <h3 className="text-base font-bold text-white">કંઈ મળ્યું નહીં / Nothing matches</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            આ શોધ કે ફિલ્ટરમાં કોઈ કામ નથી. / No item matches this search or filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setChip("all");
+              setSiteFilter("all");
+            }}
+            className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-2 rounded-lg"
+          >
+            સાફ કરો / Clear filters
+          </button>
+        </div>
+      )}
+
+      {visible.map((item) => {
         const currentCode = item.current_stage || firstStageCode;
         const currentDef = stageMap.get(currentCode);
         const currentIndex = stages.findIndex((s) => s.code === currentCode);

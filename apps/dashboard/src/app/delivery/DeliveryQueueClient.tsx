@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
-import { Truck, CheckCircle2, Camera, Phone, MapPin, ImagePlus, Loader2, Check, FileText } from "lucide-react";
+import { useMemo, useState, useTransition, useRef } from "react";
+import { CheckCircle2, Camera, Phone, ImagePlus, Loader2, Check, SearchX } from "lucide-react";
 import { completeDeliveryAction } from "./actions";
 import { signUpload, completeUpload, type MediaMime } from "@/lib/media/actions";
+import PwaFilterBar, { type FilterChip } from "@/components/pwa/PwaFilterBar";
+import { haystack, matchesQuery } from "@/lib/textFilter";
+import { todayISO } from "@/lib/format";
 import type { DeliveryQueueItem } from "./page";
 
 const PASSTHROUGH_MIME: Record<string, MediaMime> = {
@@ -28,7 +31,65 @@ export default function DeliveryQueueClient({
   const [photos, setPhotos] = useState<Record<string, PhotoState>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [chip, setChip] = useState("all");
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // A driver's day is "what is late, what is today, what is on the lorry" —
+  // the chips are those three questions, not a mirror of the status column.
+  const today = todayISO();
+
+  const searchable = useMemo(
+    () =>
+      deliveries.map((d) => ({
+        delivery: d,
+        text: haystack(
+          d.order_no,
+          d.customer_name,
+          d.customer_phone,
+          d.items_summary,
+          d.vehicle_no,
+          d.eway_bill_no,
+          d.notes,
+          d.scheduled_date,
+        ),
+        overdue: d.scheduled_date < today,
+        isToday: d.scheduled_date === today,
+      })),
+    [deliveries, today],
+  );
+
+  const matching = useMemo(
+    () => searchable.filter((s) => matchesQuery(s.text, query)),
+    [searchable, query],
+  );
+
+  const chips: FilterChip[] = useMemo(
+    () => [
+      { id: "all", label: "सब / All", count: matching.length },
+      { id: "today", label: "आज / Today", count: matching.filter((s) => s.isToday).length },
+      { id: "overdue", label: "देर / Late", count: matching.filter((s) => s.overdue).length },
+      {
+        id: "in_transit",
+        label: "रास्ते में / On road",
+        count: matching.filter((s) => s.delivery.status === "in_transit").length,
+      },
+    ],
+    [matching],
+  );
+
+  const visible = useMemo(
+    () =>
+      matching
+        .filter((s) => {
+          if (chip === "today") return s.isToday;
+          if (chip === "overdue") return s.overdue;
+          if (chip === "in_transit") return s.delivery.status === "in_transit";
+          return true;
+        })
+        .map((s) => s.delivery),
+    [matching, chip],
+  );
 
   async function handleFileSelected(deliveryId: string, file: File) {
     setError(null);
@@ -91,7 +152,9 @@ export default function DeliveryQueueClient({
     }
 
     startTransition(async () => {
-      const res = await completeDeliveryAction(delivery.id, notes, photo.mediaId || undefined);
+      // The proof photo is already linked to this delivery by the upload; the
+      // action only needs the note.
+      const res = await completeDeliveryAction(delivery.id, notes);
       if (res.error) {
         setError(res.error);
         return;
@@ -115,6 +178,17 @@ export default function DeliveryQueueClient({
 
   return (
     <div className="space-y-4">
+      <PwaFilterBar
+        query={query}
+        onQueryChange={setQuery}
+        placeholder="ऑर्डर, ग्राहक, मोबाइल, गाड़ी / Order, customer, mobile, vehicle…"
+        chips={chips}
+        activeChip={chip}
+        onChipChange={setChip}
+        accent="emerald"
+        resultLabel={`${visible.length} / ${deliveries.length}`}
+      />
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-400 flex items-center justify-between">
           <span>{error}</span>
@@ -122,7 +196,27 @@ export default function DeliveryQueueClient({
         </div>
       )}
 
-      {deliveries.map((delivery) => {
+      {visible.length === 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+          <SearchX className="w-10 h-10 text-slate-600 mx-auto" />
+          <h3 className="text-base font-bold text-white">कुछ नहीं मिला / Nothing matches</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            इस खोज या फ़िल्टर में कोई डिलीवरी नहीं है। / No delivery matches this search or filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setChip("all");
+            }}
+            className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 rounded-lg"
+          >
+            साफ़ करें / Clear filters
+          </button>
+        </div>
+      )}
+
+      {visible.map((delivery) => {
         const photo = photos[delivery.id];
         const formattedPhone = (delivery.customer_phone || "").replace(/\D/g, "");
 

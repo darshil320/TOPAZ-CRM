@@ -13,8 +13,9 @@
  * clears so stages can be ticked again.
  */
 
-import { useState, useTransition } from "react";
-import { ArrowRight, Clock, PackageCheck, Phone, Truck } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { ArrowRight, Clock, PackageCheck, Phone, Search, Truck } from "lucide-react";
+import { haystack, matchesQuery } from "@/lib/textFilter";
 import CameraField from "@/components/production/CameraField";
 import { usePhotoCapture } from "@/components/production/usePhotoCapture";
 import { TRANSFER_STATUS_LABEL, describeDue } from "@/lib/production/format";
@@ -32,8 +33,32 @@ export default function IncomingTransfers({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const photos = usePhotoCapture({ entityType: "workshop_transfer", kind: "transit" });
+
+  /* Search appears only once the list stops being scannable — three lorries is
+   * a glance, ten is a hunt. */
+  const SEARCH_THRESHOLD = 3;
+
+  const visible = useMemo(
+    () =>
+      rows.filter((t) =>
+        matchesQuery(
+          haystack(
+            t.transfer_no,
+            t.from_workshop_name,
+            t.courier_name,
+            t.vehicle_no,
+            ...(t.items ?? []).map((line) =>
+              haystack(line.description, line.order_no, line.customer_name),
+            ),
+          ),
+          query,
+        ),
+      ),
+    [rows, query],
+  );
 
   if (rows.length === 0) return null;
 
@@ -68,13 +93,33 @@ export default function IncomingTransfers({
         </h3>
       </div>
 
+      {rows.length > SEARCH_THRESHOLD && (
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="कंसाइनमेंट, ऑर्डर, ड्राइवर / Consignment, order, driver…"
+            aria-label="Search incoming consignments"
+            className="w-full h-11 pl-9 pr-3 bg-slate-900 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+          />
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-semibold text-red-400">
           {error}
         </div>
       )}
 
-      {rows.map((transfer) => {
+      {visible.length === 0 && (
+        <p className="text-xs text-slate-500 px-1">
+          इस खोज में कोई कंसाइनमेंट नहीं / No incoming consignment matches this search.
+        </p>
+      )}
+
+      {visible.map((transfer) => {
         const due = describeDue(transfer.due_at);
         const photo = photos.slot(transfer.id);
         const expanded = open === transfer.id;

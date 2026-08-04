@@ -16,7 +16,9 @@ export default async function WorkshopLayout({ children }: { children: React.Rea
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Mobile Top App Bar */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-lg">
+      {/* Fixed h-16: the queue's sticky filter bar pins to `top-16`, so this
+          height is a contract, not a coincidence. */}
+      <header className="sticky top-0 z-40 h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition-colors">
             <ArrowLeft className="w-4 h-4" />

@@ -11,11 +11,20 @@ REMAINING: Tracks A–G below.
 
 > **Phase 2 / 2B status lives in [`docs/phase2/STATE.md`](phase2/STATE.md), not here.** This
 > file covers the Phase-1 go-live tracks only. Current cross-phase deployment facts worth
-> having in one place (2026-07-27): the repo's migration head is **`0031`** while prod and
-> UAT are still at **`0020`**, so migrations `0021`–`0031` (quotes/orders/payments RLS,
-> workshops, production, media, job cards, and module 14's workshop staff + routing +
-> transit) all need pushing before any Phase-2B feature works against a real database.
+> having in one place (2026-07-27): the repo's migration head is **`0033`** while prod and
+> UAT are still at **`0020`**, so migrations `0021`–`0033` (quotes/orders/payments RLS,
+> workshops, production, media, job cards, module 14's workshop staff + routing +
+> transit, and `0033`'s deliveries write path) all need pushing before any Phase-2B
+> feature works against a real database.
 > Module 14 also adds two unsubmitted Meta templates (`transfer_assigned`, `leg_overdue`).
+>
+> **`0033` is a live-bug fix, not a new feature:** on any database already at `0031`,
+> scheduling a delivery fails with *"new row violates row-level security policy for
+> table deliveries"* and the driver PWA's "mark delivered" silently no-ops. `0031`
+> removed 0026's write policies expecting a service-role delivery API that was never
+> built; `0033` restores scoped browser writes (owner/admin/assigned salesperson can
+> schedule, the assigned driver can complete) and moves the order-status flip + audit
+> row into a SECURITY DEFINER trigger. Apply it before using the dispatch board.
 
 ---
 
