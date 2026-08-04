@@ -53,9 +53,10 @@ from sqlalchemy.exc import IntegrityError
 
 from ..database import make_task_session
 from ..repositories import production_repo as repo
-from ..repositories import route_repo, transfer_repo, workshop_staff_repo
+from ..repositories import route_repo, stage_plan_repo, transfer_repo, workshop_staff_repo
 from ..services import handover, stage_flow
 from . import authz
+from . import stage_plan as stage_plan_api
 from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
@@ -141,10 +142,29 @@ async def allocate(req: AllocateRequest, caller_uid: str = Depends(get_caller_ui
             logger.info("Concurrent allocation on item %s: %s", req.order_item_id, exc)
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail="Item was allocated concurrently — refresh and retry") from exc
+
+        # Seed the per-stage reminder schedule from the admin defaults (0035). BEST
+        # EFFORT and deliberately swallowed: a reminder plan must never be the reason a
+        # workshop cannot be given work. Runs inside this transaction so a seeded plan
+        # and its allocation are never half-committed.
+        # A SAVEPOINT, not a bare try: a failed statement poisons the whole transaction,
+        # so catching the exception without one would make the following commit fail and
+        # lose the allocation — the exact outcome this guard exists to prevent.
+        seeded = None
+        try:
+            async with session.begin_nested():
+                seeded = await stage_plan_api.seed_plan_for_item(
+                    session, req.order_item_id,
+                    due_date=req.due_date, actor_id=caller.salesperson_id,
+                )
+        except Exception:  # noqa: BLE001 — never fail an allocation over a reminder plan
+            logger.warning("Could not seed a stage plan for item %s", req.order_item_id,
+                           exc_info=True)
         await session.commit()
 
-    logger.info("Allocated item %s to workshop %s (was %s)",
-                req.order_item_id, req.workshop_id, result.previous_workshop_id)
+    logger.info("Allocated item %s to workshop %s (was %s); stage plan: %s",
+                req.order_item_id, req.workshop_id, result.previous_workshop_id,
+                seeded or "none")
     return {
         "assignment_id": result.assignment_id,
         "order_item_id": result.order_item_id,
@@ -204,6 +224,21 @@ def _assert_workable(item: dict) -> None:
         )
 
 
+def _with_stage_due(item: dict, due: dict | None) -> dict:
+    """A queue card plus its next stage deadline (0035). Returns a NEW dict — the repo's
+    row is not mutated (CLAUDE.md: immutability)."""
+    if due is None:
+        return {**item, "stage_due_at": None, "stage_due_code": None, "stage_overdue": False}
+    return {
+        **item,
+        "stage_due_at": due["due_at"].isoformat() if due["due_at"] else None,
+        "stage_due_code": due["stage_code"],
+        "stage_due_label_en": due["stage_label_en"],
+        "stage_due_label_gu": due["stage_label_gu"],
+        "stage_overdue": bool(due["overdue"]),
+    }
+
+
 async def _assert_status_capability(session, caller, item: dict) -> frozenset[str]:
     caps = await authz.capabilities_at_workshop(session, caller, str(item["workshop_id"]))
     authz.assert_capability(caps, stage_flow.CAP_STATUS, action="update production status")
@@ -218,6 +253,11 @@ async def my_queue(caller_uid: str = Depends(get_caller_uid)) -> dict:
     a sub-manager sees the same queue as their lead, which is the whole point of the
     hierarchy. Owner/admin see every active workshop, which is also what keeps a vendor
     workshop with no login at all visible to somebody (STATE.md discovery for 09).
+
+    Each workshop carries its `capabilities` so the PWA can say WHY a button is off
+    instead of rendering a dead one. The array is computed from the same pure rule the
+    write routes gate on (services/stage_flow), so the disabled state and the 403 can
+    never disagree.
     """
     async with make_task_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
@@ -230,9 +270,29 @@ async def my_queue(caller_uid: str = Depends(get_caller_uid)) -> dict:
         else:
             workshops = await workshop_staff_repo.my_workshops(session, caller.salesperson_id)
 
+        workshops = [
+            {
+                **w,
+                "capabilities": sorted(
+                    stage_flow.capabilities_for(
+                        role=caller.role, staff_role=w.get("staff_role")
+                    )
+                ),
+            }
+            for w in workshops
+        ]
+
         workshop_ids = [str(w["id"]) for w in workshops]
         items = await repo.queue_for_workshop(session, workshop_ids)
         stages = await repo.stage_defs(session)
+
+        # The per-stage deadline for each card's next unfinished stage (0035). One query
+        # for the whole queue, not one per card — a lead at three sites carries forty.
+        due_state = await stage_plan_repo.due_state_for_items(
+            session, [str(i["id"]) for i in items]
+        )
+        items = [_with_stage_due(item, due_state.get(str(item["id"]))) for item in items]
+
         incoming = []
         for ws in workshops:
             incoming.extend(await transfer_repo.list_transfers(
@@ -378,7 +438,12 @@ async def advance(order_item_id: UUID, req: AdvanceRequest,
 
         await session.commit()
 
+    # `done` is what turns this into REQ 6's "ready to deliver" notification. Passed
+    # rather than re-derived in the worker: `next_stage is None` is computed here from the
+    # stage table the guards already used, and a worker re-reading it could disagree if an
+    # admin deactivated a stage in between.
     _notify("stage_done", event_id=event_id, order_item_id=str(order_item_id),
+            done=next_stage is None,
             transfer_id=opened_transfer["id"] if opened_transfer else None)
 
     return {

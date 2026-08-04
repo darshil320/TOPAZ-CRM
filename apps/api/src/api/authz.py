@@ -89,12 +89,17 @@ async def capabilities_at_workshop(
     rule in services/stage_flow.capabilities_for(). Owner/admin and the courier role do
     not depend on a roster row, so the lookup is skipped for them — a `delivery` user
     driving a consignment must not need to be on either workshop's staff list.
+
+    Every OTHER role gets the lookup, whatever its coarse role string is: 0029 makes the
+    roster the authority on what you may do at a workshop, so gating the lookup itself on
+    `role == 'workshop_manager'` silently discarded the roster row of a sub-manager whose
+    `salespersons.role` was still 'salesperson'.
     """
     from ..repositories import workshop_staff_repo
     from ..services import stage_flow
 
     staff_role: str | None = None
-    if workshop_id and caller.role == "workshop_manager":
+    if workshop_id and caller.role not in stage_flow.ROSTER_IRRELEVANT_ROLES:
         staff_role = await workshop_staff_repo.staff_role_at(
             session, salesperson_id=caller.salesperson_id, workshop_id=workshop_id
         )

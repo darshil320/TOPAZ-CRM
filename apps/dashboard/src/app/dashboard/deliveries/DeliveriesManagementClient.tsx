@@ -8,9 +8,10 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
 import SearchableSelect, { type SelectOption } from "@/components/ui/SearchableSelect";
 import { haystack, matchesQuery } from "@/lib/textFilter";
+import ChallanButton from "./ChallanButton";
 import { scheduleDeliveryAction } from "./actions";
 import type { DeliveryRow, ReadyOrderRow, StaffRow } from "./types";
-import { customerOf, driverOf, orderOf } from "./types";
+import { customerOf, driverOf, ineligibleReason, itemsOf, orderOf } from "./types";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -31,11 +32,18 @@ export default function DeliveriesManagementClient({
 }) {
   const [showModal, setShowModal] = useState(false);
   const [orderId, setOrderId] = useState("");
+  /** Which of the order's lines travel on this run (0039). Empty = nothing scheduled. */
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [driverId, setDriverId] = useState("");
   const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().slice(0, 10));
   const [vehicleNo, setVehicleNo] = useState("");
   const [ewayBillNo, setEwayBillNo] = useState("");
   const [notes, setNotes] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  // Two more lines on the client's challan (0037). Blank is a legitimate saved state —
+  // their pad leaves both to be written in by hand.
+  const [deliveryRent, setDeliveryRent] = useState("");
+  const [dpCode, setDpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -74,6 +82,52 @@ export default function DeliveriesManagementClient({
     () => staff.map((s) => ({ id: s.id, label: s.name, sublabel: s.role ?? undefined })),
     [staff],
   );
+
+  /* ── The item picker (0039) ───────────────────────────────────────────────── */
+
+  /** Items already committed to an OPEN run, from the board we are looking at.
+   *  Mirrors the DB's `delivery_items_one_open` so the greyed reason in the picker and
+   *  the eventual unique-violation cannot disagree. A `failed` run releases its items —
+   *  rescheduling them is exactly why a run gets marked failed. */
+  const openItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const delivery of optimisticDeliveries) {
+      if (delivery.status !== "scheduled" && delivery.status !== "in_transit") continue;
+      for (const item of itemsOf(delivery)) ids.add(item.id);
+    }
+    return ids;
+  }, [optimisticDeliveries]);
+
+  const selectedOrder = useMemo(
+    () => readyOrders.find((o) => o.id === orderId) ?? null,
+    [readyOrders, orderId],
+  );
+
+  const orderItems = useMemo(
+    () =>
+      (selectedOrder?.order_items ?? []).map((item) => ({
+        item,
+        reason: ineligibleReason(item, openItemIds),
+      })),
+    [selectedOrder, openItemIds],
+  );
+
+  const eligibleIds = useMemo(
+    () => orderItems.filter((r) => r.reason === null).map((r) => r.item.id),
+    [orderItems],
+  );
+
+  function toggleItem(id: string) {
+    setSelectedItemIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  /** Picking a different order invalidates the selection entirely. */
+  function chooseOrder(id: string) {
+    setOrderId(id);
+    setSelectedItemIds([]);
+  }
 
   const searchable = useMemo(
     () =>
@@ -130,11 +184,19 @@ export default function DeliveriesManagementClient({
       setError("Please select an order");
       return;
     }
+    if (selectedItemIds.length === 0) {
+      setError("Tick the items going out on this run — a delivery is a set of items, not a whole order.");
+      return;
+    }
 
     startTransition(async () => {
       const targetOrder = readyOrders.find((o) => o.id === orderId);
       const targetDriver = driverId ? staff.find((s) => s.id === driverId) : null;
-      
+      const itemIds = selectedItemIds;
+      const address = deliveryAddress;
+      const rent = deliveryRent;
+      const dp = dpCode;
+
       addOptimisticDelivery({
         id: `temp-${Date.now()}`,
         order_id: orderId,
@@ -146,22 +208,36 @@ export default function DeliveriesManagementClient({
         notes: notes || null,
         orders: targetOrder as any,
         salespersons: targetDriver as any,
+        // Optimistically shown on the board row AND fed back into `openItemIds`, so a
+        // second modal opened before the server responds cannot double-book the same item.
+        delivery_items: itemIds.map((id) => ({
+          order_item_id: id,
+          order_items: (targetOrder?.order_items ?? []).find((i) => i.id === id) ?? null,
+        })),
       });
-      
+
       setShowModal(false);
       setOrderId("");
+      setSelectedItemIds([]);
       setDriverId("");
       setVehicleNo("");
       setEwayBillNo("");
       setNotes("");
+      setDeliveryAddress("");
+      setDeliveryRent("");
+      setDpCode("");
 
       const res = await scheduleDeliveryAction(
         orderId,
         scheduledDate,
+        itemIds,
         driverId || undefined,
         vehicleNo || undefined,
         ewayBillNo || undefined,
         notes || undefined,
+        address || undefined,
+        rent || undefined,
+        dp || undefined,
       );
 
       if (res.error) {
@@ -277,9 +353,11 @@ export default function DeliveriesManagementClient({
               <thead>
                 <tr className="border-b border-ln text-label-sm uppercase text-t3 bg-sf2">
                   <th className="px-4 py-3 font-semibold">Order & Customer</th>
+                  <th className="px-4 py-3 font-semibold">Items on this run</th>
                   <th className="px-4 py-3 font-semibold">Scheduled Date</th>
                   <th className="px-4 py-3 font-semibold">Assigned Driver</th>
                   <th className="px-4 py-3 font-semibold">Vehicle & E-Way Bill</th>
+                  <th className="px-4 py-3 font-semibold">Challan</th>
                   <th className="px-4 py-3 font-semibold text-right">Status</th>
                 </tr>
               </thead>
@@ -288,6 +366,7 @@ export default function DeliveriesManagementClient({
                   const order = orderOf(d);
                   const customer = customerOf(order);
                   const driver = driverOf(d);
+                  const runItems = itemsOf(d);
 
                   return (
                     <tr key={d.id} className="hover:bg-sf2 transition-colors">
@@ -305,6 +384,29 @@ export default function DeliveriesManagementClient({
                           <p className="text-caption font-mono text-t3">{customer.phone}</p>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-caption text-t2 space-y-0.5">
+                        {runItems.length === 0 ? (
+                          // A pre-0039 delivery, or one whose backfill has not run. Saying
+                          // "whole order" is what it actually meant, rather than "—".
+                          <span className="text-t3">Whole order</span>
+                        ) : (
+                          <>
+                            {runItems.slice(0, 3).map((item) => (
+                              <div key={item.id} className="truncate max-w-[15rem]">
+                                {item.description ?? "Item"}
+                                <span className="ml-1 font-mono tabular-nums text-t3">
+                                  ×{item.qty ?? 1}
+                                </span>
+                              </div>
+                            ))}
+                            {runItems.length > 3 && (
+                              <div className="text-t3 font-mono tabular-nums">
+                                +{runItems.length - 3} more
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-mono text-t1 text-caption">
                         {d.scheduled_date}
                       </td>
@@ -315,6 +417,19 @@ export default function DeliveriesManagementClient({
                         {d.vehicle_no && <div className="text-t1 font-semibold">Vehicle: {d.vehicle_no}</div>}
                         {d.eway_bill_no && <div>E-Way: {d.eway_bill_no}</div>}
                         {!d.vehicle_no && !d.eway_bill_no && "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* An optimistic row has no server id yet, so its challan cannot
+                            be rendered — the button appears once the insert lands. */}
+                        {d.id.startsWith("temp-") ? (
+                          <span className="text-caption text-t3">—</span>
+                        ) : (
+                          <ChallanButton
+                            deliveryId={d.id}
+                            orderId={d.order_id}
+                            challanNo={d.challan_no}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Pill tone={d.status === "delivered" ? "pos" : d.status === "failed" ? "warn" : "neutral"} dot={false}>
@@ -354,7 +469,7 @@ export default function DeliveriesManagementClient({
                 <SearchableSelect
                   options={orderOptions}
                   value={orderId}
-                  onChange={setOrderId}
+                  onChange={chooseOrder}
                   placeholder="-- Choose Ready / Production Order --"
                   searchPlaceholder="Search order no, customer or mobile…"
                   emptyLabel="No ready or in-production orders match"
@@ -365,6 +480,81 @@ export default function DeliveriesManagementClient({
                   </p>
                 )}
               </div>
+
+              {/* ITEM CHECKLIST (0039). Ineligible lines are shown GREYED WITH A REASON
+                  rather than hidden: the manager loading the lorry needs to know why a
+                  piece is not going, and a missing row looks like a data bug. */}
+              {orderId && (
+                <div>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <label className="text-label-sm uppercase font-semibold text-t3">
+                      Items on this run *
+                    </label>
+                    {eligibleIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedItemIds(
+                            selectedItemIds.length === eligibleIds.length ? [] : eligibleIds,
+                          )
+                        }
+                        className="text-[11px] font-semibold text-acc hover:underline"
+                      >
+                        {selectedItemIds.length === eligibleIds.length
+                          ? "Clear all"
+                          : "Select all deliverable"}
+                      </button>
+                    )}
+                  </div>
+
+                  {orderItems.length === 0 ? (
+                    <p className="rounded-card border border-ln bg-sf2 p-3 text-caption text-t3">
+                      This order has no line items.
+                    </p>
+                  ) : (
+                    <div className="max-h-56 divide-y divide-ln2 overflow-y-auto rounded-card border border-ln bg-sf2">
+                      {orderItems.map(({ item, reason }) => (
+                        <label
+                          key={item.id}
+                          className={`flex items-start gap-2.5 p-2.5 ${
+                            reason ? "opacity-60" : "cursor-pointer hover:bg-sf"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            disabled={reason !== null}
+                            checked={selectedItemIds.includes(item.id)}
+                            onChange={() => toggleItem(item.id)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-caption font-semibold text-t1">
+                              {item.description ?? "Item"}
+                            </span>
+                            <span className="block text-[11px] font-mono tabular-nums text-t3">
+                              {item.qty ?? 1} {item.unit ?? "nos"}
+                              {reason ? ` · ${reason}` : ""}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* PARTIAL DELIVERY IS LEGITIMATE, not an error — it is the whole point
+                      of this feature. Stated plainly so nobody assumes they must wait for
+                      the slowest item. */}
+                  {selectedItemIds.length > 0 && selectedItemIds.length < orderItems.length && (
+                    <p className="mt-1 text-[11px] font-semibold text-t2">
+                      <span className="font-mono tabular-nums">
+                        {selectedItemIds.length} of {orderItems.length}
+                      </span>{" "}
+                      items · partial delivery. The order stays{" "}
+                      <span className="font-mono">ready</span> until the rest go out.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -414,6 +604,48 @@ export default function DeliveriesManagementClient({
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">
+                    Delivery Rent (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    placeholder="Transport charge for this run"
+                    value={deliveryRent}
+                    onChange={(e) => setDeliveryRent(e.target.value)}
+                    className="w-full bg-sf2 border border-ln rounded-card p-2.5 text-caption font-semibold text-t1 font-mono tabular-nums focus:outline-none focus:border-acc"
+                  />
+                </div>
+                <div>
+                  <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">
+                    D.P (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ASG"
+                    value={dpCode}
+                    onChange={(e) => setDpCode(e.target.value)}
+                    className="w-full bg-sf2 border border-ln rounded-card p-2.5 text-caption font-semibold text-t1 focus:outline-none focus:border-acc"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">
+                  Delivery Address
+                </label>
+                <input
+                  type="text"
+                  placeholder="Where the goods are going — printed on the challan"
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  className="w-full bg-sf2 border border-ln rounded-card p-2.5 text-caption font-semibold text-t1 focus:outline-none focus:border-acc"
+                />
+              </div>
+
               <div>
                 <label className="text-label-sm uppercase font-semibold text-t3 block mb-1">Notes / Instructions</label>
                 <input
@@ -435,7 +667,7 @@ export default function DeliveriesManagementClient({
               </button>
               <button
                 onClick={handleSchedule}
-                disabled={isPending || !orderId}
+                disabled={isPending || !orderId || selectedItemIds.length === 0}
                 className="text-caption font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-card shadow-md shadow-emerald-600/20 disabled:opacity-50"
               >
                 {isPending ? "Scheduling..." : "Confirm Schedule →"}

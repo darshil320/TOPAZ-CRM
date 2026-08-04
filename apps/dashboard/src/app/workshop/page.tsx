@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, Factory } from "lucide-react";
 import { getCurrentSalesperson } from "@/lib/auth";
 import { getMyQueue } from "@/lib/production/reads";
+import { capabilitiesAt } from "@/lib/production/queueGuards";
 import IncomingTransfers from "./IncomingTransfers";
 import WorkshopQueueClient from "./WorkshopQueueClient";
 
@@ -33,6 +34,9 @@ export default async function WorkshopPage() {
   const stages = data?.stages ?? [];
   const incoming = data?.incoming_transfers ?? [];
 
+  // Receiving a consignment is a CUSTODY action, so ask the API's capability array —
+  // the roster role alone is the guess that broke the stage buttons (REQ 3).
+  const canReceiveSomewhere = workshops.some((w) => capabilitiesAt(w).has("custody"));
   const isLeadSomewhere = workshops.some((w) => w.staff_role === "lead");
   const overdueCount = items.filter((item) => {
     const due = item.leg_due_at ?? item.due_at;
@@ -81,7 +85,7 @@ export default async function WorkshopPage() {
 
       {/* Incoming FIRST: goods waiting on a lorry outside are more urgent than the
           work already on the floor, and only a lead can clear them. */}
-      <IncomingTransfers transfers={incoming} canReceive={isLeadSomewhere} />
+      <IncomingTransfers transfers={incoming} canReceive={canReceiveSomewhere} />
 
       {workshops.length > 0 && (
         <WorkshopQueueClient

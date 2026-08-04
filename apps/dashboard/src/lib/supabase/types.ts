@@ -41,6 +41,7 @@ export type Database = {
           detail: string | null
           id: string
           message_id: string | null
+          order_id: string | null
           salesperson_id: string | null
           seen_at: string | null
           type: string
@@ -51,6 +52,7 @@ export type Database = {
           detail?: string | null
           id?: string
           message_id?: string | null
+          order_id?: string | null
           salesperson_id?: string | null
           seen_at?: string | null
           type: string
@@ -61,11 +63,20 @@ export type Database = {
           detail?: string | null
           id?: string
           message_id?: string | null
+          order_id?: string | null
           salesperson_id?: string | null
           seen_at?: string | null
           type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "alerts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
@@ -1666,6 +1677,7 @@ export type Database = {
           id: string
           kind: string
           mime: string
+          stage_code: string | null
           status: string
           storage_key: string
           thumb_key: string | null
@@ -1680,6 +1692,7 @@ export type Database = {
           id?: string
           kind: string
           mime: string
+          stage_code?: string | null
           status?: string
           storage_key: string
           thumb_key?: string | null
@@ -1694,6 +1707,7 @@ export type Database = {
           id?: string
           kind?: string
           mime?: string
+          stage_code?: string | null
           status?: string
           storage_key?: string
           thumb_key?: string | null
@@ -1706,6 +1720,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "salespersons"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_stage_code_fkey"
+            columns: ["stage_code"]
+            isOneToOne: false
+            referencedRelation: "production_stage_defs"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -1720,6 +1741,10 @@ export type Database = {
           vehicle_no: string | null
           eway_bill_no: string | null
           notes: string | null
+          challan_no: string | null
+          delivery_address: string | null
+          delivery_rent: number | null
+          dp_code: string | null
           created_at: string
           updated_at: string
         }
@@ -1733,6 +1758,10 @@ export type Database = {
           vehicle_no?: string | null
           eway_bill_no?: string | null
           notes?: string | null
+          challan_no?: string | null
+          delivery_address?: string | null
+          delivery_rent?: number | null
+          dp_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1746,6 +1775,10 @@ export type Database = {
           vehicle_no?: string | null
           eway_bill_no?: string | null
           notes?: string | null
+          challan_no?: string | null
+          delivery_address?: string | null
+          delivery_rent?: number | null
+          dp_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1756,21 +1789,40 @@ export type Database = {
           id: string
           delivery_id: string
           order_item_id: string
+          /** Denorm of deliveries.status, maintained by trigger (0039). */
+          delivery_status: string | null
           created_at: string
         }
         Insert: {
           id?: string
           delivery_id: string
           order_item_id?: string
+          delivery_status?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           delivery_id?: string
           order_item_id?: string
+          delivery_status?: string | null
           created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "delivery_items_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1800,6 +1852,26 @@ export type Database = {
         Returns: boolean
       }
       is_owner: { Args: never; Returns: boolean }
+      /**
+       * Creates a delivery and its item lines in ONE transaction (0039).
+       * SECURITY INVOKER — the caller's own RLS still authorizes the write.
+       * Returns the new delivery's id.
+       */
+      schedule_delivery: {
+        Args: {
+          p_order_id: string
+          p_scheduled_date: string
+          p_driver: string | null
+          p_item_ids: string[]
+          p_vehicle_no?: string | null
+          p_eway_bill_no?: string | null
+          p_notes?: string | null
+          p_delivery_address?: string | null
+          p_delivery_rent?: number | null
+          p_dp_code?: string | null
+        }
+        Returns: string
+      }
     }
     Enums: {
       assignment_role: "primary" | "collaborator"

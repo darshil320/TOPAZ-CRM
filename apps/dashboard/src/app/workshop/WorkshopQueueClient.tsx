@@ -17,9 +17,11 @@ import { useMemo, useState, useTransition } from "react";
 import {
   AlertOctagon,
   ArrowRight,
+  BellRing,
   Camera,
   CheckCircle2,
   Clock,
+  Info,
   MapPin,
   SearchX,
   Send,
@@ -28,12 +30,17 @@ import {
   Truck,
 } from "lucide-react";
 import PwaFilterBar, { type FilterChip } from "@/components/pwa/PwaFilterBar";
+import { snoozeStageAction } from "@/lib/production/stagePlanActions";
 import { haystack, matchesQuery } from "@/lib/textFilter";
 import CameraField from "@/components/production/CameraField";
 import { usePhotoCapture } from "@/components/production/usePhotoCapture";
 import { describeDue, legLabel, spanLabel } from "@/lib/production/format";
+import { advanceGuard, capabilitiesAt, handoverGuard } from "@/lib/production/queueGuards";
 import type { QueueItem, StageDef, WorkshopMembership } from "@/lib/production/types";
 import { advanceStageAction, handoverAction, toggleBlockAction } from "./actions";
+
+/** How long Snooze silences a stage reminder. Not a literal at the call site. */
+const SNOOZE_HOURS = 4;
 
 const TONE_STYLES: Record<string, string> = {
   ok: "text-slate-300 bg-slate-800/60 border-slate-700",
@@ -66,9 +73,14 @@ export default function WorkshopQueueClient({
   const stageMap = useMemo(() => new Map(stages.map((s) => [s.code, s])), [stages]);
   const firstStageCode = stages[0]?.code ?? "design_approved";
 
-  /** Custody actions are lead-only, per workshop (module 14 D4). */
-  const leadAt = useMemo(
-    () => new Set(workshops.filter((w) => w.staff_role === "lead").map((w) => w.id)),
+  /**
+   * Capabilities per workshop, as the API computed them. NOT derived from
+   * `staff_role` here: a salesperson who is also on the roster holds `status` too, and
+   * re-deriving the rule in the browser is how the disabled button and the API's 403
+   * drifted apart in the first place (module 14 D4, REQ 3).
+   */
+  const capsByWorkshop = useMemo(
+    () => new Map(workshops.map((w) => [w.id, capabilitiesAt(w)])),
     [workshops],
   );
 
@@ -124,6 +136,12 @@ export default function WorkshopQueueClient({
       },
     ],
     [matching],
+  );
+
+  /** Stage deadlines that have already passed (0035) — the sticky banner's count. */
+  const stageOverdueCount = useMemo(
+    () => items.filter((i) => i.stage_overdue).length,
+    [items],
   );
 
   const visible = useMemo(
@@ -231,6 +249,32 @@ export default function WorkshopQueueClient({
     });
   }
 
+  /**
+   * "Not now" on a stage reminder (0035). Four hours, because the realistic reason is
+   * "I am finishing this today" — anything longer is a schedule change the owner should
+   * make, not something to bury from the shop floor.
+   */
+  function handleSnooze(item: QueueItem) {
+    if (!item.stage_due_code) return;
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const res = await snoozeStageAction(item.id, item.stage_due_code!, SNOOZE_HOURS);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      // Clear the pill locally: the reminder is real again in four hours, and leaving a
+      // red badge on a card the manager just acknowledged trains them to ignore red.
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id ? { ...i, stage_overdue: false, stage_due_at: null } : i,
+        ),
+      );
+      setNotice(`⏰ ${SNOOZE_HOURS} घंटे बाद फिर याद दिलाएंगे / Reminder snoozed ${SNOOZE_HOURS}h.`);
+    });
+  }
+
   function handleHandover(item: QueueItem) {
     setError(null);
     setNotice(null);
@@ -259,6 +303,19 @@ export default function WorkshopQueueClient({
 
   return (
     <div className="space-y-4">
+      {/* A STICKY BANNER, never a blocking modal: this screen is used mid-task with one
+          hand on a workpiece, and a dialog that has to be dismissed would be dismissed
+          reflexively — which is how a reminder becomes noise (0035). */}
+      {stageOverdueCount > 0 && (
+        <div className="sticky top-0 z-20 -mx-1 rounded-xl border border-red-500/40 bg-red-950/80 px-3.5 py-2.5 text-xs font-bold text-red-200 backdrop-blur flex items-center gap-2">
+          <BellRing className="w-4 h-4 shrink-0" />
+          <span>
+            {stageOverdueCount} स्टेज की समय सीमा निकल गई / {stageOverdueCount} stage
+            {stageOverdueCount === 1 ? "" : "s"} past its planned date
+          </span>
+        </div>
+      )}
+
       <PwaFilterBar
         query={query}
         onQueryChange={setQuery}
@@ -334,7 +391,7 @@ export default function WorkshopQueueClient({
 
         const due = describeDue(item.leg_due_at ?? item.due_at);
         const inTransit = item.transit_transfer_id !== null;
-        const isLead = leadAt.has(item.workshop_id);
+        const caps = capsByWorkshop.get(item.workshop_id) ?? new Set<never>();
         const leg = legLabel(item.leg_seq, item.leg_total);
         const span = spanLabel(item.leg_stage_from, item.leg_stage_to, stages);
         // The leg's last stage is done once the item has moved PAST it — the trigger
@@ -343,7 +400,25 @@ export default function WorkshopQueueClient({
           ? stages.findIndex((s) => s.code === item.leg_stage_to)
           : -1;
         const legFinished = legStageToIndex >= 0 && currentIndex > legStageToIndex;
-        const canHandOver = isLead && !inTransit && legFinished && !!item.next_workshop_name;
+        const handover = handoverGuard({
+          caps,
+          inTransit,
+          legFinished,
+          hasNextWorkshop: !!item.next_workshop_name,
+        });
+        // The hand-over button REPLACES Stage done once the leg is finished, so it is
+        // shown whenever the leg is over — disabled with its reason if this person may
+        // not move custody, rather than silently falling back to a Done they also
+        // cannot use.
+        const showHandover = legFinished && !inTransit && !!item.next_workshop_name;
+        const advance = advanceGuard({
+          caps,
+          blocked: item.blocked,
+          photoRequired,
+          hasPhoto: !!photo.mediaId,
+          photoUploading: photo.uploading,
+        });
+        const action = showHandover ? handover : advance;
 
         return (
           <div
@@ -416,6 +491,38 @@ export default function WorkshopQueueClient({
               <span className="font-mono text-[11px] shrink-0">{due.relative}</span>
             </div>
 
+            {/* The PLANNED stage deadline (0035) — distinct from the workshop deadline
+                above: that one is when the goods must leave, this one is when THIS stage
+                was supposed to be finished. Only rendered when a schedule exists. */}
+            {item.stage_due_at && (
+              <div
+                className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                  item.stage_overdue
+                    ? "text-red-300 bg-red-500/15 border-red-500/40"
+                    : "text-slate-300 bg-slate-800/60 border-slate-700"
+                }`}
+              >
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <BellRing className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {item.stage_due_label_gu ? `${item.stage_due_label_gu} / ` : ""}
+                    {item.stage_due_label_en ?? item.stage_due_code}:{" "}
+                    <span className="font-mono">{describeDue(item.stage_due_at).label}</span>
+                  </span>
+                </span>
+                {item.stage_overdue && (
+                  <button
+                    type="button"
+                    onClick={() => handleSnooze(item)}
+                    disabled={isPending || !caps.has("status")}
+                    className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-200 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {SNOOZE_HOURS}घं टालें / Snooze {SNOOZE_HOURS}h
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Route: what this workshop owns, and where it goes next */}
             {(span || item.next_workshop_name) && (
               <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-400">
@@ -485,12 +592,12 @@ export default function WorkshopQueueClient({
                 )}
 
                 <div className="flex items-center gap-2 pt-1">
-                  {canHandOver ? (
+                  {showHandover ? (
                     <button
                       type="button"
                       onClick={() => handleHandover(item)}
-                      disabled={isPending}
-                      className="flex-1 bg-sky-500 hover:bg-sky-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 disabled:opacity-40"
+                      disabled={isPending || !handover.allowed}
+                      className="flex-1 bg-sky-500 hover:bg-sky-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Send className="w-4 h-4" />
                       <span>
@@ -501,12 +608,7 @@ export default function WorkshopQueueClient({
                     <button
                       type="button"
                       onClick={() => handleAdvance(item)}
-                      disabled={
-                        isPending ||
-                        item.blocked ||
-                        photo.uploading ||
-                        (photoRequired && !photo.mediaId)
-                      }
+                      disabled={isPending || !advance.allowed}
                       className="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 py-3 px-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isPending ? (
@@ -524,8 +626,8 @@ export default function WorkshopQueueClient({
                   <button
                     type="button"
                     onClick={() => handleToggleBlock(item.id, item.blocked)}
-                    disabled={isPending}
-                    className={`py-3 px-3.5 rounded-xl font-bold text-xs border transition-all flex items-center gap-1.5 shrink-0 ${
+                    disabled={isPending || !caps.has("status")}
+                    className={`py-3 px-3.5 rounded-xl font-bold text-xs border transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                       item.blocked
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
                         : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"
@@ -536,12 +638,13 @@ export default function WorkshopQueueClient({
                   </button>
                 </div>
 
-                {legFinished && !canHandOver && item.next_workshop_name && !isLead && (
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    यह लेग पूरा हो गया — मुख्य मैनेजर सामान भेजेंगे।{" "}
-                    <span className="text-slate-500">
-                      This leg is finished; your workshop lead hands the goods over.
-                    </span>
+                {/* WHY the button above is off. Never a dead button with no sentence:
+                    the sub-manager who could not complete a stage had no way to tell a
+                    permissions problem from a photo problem (REQ 3). */}
+                {action.reason && (
+                  <p className="text-[11px] text-slate-400 leading-relaxed flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-px text-slate-500" />
+                    <span>{action.reason}</span>
                   </p>
                 )}
               </>

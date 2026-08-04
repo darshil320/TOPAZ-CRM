@@ -27,7 +27,7 @@ export interface ApiResult<T> {
 
 export async function apiCall<T>(
   path: string,
-  init?: { method?: "GET" | "POST" | "PATCH"; body?: unknown },
+  init?: { method?: "GET" | "POST" | "PATCH" | "PUT"; body?: unknown },
 ): Promise<ApiResult<T>> {
   if (!DASHBOARD_API_KEY) {
     return { data: null, error: "Production API not configured — set DASHBOARD_API_KEY" };
@@ -53,6 +53,11 @@ export async function apiCall<T>(
           // FastAPI validation errors arrive as a list of {loc, msg}. Show the first
           // message rather than "[object Object]".
           detail = body.detail[0]?.msg ?? detail;
+        } else if (typeof body?.detail?.message === "string") {
+          // A route that reports SEVERAL problems at once puts them in
+          // {message, errors} — the stage-plan PUT does, so an owner sees every day-count
+          // mistake in one pass rather than resubmitting eleven times.
+          detail = body.detail.message;
         }
       } catch {
         // non-JSON body — keep the status line

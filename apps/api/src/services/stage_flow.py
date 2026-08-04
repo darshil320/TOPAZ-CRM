@@ -40,6 +40,23 @@ _STAFF_CAPS = {
     STAFF_SUB: frozenset({CAP_STATUS}),
 }
 
+# What the coarse `salespersons.role` grants on its own, with no roster row at all.
+# Sales plan production but never execute it (api/production.py allocate); the courier
+# moves goods between workshops without belonging to either roster. Every other role
+# (`workshop_manager`, `accounts`) starts empty and earns its caps from the roster.
+_ROLE_CAPS = {
+    "salesperson": frozenset({CAP_ALLOCATE}),
+    "delivery": frozenset({CAP_TRANSIT}),
+}
+
+# Roles whose capabilities never depend on a `workshop_staff` row, so the API can skip
+# the roster query entirely (api/authz.capabilities_at_workshop reads this set):
+#   owner/admin — already have everything, everywhere;
+#   delivery    — a courier crosses workshops without belonging to either roster;
+#   accounts    — the money role is kept out of production state on purpose, even if
+#                 somebody puts them on a roster by mistake.
+ROSTER_IRRELEVANT_ROLES = frozenset({"owner", "admin", "delivery", "accounts"})
+
 
 def capabilities_for(*, role: str, staff_role: str | None) -> frozenset[str]:
     """What the caller may do at ONE workshop.
@@ -49,19 +66,21 @@ def capabilities_for(*, role: str, staff_role: str | None) -> frozenset[str]:
     Splitting them is module 14 D1: the coarse role decides which app you land in,
     the roster row decides what you may do once you are there.
 
+    The two are UNIONED, not branched on. 0029 makes `workshop_staff` the source of
+    truth for what you may do at a workshop, so a `salesperson` who is also listed as
+    a `sub` there gets {allocate, status} — gating the roster on `role ==
+    'workshop_manager'` was the defect that left a real sub-manager unable to tick a
+    stage off or upload its photo.
+
     Owner/admin get everything everywhere — they are the escape hatch when a manager
     is unreachable, and every one of their actions is audited.
     """
     if role in ("owner", "admin"):
         return _ADMIN_CAPS
-    if role == "salesperson":
-        # Sales plan production but never execute it (api/production.py allocate).
-        return frozenset({CAP_ALLOCATE})
-    if role == "delivery":
-        return frozenset({CAP_TRANSIT})
-    if role == "workshop_manager":
-        return _STAFF_CAPS.get(staff_role or "", frozenset())
-    return frozenset()
+    caps = set(_ROLE_CAPS.get(role, frozenset()))
+    if staff_role and role not in ROSTER_IRRELEVANT_ROLES:
+        caps |= _STAFF_CAPS.get(staff_role, frozenset())
+    return frozenset(caps)
 
 
 def has_capability(cap: str, *, role: str, staff_role: str | None) -> bool:

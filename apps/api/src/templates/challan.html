@@ -1,0 +1,156 @@
+<!doctype html>
+{#
+  Delivery challan — TOPAZ'S OWN FORMAT (0037), transcribed from the client's paper
+  challan (sample "T.F 66", supplied 2026-08-04).
+
+  Layout order is theirs and is load-bearing — a driver and a customer both read this
+  document top to bottom at the tailgate:
+      logo + CHALLAN no · date/name/address/mobile · D.P · tempo + driver · barrier note
+      · PRODUCT / RECEIVED tick table · delivery rent + balance · declaration + customer
+      signature · thank-you letter · authorised signature · footer address.
+
+  Every value comes from build_challan_context(); this template computes nothing.
+#}
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  /* A4 with generous margins — their sheet has a wide right margin and the signature
+     lines need room to be written on. */
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #111; font-size: 12.5px; margin: 0; line-height: 1.45; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .logo { display: flex; align-items: baseline; gap: 8px; }
+  .logo .mark { font-size: 30px; line-height: 1; color: #444; }
+  .logo .wordmark { font-size: 27px; letter-spacing: 6px; font-weight: 400; color: #333; }
+  .logo .sub { font-size: 9.5px; letter-spacing: 1.5px; color: #777; text-align: right; margin-top: 2px; }
+  .challan-no { font-size: 13px; font-weight: 700; padding-top: 14px; }
+
+  .party { margin-top: 18px; }
+  .party .line { margin: 2px 0; }
+  .party .label { font-weight: 700; }
+  /* A blank field still prints its rule, because the office fills these in by hand when
+     the record is thin — the same way their pre-printed pad works. */
+  .fill { display: inline-block; min-width: 240px; border-bottom: 1px solid #999; }
+
+  .dispatch { margin-top: 14px; font-size: 12px; }
+  .dispatch .line { margin: 1px 0; }
+  .barrier { margin-top: 2px; font-size: 12px; }
+
+  table { width: 76%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #000; padding: 7px 9px; text-align: left; vertical-align: middle; }
+  th { font-weight: 700; }
+  .received { width: 38%; }
+  /* An empty cell with a visible height: the tick is written here by hand. */
+  td.tick { height: 30px; }
+
+  .money { margin-top: 12px; }
+  .money .line { margin: 2px 0; }
+  .declaration { margin-top: 4px; }
+
+  .sig-customer { margin-top: 2px; text-align: right; padding-right: 24%; }
+  .sig-rule { border-bottom: 1px solid #333; width: 62%; margin: 26px 0 0; }
+
+  .letter { margin-top: 34px; font-size: 12px; }
+  .letter p { margin: 0 0 10px; }
+  .regards { margin-top: 18px; }
+  .sig-authorised { margin-top: 26px; text-align: right; padding-right: 6%; }
+
+  footer { margin-top: 90px; text-align: right; font-size: 12px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <span class="mark">&#9698;</span>
+      <div>
+        <div class="wordmark">TOPAZ</div>
+        <div class="sub">luxury homes</div>
+      </div>
+    </div>
+    <div class="challan-no">CHALLAN :- {{ challan_no }}</div>
+  </header>
+
+  <section class="party">
+    <div class="line"><span class="label">DATE :-</span> {{ challan_date }}</div>
+    <div class="line"><span class="label">NAME:-</span> {{ customer.name }}</div>
+    <div class="line">
+      <span class="label">ADDRESS:-</span>
+      {% if customer.address %}{{ customer.address }}{% else %}<span class="fill"></span>{% endif %}
+    </div>
+    <div class="line" style="margin-top: 10px;">
+      <span class="label">MOBILE NO :-</span>
+      {% if customer.mobile %}{{ customer.mobile }}{% else %}<span class="fill" style="min-width: 160px;"></span>{% endif %}
+    </div>
+    <div class="line">
+      <span class="label">D.P &ndash;</span>
+      {% if dp_code %}{{ dp_code }}{% else %}<span class="fill" style="min-width: 120px;"></span>{% endif %}
+    </div>
+  </section>
+
+  <section class="dispatch">
+    <div class="line">
+      TEMPO NUMBER : -
+      {% if delivery.tempo_number %}{{ delivery.tempo_number }}{% else %}<span class="fill" style="min-width: 160px;"></span>{% endif %}
+    </div>
+    <div class="line">
+      DRIVER NAME:
+      {% if delivery.driver_name %}{{ delivery.driver_name }}{% endif %}
+      {%- if delivery.driver_phone %} - {{ delivery.driver_phone }}{% endif %}
+      {%- if not delivery.driver_name and not delivery.driver_phone %}<span class="fill" style="min-width: 200px;"></span>{% endif %}
+    </div>
+    <div class="barrier">{{ barrier_note }}</div>
+  </section>
+
+  <table>
+    <thead>
+      <tr>
+        <th>PRODUCT</th>
+        <th class="received">RECEIVEd (&#10003; / X)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><strong>{{ item.product }}</strong></td>
+        <td class="tick"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <section class="money">
+    <div class="line">
+      Delivery rent :-
+      {% if delivery.delivery_rent %}{{ delivery.delivery_rent }}{% endif %}
+    </div>
+    <div class="line">Balance Amount :- {{ balance_due }}</div>
+    <div class="declaration">{{ receipt_declaration }}</div>
+  </section>
+
+  <div class="sig-customer">Customer Signature:</div>
+  <div class="sig-rule"></div>
+
+  {% if delivery.notes %}
+  <p style="margin-top: 16px; font-size: 12px;"><strong>Note:</strong> {{ delivery.notes }}</p>
+  {% endif %}
+
+  <section class="letter">
+    <p>Dear Customer,</p>
+    <p>{{ thank_you_letter }}</p>
+    <div class="regards">
+      Regards,<br />
+      {{ seller.letter_signoff }}
+    </div>
+  </section>
+
+  <div class="sig-authorised">Authorised Signature:</div>
+
+  <footer>
+    {{ seller.name }}<br />
+    {% for line in seller.address_lines %}{{ line }}<br />{% endfor %}
+  </footer>
+</body>
+</html>

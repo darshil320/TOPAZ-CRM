@@ -32,6 +32,8 @@ def create_celery_app() -> Celery:
             "src.tasks.job_card",
             "src.tasks.production_notify",
             "src.tasks.transit_watchdog",
+            "src.tasks.stage_reminders",
+            "src.tasks.challan",
         ],
     )
 
@@ -64,6 +66,15 @@ def create_celery_app() -> Celery:
             "transit-watchdog": {
                 "task": "src.tasks.transit_watchdog.scan_production_delays",
                 "schedule": crontab(hour=9, minute=0),
+            },
+            # HOURLY, unlike the watchdog above: a stage deadline lands at 18:00 IST on
+            # a specific day, and a reminder that arrives the following morning is a
+            # report, not a reminder. Safe at this cadence because the single-fire claim
+            # is a column (`reminded_at`), not a per-day dedupe window — see
+            # tasks/stage_reminders.py.
+            "stage-reminders": {
+                "task": "src.tasks.stage_reminders.send_stage_reminders",
+                "schedule": crontab(minute=5),
             },
         },
     )

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, Camera, ShieldAlert, Clock, Share2, X, ChevronRight, CheckCircle2, Truck } from "lucide-react";
+import { Sparkles, CalendarClock, Camera, ShieldAlert, Clock, Share2, X, ChevronRight, CheckCircle2, Truck } from "lucide-react";
 import Pill from "@/components/ui/Pill";
 import Link from "next/link";
+import StageScheduleEditor from "@/components/production/StageScheduleEditor";
 // Same helpers the workshop PWA and the courier app use, so a deadline reads
 // identically on all three screens (module 14).
 import { describeDue, legLabel } from "@/lib/production/format";
@@ -26,7 +27,18 @@ export interface ProductionItem {
   customer_phone: string | null;
   workshop_name: string;
   workshop_type: string;
-  photos: { id: string; url: string; stageCode: string; createdAt: string }[];
+  /**
+   * Stage evidence. `stageCode` is nullable (0036): photos uploaded before the column
+   * existed, and any photo filed outside a production stage, genuinely have no stage —
+   * the drawer says so rather than mislabelling them.
+   */
+  photos: {
+    id: string;
+    url: string;
+    stageCode: string | null;
+    createdAt: string;
+    uploadedBy: string | null;
+  }[];
   events: { id: string; kind: string; stageCode: string; note: string | null; at: string }[];
   /** Module 14. The workshop's own deadline for this item, WITH a time. */
   due_at: string | null;
@@ -46,6 +58,41 @@ export interface StageDef {
   photo_required: boolean;
 }
 
+interface PhotoStageGroup {
+  code: string | null;
+  heading: string;
+  photos: ProductionItem["photos"];
+}
+
+/**
+ * Photos under the stage they document (0036), in stage order.
+ *
+ * The incoming list is already sorted by stage (see production/page.tsx), so this only
+ * has to preserve that order — no second sort, and a stage never appears twice.
+ */
+function groupPhotosByStage(
+  photos: ProductionItem["photos"],
+  stageMap: Map<string, StageDef>,
+): PhotoStageGroup[] {
+  const groups: PhotoStageGroup[] = [];
+  for (const photo of photos) {
+    const last = groups[groups.length - 1];
+    if (last && last.code === photo.stageCode) {
+      last.photos.push(photo);
+      continue;
+    }
+    const def = photo.stageCode ? stageMap.get(photo.stageCode) : undefined;
+    groups.push({
+      code: photo.stageCode,
+      heading: def
+        ? [def.label_en, def.label_gu].filter(Boolean).join(" · ")
+        : photo.stageCode ?? "No stage recorded",
+      photos: [photo],
+    });
+  }
+  return groups;
+}
+
 export default function ProductionBoardClient({
   items,
   stages,
@@ -55,6 +102,8 @@ export default function ProductionBoardClient({
 }) {
   const [selectedItem, setSelectedItem] = useState<ProductionItem | null>(null);
   const [mounted, setMounted] = useState(false);
+  // Collapsed per drawer open: re-planning is occasional, and the editor fetches.
+  const [showSchedule, setShowSchedule] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -255,7 +304,10 @@ export default function ProductionBoardClient({
                 </p>
               </div>
               <button
-                onClick={() => setSelectedItem(null)}
+                onClick={() => {
+                  setSelectedItem(null);
+                  setShowSchedule(false);
+                }}
                 className="text-t3 hover:text-t1 p-1 rounded-card hover:bg-sf2"
               >
                 <X className="w-5 h-5" />
@@ -284,6 +336,30 @@ export default function ProductionBoardClient({
               </a>
             </div>
 
+            {/* Stage schedule (0035) — collapsed by default: the drawer's job is to answer
+                "where is this item", and eleven day-count inputs would bury that. */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-label-sm uppercase font-semibold text-t2 flex items-center gap-1.5">
+                  <CalendarClock className="w-4 h-4 text-acc" />
+                  <span>Stage Schedule</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowSchedule((prev) => !prev)}
+                  className="rounded-card border border-ln px-2.5 py-1 text-caption font-semibold text-t2 hover:bg-sf2"
+                >
+                  {showSchedule ? "Hide" : "Edit schedule"}
+                </button>
+              </div>
+              {showSchedule && (
+                <StageScheduleEditor
+                  orderItemId={selectedItem.id}
+                  orderId={selectedItem.order_id}
+                />
+              )}
+            </div>
+
             {/* Production Photos Section */}
             <div className="space-y-3">
               <h4 className="text-label-sm uppercase font-semibold text-t2 flex items-center gap-1.5">
@@ -296,26 +372,39 @@ export default function ProductionBoardClient({
                   No photos uploaded for this item yet.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedItem.photos.map((p) => (
-                    <div key={p.id} className="rounded-card border border-ln overflow-hidden bg-sf2 space-y-1.5 p-2">
-                      <a href={p.url} target="_blank" rel="noopener noreferrer">
-                        <img src={p.url} alt="Stage photo" className="w-full h-32 object-cover rounded-card hover:opacity-90 transition-opacity" />
-                      </a>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-pos">{stageMap.get(p.stageCode)?.label_en || p.stageCode}</span>
-                        <a
-                          href={buildWhatsAppUrl(selectedItem, p.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                        >
-                          Share →
-                        </a>
-                      </div>
+                groupPhotosByStage(selectedItem.photos, stageMap).map((group) => (
+                  <div key={group.code ?? "unstaged"} className="space-y-2">
+                    <div className="flex items-baseline justify-between border-b border-ln pb-1">
+                      <span className="text-caption font-semibold text-t2">{group.heading}</span>
+                      <span className="text-[11px] font-mono tabular-nums text-t3">
+                        {group.photos.length}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {group.photos.map((p) => (
+                        <div key={p.id} className="rounded-card border border-ln overflow-hidden bg-sf2 space-y-1.5 p-2">
+                          <a href={p.url} target="_blank" rel="noopener noreferrer">
+                            <img src={p.url} alt={`${group.heading} photo`} className="w-full h-32 object-cover rounded-card hover:opacity-90 transition-opacity" />
+                          </a>
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="truncate font-mono tabular-nums text-t3">
+                              {new Date(p.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                              {p.uploadedBy ? ` · ${p.uploadedBy}` : ""}
+                            </span>
+                            <a
+                              href={buildWhatsAppUrl(selectedItem, p.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                            >
+                              Share →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 

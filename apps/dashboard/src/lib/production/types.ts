@@ -10,6 +10,9 @@
 
 export type StaffRole = "lead" | "sub";
 
+/** Mirrors services/stage_flow.CAP_* — the API sends these strings verbatim. */
+export type Capability = "status" | "custody" | "transit" | "allocate";
+
 export interface StageDef {
   code: string;
   sort: number;
@@ -25,6 +28,14 @@ export interface WorkshopMembership {
   type: string;
   address: string | null;
   staff_role: StaffRole;
+  /**
+   * What this caller may do AT THIS WORKSHOP, straight from the API's own gate. The
+   * UI must disable on this rather than re-deriving it from `staff_role`: a
+   * salesperson listed on the roster as a sub also holds `status`, and the old
+   * role-string guess was exactly the bug that left a real sub-manager with a dead
+   * Done button. Optional so an older cached payload degrades to `staff_role`.
+   */
+  capabilities?: Capability[];
 }
 
 export interface QueueItem {
@@ -59,6 +70,49 @@ export interface QueueItem {
   leg_total: number;
   /** Where the goods go after this leg — rendered as "→ Sharma Furniture". */
   next_workshop_name: string | null;
+  /**
+   * The planned deadline for this item's NEXT unfinished stage (0035). Null when the
+   * item has no stage plan, which is the normal state for anything allocated before the
+   * feature existed — the card simply shows no stage pill.
+   */
+  stage_due_at?: string | null;
+  stage_due_code?: string | null;
+  stage_due_label_en?: string | null;
+  stage_due_label_gu?: string | null;
+  stage_overdue?: boolean;
+}
+
+/** One stage's row in an item's schedule (0035). */
+export interface StagePlanRow {
+  id: string;
+  order_item_id: string;
+  stage_code: string;
+  planned_days: number | null;
+  skipped: boolean;
+  remind: boolean;
+  due_at: string | null;
+  reminded_at: string | null;
+  snoozed_until: string | null;
+  label_en: string;
+  label_gu: string | null;
+  sort: number;
+  photo_required: boolean;
+}
+
+/** A stage definition plus the admin-level default new plans seed from (0035). */
+export interface StageDefWithDefault extends StageDef {
+  default_days: number | null;
+}
+
+export interface StagePlanResponse {
+  order_item_id: string;
+  plan: StagePlanRow[];
+  stages: StageDefWithDefault[];
+  leg_dues: Record<string, string>;
+  budget_days: number | null;
+  used_days: number;
+  remaining_days: number | null;
+  due_date: string | null;
 }
 
 export interface TransferSummary {

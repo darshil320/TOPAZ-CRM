@@ -10,8 +10,9 @@ import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
 import WorkshopAdmin from "./WorkshopAdmin";
 import WorkshopStaffAdmin, { type StaffWorkshop } from "./WorkshopStaffAdmin";
 import RouteTemplateAdmin from "./RouteTemplateAdmin";
+import StagePlanAdmin from "./StagePlanAdmin";
 import { listWorkshops } from "@/lib/workshops";
-import { listRouteTemplates, listWorkshopStaff } from "@/lib/production/reads";
+import { listRouteTemplates, listStageDefaults, listWorkshopStaff } from "@/lib/production/reads";
 import type { StageDef } from "@/lib/production/types";
 import { addWorkshop, updateWorkshop, deactivateWorkshop } from "./actions";
 
@@ -42,6 +43,7 @@ export default async function AdminPage() {
     { data: stageRows },
     workshopResult,
     templateResult,
+    stageDefaultsResult,
   ] = await Promise.all([
     supabase
       .from("products")
@@ -58,6 +60,9 @@ export default async function AdminPage() {
       .order("sort"),
     listWorkshops(false),
     listRouteTemplates(false),
+    // Via the API, not Supabase: `default_days` (0035) is only writable through
+    // /api/stage-plan, so the read comes from the same place to avoid two shapes.
+    listStageDefaults(),
   ]);
 
   // Rosters, one call per active workshop. Sequential-safe and small (a showroom has a
@@ -128,6 +133,14 @@ export default async function AdminPage() {
           workshops={workshopResult.workshops}
           stages={(stageRows ?? []) as StageDef[]}
           loadError={templateResult.error}
+        />
+      </Card>
+
+      {/* Stage Durations Card — the day budget new schedules seed from (0035) */}
+      <Card>
+        <StagePlanAdmin
+          stages={stageDefaultsResult.data?.stages ?? []}
+          loadError={stageDefaultsResult.error}
         />
       </Card>
 

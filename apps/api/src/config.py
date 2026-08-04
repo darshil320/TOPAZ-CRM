@@ -47,6 +47,18 @@ class Settings(BaseSettings):
     FOLLOWUP_BATCH_SIZE: int = 25               # max sends per beat tick
     FOLLOWUP_STALE_DAYS: int = 3                # pending past due → cancelled
 
+    # Showroom's public contact number — the FALLBACK advisor number in the welcome
+    # message when the customer has not been claimed by a primary salesperson yet.
+    # Never blank in practice: Meta rejects a template send with an empty parameter, so
+    # an unclaimed customer must still get a real number to call.
+    SHOWROOM_CONTACT_NUMBER: str = "+91 63563 20206"
+    # Send the welcome via `topaz_welcome_v2` (adds {{advisor_phone}}) instead of
+    # `topaz_welcome`. Held FALSE until WhatsApp Manager shows v2 APPROVED — flipping it
+    # early makes every out-of-window welcome fail. Rollback = flip it back; v1 stays
+    # live and registered throughout. The free-form (in-window) body carries the number
+    # either way, so this flag only governs the template path.
+    WELCOME_TEMPLATE_V2: bool = False
+
     # Dashboard URL — embedded in salesperson alert links.
     DASHBOARD_URL: str = "https://topaz.dmcdigital.in"
 
@@ -78,6 +90,12 @@ class Settings(BaseSettings):
     WA_MEDIA_ENABLED: bool = False
     # Default advance % expected when an order is created from an approved quote.
     DEFAULT_ADVANCE_PCT: int = 50
+
+    # Delivery-challan number prefix. The client's pad reads "T.F 66", so the app matches
+    # it. Not a literal at the call site — a showroom that renames its series must not
+    # need a code change. The counter is continuous (no fiscal year); seed `doc_series`
+    # with their real last number before first use (see migration 0037's ops note).
+    CHALLAN_NO_PREFIX: str = "T.F"
     # Send a receipt to the customer over WhatsApp on payment. Held false until
     # the client confirms the policy (STATE.md open questions).
     SEND_RECEIPTS_TO_CUSTOMER: bool = False
@@ -170,6 +188,22 @@ class Settings(BaseSettings):
     def require_min_length(cls, v: str) -> str:
         if len(v) < 16:
             raise ValueError("EDGE_API_KEY must be at least 16 characters")
+        return v
+
+    @field_validator("SHOWROOM_CONTACT_NUMBER")
+    @classmethod
+    def require_dialable_number(cls, v: str) -> str:
+        """Fail at STARTUP, not at send time.
+
+        This value is the last line of defence against an empty `advisor_phone`, and an
+        empty parameter makes Meta reject the whole welcome — a silent, per-customer
+        failure discovered days later. Ten digits is the floor for an Indian mobile.
+        """
+        if sum(ch.isdigit() for ch in v) < 10:
+            raise ValueError(
+                "SHOWROOM_CONTACT_NUMBER must contain at least 10 digits — it is the "
+                "fallback advisor number in the customer welcome message"
+            )
         return v
 
 

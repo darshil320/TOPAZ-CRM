@@ -18,6 +18,8 @@ import type {
   RouteLeg,
   RouteTemplate,
   StageDef,
+  StageDefWithDefault,
+  StagePlanResponse,
   TransferLine,
   TransferSummary,
 } from "./types";
@@ -102,6 +104,16 @@ export async function listWorkshopTransfers(
   if (direction) params.set("direction", direction);
   if (includeClosed) params.set("include_closed", "true");
   return apiCall<{ transfers: TransferSummary[] }>(`/api/transfers?${params.toString()}`);
+}
+
+/** One item's stage schedule plus its budget arithmetic (0035). */
+export async function getStagePlan(orderItemId: string) {
+  return apiCall<StagePlanResponse>(`/api/stage-plan/items/${orderItemId}`);
+}
+
+/** The 11 stages with their admin-level default durations. */
+export async function listStageDefaults() {
+  return apiCall<{ stages: StageDefWithDefault[] }>("/api/stage-plan/stage-defs");
 }
 
 export async function listWorkshopStaff(workshopId: string, activeOnly = true) {

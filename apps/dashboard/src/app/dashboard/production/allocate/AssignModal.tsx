@@ -13,6 +13,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X, Factory } from "lucide-react";
 import Button, { IconButton } from "@/components/ui/Button";
+import StageScheduleEditor from "@/components/production/StageScheduleEditor";
 import { allocateItem } from "./actions";
 
 const FIELD =
@@ -50,12 +51,21 @@ export default function AssignModal({
   const [error, setError] = useState<string | null>(null);
   const [workshopId, setWorkshopId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  /**
+   * Step 2, shown only AFTER the item is allocated (0035). It has to be after: the
+   * schedule is seeded from the admin defaults by the allocate endpoint itself, and it is
+   * measured against the due date the operator just picked — so there is nothing
+   * meaningful to edit before the allocation exists.
+   */
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const selected = workshops.find((w) => w.id === workshopId) ?? null;
 
   function close() {
     setOpen(false);
+    setShowSchedule(false);
     setError(null);
+    router.refresh();
   }
 
   function submit() {
@@ -76,9 +86,10 @@ export default function AssignModal({
         setError(result.error);
         return;
       }
-      setOpen(false);
-      setWorkshopId("");
-      setDueDate("");
+      // Stay open on the schedule step rather than closing: the allocation succeeded, and
+      // the day budget is the thing the operator came here to set that they cannot set
+      // anywhere else in this flow. Closing is one tap away.
+      setShowSchedule(true);
       router.refresh();
     });
   }
@@ -95,7 +106,9 @@ export default function AssignModal({
           <div className="my-8 w-full max-w-lg space-y-4 rounded-pop border border-ln bg-sf p-6 shadow-shp animate-popIn">
             <div className="flex items-start justify-between gap-3 border-b border-ln2 pb-3">
               <div className="min-w-0">
-                <h3 className="text-section font-semibold text-t1">Allocate to a workshop</h3>
+                <h3 className="text-section font-semibold text-t1">
+                  {showSchedule ? "Stage schedule" : "Allocate to a workshop"}
+                </h3>
                 <p className="mt-0.5 truncate text-caption text-t3">
                   <span className="font-mono">{orderNo}</span> · {customerName}
                 </p>
@@ -109,6 +122,21 @@ export default function AssignModal({
               <p className="text-caption font-semibold text-t1">{itemDescription}</p>
             </div>
 
+            {showSchedule ? (
+              <>
+                <p className="rounded-md border border-pos/20 bg-posS px-3 py-2 text-caption font-semibold text-pos">
+                  Allocated to {selected?.name ?? "the workshop"}. Set the day budget per
+                  stage — or close and leave the seeded schedule as it is.
+                </p>
+                <StageScheduleEditor orderItemId={itemId} onSaved={close} />
+                <div className="flex items-center justify-end pt-1">
+                  <Button type="button" variant="secondary" onClick={close}>
+                    Done
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
             <div>
               <label htmlFor="allocate-workshop" className="mb-1 block text-caption font-semibold text-t2">
                 Workshop
@@ -164,6 +192,8 @@ export default function AssignModal({
                 {isPending ? "Allocating…" : "Allocate item"}
               </Button>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}

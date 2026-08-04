@@ -40,7 +40,7 @@ export default async function AnalyticsPage() {
       supabase.from("conversations").select("customer_id, budget").limit(1000),
       supabase
         .from("alerts")
-        .select("id, customer_id, type, detail, created_at, customers(name)")
+        .select("id, customer_id, order_id, type, detail, created_at, customers(name)")
         .order("created_at", { ascending: false })
         .limit(30),
     ]);
@@ -82,6 +82,8 @@ export default async function AnalyticsPage() {
     detail: a.detail,
     created_at: a.created_at,
     customer_id: a.customer_id,
+    // 0038 — present on order-driven alerts, so the feed's CTA can open the order.
+    order_id: a.order_id ?? null,
     customer_name: Array.isArray(a.customers) ? (a.customers[0]?.name ?? null) : a.customers?.name ?? null,
   }));
 

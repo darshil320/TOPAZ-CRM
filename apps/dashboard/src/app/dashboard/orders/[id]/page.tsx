@@ -11,6 +11,7 @@ import { orderStatusChip } from "../status";
 import OrderStatusActions from "../OrderStatusActions";
 import RecordPaymentForm from "../RecordPaymentForm";
 import ReceiptDownloadButton from "./ReceiptDownloadButton";
+import ChallanButton from "../../deliveries/ChallanButton";
 import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
 import JobCardActions from "@/components/JobCardActions";
 import LineItemPhotoCell from "@/components/LineItemPhotoCell";
@@ -47,6 +48,7 @@ export default async function OrderDetailPage({ params }: Props) {
     { data: payments },
     { data: timeline },
     { data: stageRows },
+    { data: deliveries },
     workshopList,
     templateList,
   ] = await Promise.all([
@@ -73,6 +75,15 @@ export default async function OrderDetailPage({ params }: Props) {
           .eq("active", true)
           .order("sort")
       : Promise.resolve({ data: null }),
+    // The order's runs, with what travelled on each (0039) and whether its challan has
+    // been generated (0037). One order can have several runs once part-delivery is used.
+    supabase
+      .from("deliveries")
+      .select(
+        "id, status, scheduled_date, delivered_at, vehicle_no, eway_bill_no, challan_no, salespersons(name), delivery_items(order_item_id, order_items(id, description, qty, unit))",
+      )
+      .eq("order_id", id)
+      .order("scheduled_date", { ascending: false }),
     canRoute ? listWorkshops(false) : Promise.resolve({ workshops: [], error: null }),
     canRoute ? listRouteTemplates(true) : Promise.resolve({ data: null, error: null }),
   ]);
@@ -107,7 +118,10 @@ export default async function OrderDetailPage({ params }: Props) {
     itemIds.length > 0
       ? await supabase
           .from("media")
-          .select("id, entity_id, storage_key, mime, created_at")
+          // stage_code (0036) is the stage the photo DOCUMENTS. Before it, this page
+          // labelled every photo with the item's CURRENT stage — so yesterday's frame-work
+          // photo was captioned "Polishing" the moment the item moved on.
+          .select("id, entity_id, storage_key, mime, created_at, stage_code, production_stage_defs(label_en, label_gu)")
           .eq("entity_type", "order_item")
           .in("entity_id", itemIds)
           .eq("status", "ready")
@@ -117,15 +131,23 @@ export default async function OrderDetailPage({ params }: Props) {
   const orderPhotos: ProductionPhoto[] = [];
   for (const m of rawMedia ?? []) {
     const matchingItem = (items ?? []).find((i) => i.id === m.entity_id);
-    const stageObj = one(matchingItem?.production_stage_defs as { label_en: string } | null);
+    // The photo's OWN stage when it has one; the item's current stage only as a fallback
+    // for photos uploaded before 0036 existed.
+    const photoStage = one((m as any).production_stage_defs as { label_en: string } | null);
+    const itemStage = one(matchingItem?.production_stage_defs as { label_en: string } | null);
     const { data: signed } = await supabase.storage.from("media").createSignedUrl(m.storage_key, 3600);
     if (signed?.signedUrl) {
       orderPhotos.push({
         id: m.id,
         orderItemId: m.entity_id,
         itemDescription: matchingItem?.description ?? "Item",
-        stageCode: matchingItem?.current_stage ?? null,
-        stageLabel: stageObj?.label_en ?? matchingItem?.current_stage ?? null,
+        stageCode: (m as any).stage_code ?? matchingItem?.current_stage ?? null,
+        stageLabel:
+          photoStage?.label_en ??
+          (m as any).stage_code ??
+          itemStage?.label_en ??
+          matchingItem?.current_stage ??
+          null,
         imageUrl: signed.signedUrl,
         createdAt: m.created_at,
       });
@@ -341,6 +363,63 @@ export default async function OrderDetailPage({ params }: Props) {
                 </span>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Deliveries & Challans (0037/0039) — one card per run, because a part-delivered
+          order has several, each with its own goods and its own challan. */}
+      {(deliveries ?? []).length > 0 && (
+        <Card className="space-y-4">
+          <SectionHeader
+            label="Deliveries & Challans"
+            total={`${(deliveries ?? []).length} run${(deliveries ?? []).length === 1 ? "" : "s"}`}
+          />
+          <div className="divide-y divide-ln2 overflow-hidden rounded-card border border-ln bg-sf2">
+            {(deliveries ?? []).map((d: any) => {
+              const lines = ((d.delivery_items ?? []) as any[])
+                .map((line) => one<any>(line.order_items))
+                .filter(Boolean);
+              const driver = one<{ name: string | null }>(d.salespersons);
+              return (
+                <div
+                  key={d.id}
+                  className="flex flex-wrap items-start justify-between gap-3 bg-sf p-3.5"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono tabular-nums text-caption font-semibold text-t1">
+                        {d.scheduled_date}
+                      </span>
+                      <Pill
+                        tone={d.status === "delivered" ? "pos" : d.status === "failed" ? "warn" : "neutral"}
+                        dot={false}
+                      >
+                        {d.status}
+                      </Pill>
+                      {driver?.name && (
+                        <span className="text-caption text-t3">{driver.name}</span>
+                      )}
+                    </div>
+                    <p className="text-caption text-t2">
+                      {lines.length === 0
+                        ? "Whole order"
+                        : lines
+                            .map((it: any) => `${it.description} ×${it.qty ?? 1}`)
+                            .join(", ")}
+                    </p>
+                    {(d.vehicle_no || d.eway_bill_no) && (
+                      <p className="font-mono text-[11px] text-t3">
+                        {d.vehicle_no && `Vehicle ${d.vehicle_no}`}
+                        {d.vehicle_no && d.eway_bill_no && " · "}
+                        {d.eway_bill_no && `E-Way ${d.eway_bill_no}`}
+                      </p>
+                    )}
+                  </div>
+                  <ChallanButton deliveryId={d.id} orderId={id} challanNo={d.challan_no} />
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

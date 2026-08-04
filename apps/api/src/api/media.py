@@ -51,6 +51,12 @@ class SignUploadRequest(BaseModel):
     entity_id: UUID
     kind: str
     mime: str
+    # ACCEPTED AND IGNORED for production media. The field exists so an older client
+    # that sends it is not a 422, and so the intent is visible in the API contract — but
+    # the stage a photo belongs to is resolved from the item's own `current_stage`
+    # server-side (0036). A phone left open on a stale screen must not be able to file
+    # evidence under the wrong stage.
+    stage_code: str | None = None
 
 
 class CompleteRequest(BaseModel):
@@ -75,12 +81,22 @@ async def _authorize_upload(session, caller: authz.Caller, entity_type: str, ent
         await _authorize_transfer_upload(session, caller, entity_id)
         return
 
-    if caller.role == "workshop_manager":
+    # ROSTER FIRST, role second. A production photo belongs to whoever is holding the
+    # goods, and 0029 says the roster decides that — not the coarse `salespersons.role`.
+    # Testing the role first meant a sub-manager still carrying role='salesperson' was
+    # sent down the customer-ownership path and 403'd out of the four photo_required
+    # stages she is employed to complete (same defect as authz._NO_ROSTER_ROLES).
+    if entity_type in _WORKSHOP_ENTITY_TYPES:
         workshop_id = await repo.workshop_id_for_entity(session, entity_type, entity_id)
-        if workshop_id is None or not await _is_staff_of(session, caller, workshop_id):
+        if workshop_id is not None and await _is_staff_of(session, caller, workshop_id):
+            return
+        if caller.role == "workshop_manager":
+            # No roster row anywhere near this item: there is no customer relationship
+            # to fall back on for a workshop user, so this is the end of the line.
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Not authorized to add photos to this item")
-        return
+        # Anyone else falls through to the customer-ownership check below — an assigned
+        # salesperson may still photograph their own customer's item.
     customer_id = await repo.customer_id_for_entity(session, entity_type, entity_id)
     if customer_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
@@ -197,20 +213,33 @@ async def sign_upload(req: SignUploadRequest, caller_uid: str = Depends(get_call
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
                                 detail="Could not prepare the upload — try again") from exc
 
+        # Which stage does this photo document? A server fact, not a client claim
+        # (0036). Resolved after the existence check, so a missing item 404s first.
+        stage_code = await repo.stage_code_for_entity(
+            session, req.entity_type, req.entity_id
+        )
+        if req.stage_code and req.stage_code != stage_code:
+            logger.info(
+                "Ignoring client stage_code '%s' for %s %s — server says '%s'",
+                req.stage_code, req.entity_type, req.entity_id, stage_code,
+            )
+
         row = await repo.create_pending(
             session, media_id=media_id, entity_type=req.entity_type, entity_id=req.entity_id,
             kind=req.kind, storage_key=storage_key, mime=req.mime,
-            created_by=UUID(caller.salesperson_id),
+            created_by=UUID(caller.salesperson_id), stage_code=stage_code,
         )
         await session.commit()
 
-    logger.info("Signed media upload %s for %s %s", media_id, req.entity_type, req.entity_id)
+    logger.info("Signed media upload %s for %s %s (stage %s)",
+                media_id, req.entity_type, req.entity_id, stage_code or "-")
     return {
         "media_id": str(row["id"]),
         "storage_key": storage_key,
         "upload_url": upload_url,
         "expires_in": settings.MEDIA_UPLOAD_TTL_SECONDS,
         "max_bytes": settings.MEDIA_MAX_BYTES,
+        "stage_code": stage_code,
     }
 
 

@@ -31,7 +31,9 @@ export default async function ProductionPage() {
         .order("current_stage_at", { ascending: false }),
       supabase
         .from("media")
-        .select("id, entity_id, storage_key, mime, created_at")
+        // `stage_code` (0036) is what makes the drawer's photo captions real — before
+        // it, every tile was hardcoded to the string "production".
+        .select("id, entity_id, storage_key, mime, created_at, stage_code, salespersons(name)")
         .eq("entity_type", "order_item")
         .eq("status", "ready"),
       supabase
@@ -40,20 +42,35 @@ export default async function ProductionPage() {
         .order("at", { ascending: true }),
     ]);
 
-  // Sign URLs for media items
-  const mediaMap = new Map<string, { id: string; url: string; stageCode: string; createdAt: string }[]>();
+  // Sign URLs for media items. `stageCode` is null for anything uploaded before 0036
+  // and for photos that were never attached to a stage — the drawer labels those
+  // honestly rather than guessing.
+  const stageSort = new Map((stageDefs ?? []).map((s) => [s.code, s.sort]));
+  const mediaMap = new Map<string, ProductionItem["photos"]>();
   for (const m of mediaRows ?? []) {
     const { data: signed } = await supabase.storage.from("media").createSignedUrl(m.storage_key, 3600);
     if (signed?.signedUrl) {
+      const uploader = Array.isArray(m.salespersons) ? m.salespersons[0] : m.salespersons;
       const list = mediaMap.get(m.entity_id) || [];
       list.push({
         id: m.id,
         url: signed.signedUrl,
-        stageCode: "production",
+        stageCode: m.stage_code,
         createdAt: m.created_at,
+        uploadedBy: uploader?.name ?? null,
       });
       mediaMap.set(m.entity_id, list);
     }
+  }
+  // Order every item's photos by the stage they document, so the drawer reads in the
+  // order the work happened. Unstaged photos sink to the bottom; within a stage, oldest
+  // first, because the first photo of a stage is usually the one that shows the problem.
+  for (const list of mediaMap.values()) {
+    list.sort((a, b) => {
+      const sa = a.stageCode ? stageSort.get(a.stageCode) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+      const sb = b.stageCode ? stageSort.get(b.stageCode) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+      return sa !== sb ? sa - sb : a.createdAt.localeCompare(b.createdAt);
+    });
   }
 
   // Group events by order_item_id

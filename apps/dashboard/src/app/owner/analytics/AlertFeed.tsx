@@ -13,7 +13,34 @@ export type AlertItem = {
   created_at: string;
   customer_id: string;
   customer_name: string | null;
+  /** Set on order-driven alerts (0038) — 'item_ready' is the first. */
+  order_id?: string | null;
 };
+
+/**
+ * Where an alert's CTA goes, and what it says.
+ *
+ * An 'item_ready' alert (REQ 6) exists to trigger two actions that both live on the
+ * ORDER page — collect the balance, book the delivery — so sending it to the customer
+ * page would leave the reader hunting. Everything else is a conversation signal, where
+ * the customer's thread IS the destination.
+ */
+function alertTarget(alert: AlertItem): { href: string; label: string } {
+  if (alert.type === "item_ready" && alert.order_id) {
+    return { href: `/dashboard/orders/${alert.order_id}`, label: "Collect & deliver →" };
+  }
+  return { href: `/dashboard/customers/${alert.customer_id}`, label: "View →" };
+}
+
+/** Green for "something good happened", amber for "somebody has to act". */
+const WARN_TYPES = new Set([
+  "intent_call",
+  "confusion",
+  "leg_overdue",
+  "transfer_pending",
+  "production_blocked",
+  "stage_due",
+]);
 
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -69,12 +96,14 @@ export default function AlertFeed({ initialAlerts }: { initialAlerts: AlertItem[
 
   return (
     <ul className="divide-y divide-ln2">
-      {alerts.map((alert) => (
+      {alerts.map((alert) => {
+        const target = alertTarget(alert);
+        return (
         <li key={alert.id} className="py-2.5 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <Pill tone={alert.type === "intent_call" || alert.type === "confusion" ? "warn" : "pos"} dot={false}>
-                {alert.type.replace("_", " ")}
+              <Pill tone={WARN_TYPES.has(alert.type) ? "warn" : "pos"} dot={false}>
+                {alert.type.replaceAll("_", " ")}
               </Pill>
               <span className="text-ui font-semibold text-t1 truncate">
                 {alert.customer_name ?? "Customer"}
@@ -86,13 +115,14 @@ export default function AlertFeed({ initialAlerts }: { initialAlerts: AlertItem[
             )}
           </div>
           <Link
-            href={`/dashboard/customers/${alert.customer_id}`}
+            href={target.href}
             className="shrink-0 text-caption font-semibold text-t1 hover:text-acc transition-colors"
           >
-            View →
+            {target.label}
           </Link>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

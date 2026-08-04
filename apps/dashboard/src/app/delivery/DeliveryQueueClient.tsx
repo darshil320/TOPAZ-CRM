@@ -30,6 +30,13 @@ export default function DeliveryQueueClient({
   const [isPending, startTransition] = useTransition();
   const [photos, setPhotos] = useState<Record<string, PhotoState>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  /**
+   * Per delivery, which lines the driver has ticked off as handed over (0039).
+   *
+   * Starts EMPTY rather than all-ticked: a pre-checked list is a list nobody reads, and
+   * the point of the checklist is that the driver looks at the goods.
+   */
+  const [tickedMap, setTickedMap] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [chip, setChip] = useState("all");
@@ -141,14 +148,43 @@ export default function DeliveryQueueClient({
     }
   }
 
+  function toggleLine(deliveryId: string, lineId: string) {
+    setTickedMap((prev) => {
+      const current = prev[deliveryId] ?? [];
+      return {
+        ...prev,
+        [deliveryId]: current.includes(lineId)
+          ? current.filter((id) => id !== lineId)
+          : [...current, lineId],
+      };
+    });
+  }
+
   function handleComplete(delivery: DeliveryQueueItem) {
     setError(null);
     const photo = photos[delivery.id];
     const notes = notesMap[delivery.id];
+    const ticked = tickedMap[delivery.id] ?? [];
 
     if (!photo?.mediaId) {
       setError("📷 इंस्टॉलेशन प्रूफ फोटो जरूरी है / Proof of installation photo required");
       return;
+    }
+    // EVERY line ticked, or an explicit note saying what happened. A short delivery with
+    // no explanation is the case that turns into an argument a week later, and the driver
+    // is the only person who can still see the lorry.
+    if (delivery.lines.length > 0 && ticked.length < delivery.lines.length) {
+      if (ticked.length === 0) {
+        setError("सामान टिक करें / Tick the items you handed over.");
+        return;
+      }
+      if (!notes?.trim()) {
+        setError(
+          `${ticked.length}/${delivery.lines.length} सामान — कारण लिखें / ` +
+            `Only ${ticked.length} of ${delivery.lines.length} items ticked. Write a note saying what happened to the rest.`,
+        );
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -218,6 +254,7 @@ export default function DeliveryQueueClient({
 
       {visible.map((delivery) => {
         const photo = photos[delivery.id];
+        const ticked = tickedMap[delivery.id] ?? [];
         const formattedPhone = (delivery.customer_phone || "").replace(/\D/g, "");
 
         return (
@@ -237,7 +274,10 @@ export default function DeliveryQueueClient({
                   </span>
                 </div>
                 <h3 className="text-base font-extrabold text-white">{delivery.customer_name}</h3>
-                <p className="text-xs text-slate-400 font-mono">{delivery.items_summary}</p>
+                {delivery.lines.length === 0 && (
+                  // Pre-0039 delivery with no item rows: the summary line is all there is.
+                  <p className="text-xs text-slate-400 font-mono">{delivery.items_summary}</p>
+                )}
               </div>
 
               {formattedPhone && (
@@ -258,6 +298,66 @@ export default function DeliveryQueueClient({
                 )}
                 {delivery.eway_bill_no && (
                   <span>E-Way Bill: <strong className="text-slate-200">{delivery.eway_bill_no}</strong></span>
+                )}
+              </div>
+            )}
+
+            {/* PER-ITEM TICK-OFF (0039). The driver's job is a set of pieces, not an
+                order number — and after part-delivery the run genuinely carries fewer
+                items than the order has. */}
+            {delivery.lines.length > 0 && (
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-300">
+                    सामान / Items on this run
+                    <span className="ml-1.5 font-mono text-slate-500">
+                      {ticked.length}/{delivery.lines.length}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTickedMap((prev) => ({
+                        ...prev,
+                        [delivery.id]:
+                          ticked.length === delivery.lines.length
+                            ? []
+                            : delivery.lines.map((l) => l.id),
+                      }))
+                    }
+                    className="text-xs font-bold text-emerald-400"
+                  >
+                    {ticked.length === delivery.lines.length ? "साफ़ / Clear" : "सब / All"}
+                  </button>
+                </div>
+                <div className="divide-y divide-slate-800">
+                  {delivery.lines.map((line) => (
+                    <label
+                      key={line.id}
+                      className="flex items-start gap-2.5 py-2 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-500"
+                        checked={ticked.includes(line.id)}
+                        onChange={() => toggleLine(delivery.id, line.id)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-slate-200">
+                          {line.description}
+                        </span>
+                        <span className="block text-[11px] font-mono text-slate-500">
+                          {line.qty} {line.unit || "nos"}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {ticked.length > 0 && ticked.length < delivery.lines.length && (
+                  <p className="text-[11px] font-semibold text-amber-300">
+                    कुछ सामान बाकी — नीचे कारण लिखें / Some items not handed over. Write the
+                    reason in the note below before marking this delivered.
+                  </p>
                 )}
               </div>
             )}

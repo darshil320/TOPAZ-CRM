@@ -33,3 +33,24 @@ async def allocate(session: AsyncSession, series: str, *, on: date | None = None
         {"series": series, "fy": fy},
     )
     return format_number(series, fy, result.scalar_one())
+
+
+# ─── Continuous series (no fiscal year) ──────────────────────────────────────
+# The delivery challan does not carry a fiscal year: the client's own pad reads "T.F 66"
+# and the counter runs on across April. A real FY key would restart it at 1 every year and
+# start duplicating numbers they have already issued, so a continuous series is stored
+# under this fixed pseudo-FY instead.
+CONTINUOUS_FY = "ALL"
+
+
+async def allocate_continuous(session: AsyncSession, series: str, *, prefix: str) -> str:
+    """Allocate `<prefix> <n>` from a counter that never resets.
+
+    Same atomic allocator (0012), so the uniqueness and gap-tolerance guarantees are
+    unchanged — only the key and the formatting differ.
+    """
+    result = await session.execute(
+        text("SELECT allocate_number(:series, :fy)"),
+        {"series": series, "fy": CONTINUOUS_FY},
+    )
+    return f"{prefix} {result.scalar_one()}"

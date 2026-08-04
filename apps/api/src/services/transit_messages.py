@@ -35,6 +35,11 @@ IST = timezone(timedelta(hours=5, minutes=30))
 TEMPLATE_TRANSFER_INCOMING = "topaz_transfer_incoming"
 TEMPLATE_TRANSFER_STATUS = "topaz_transfer_status"
 TEMPLATE_PRODUCTION_ALERT = "topaz_production_alert"
+# REQ 6 — an item cleared its last stage. NEEDS META APPROVAL before the send path can
+# use it (Utility category, like the three above). Until it shows APPROVED in WhatsApp
+# Manager the send fails and is logged; the `alerts` row is written either way, so the
+# dashboard still shows the item as ready. See tasks/production_notify._run_item_ready.
+TEMPLATE_ITEM_READY = "topaz_item_ready"
 
 # Fixed body text a human read at submission time (WhatsApp Manager), kept here so a
 # change to the registered template is a one-line diff against what Meta actually
@@ -62,6 +67,18 @@ TEMPLATE_PRODUCTION_ALERT = "topaz_production_alert"
 #   Workshop: {{workshop_name}}
 #   Issue: {{issue}}
 #   {{detail}}
+#
+# topaz_item_ready (REQ 6 — SUBMITTED, awaiting Meta review):
+#   ✅ Ready to deliver — {{order_no}}
+#
+#   Item: {{item_description}}
+#   Customer: {{customer_name}}
+#   Balance due: {{balance_due}}
+#
+# MONEY IS DELIBERATE HERE and nowhere else in this file: the audience is the assigned
+# SALESPERSON, whose whole next action is collecting the balance and booking the delivery.
+# The money-blind rule protects the workshop and courier audiences — it is not a rule
+# about the template registry. No workshop recipient is ever sent this template.
 
 # Meta named parameters are always sent as text, always filled — an approved template
 # renders its fixed wording around whatever is supplied, so an empty string reads as a
@@ -161,3 +178,45 @@ def production_alert_params(
         issue=issue,
         detail=detail,
     )
+
+
+def item_ready_params(
+    *,
+    order_no: str,
+    item_description: str,
+    customer_name: str,
+    balance_due: float | int | None = None,
+) -> list[dict]:
+    """REQ 6 — the assigned salesperson's "go collect and book the delivery" nudge.
+
+    `balance_due` is formatted here rather than by the caller so the rupee string is
+    identical in every message: '₹1,25,000' in Indian grouping, or 'Fully paid' at zero.
+    A None (unknown, e.g. no payment rows yet) reads as the order value being outstanding
+    is unproven — so it degrades to the neutral filler rather than claiming ₹0.
+    """
+    return _named(
+        order_no=order_no,
+        item_description=item_description,
+        customer_name=customer_name,
+        balance_due=format_inr(balance_due),
+    )
+
+
+def format_inr(amount: float | int | None) -> str:
+    """'₹1,25,000' — Indian digit grouping (2,2,3), not the 3,3,3 of `format(x, ',')`."""
+    if amount is None:
+        return _EMPTY
+    rupees = int(round(float(amount)))
+    if rupees <= 0:
+        return "Fully paid"
+    digits = str(rupees)
+    if len(digits) <= 3:
+        return f"₹{digits}"
+    head, tail = digits[:-3], digits[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    return f"₹{','.join(groups)},{tail}"

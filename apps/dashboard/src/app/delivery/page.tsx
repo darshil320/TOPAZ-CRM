@@ -3,6 +3,14 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
 import DeliveryQueueClient from "./DeliveryQueueClient";
 
+/** One line ON this run — the goods the driver physically has to hand over (0039). */
+export interface DeliveryLine {
+  id: string;
+  description: string;
+  qty: number;
+  unit: string | null;
+}
+
 export interface DeliveryQueueItem {
   id: string;
   order_id: string;
@@ -15,6 +23,15 @@ export interface DeliveryQueueItem {
   notes: string | null;
   status: string;
   items_summary: string;
+  /**
+   * THIS RUN's items, from `delivery_items` — not the order's. Before 0039 this screen
+   * listed every line of the order, so a driver carrying 2 of 5 pieces was shown all
+   * five and had no way to say which ones actually arrived.
+   *
+   * Empty for a pre-0039 delivery whose backfill has not run: the checklist then
+   * degrades to the old "whole order" behaviour rather than blocking the tap.
+   */
+  lines: DeliveryLine[];
 }
 
 export default async function DeliveryPage() {
@@ -26,7 +43,7 @@ export default async function DeliveryPage() {
   const isElevated = sp.role === "owner" || sp.role === "admin";
   let query = supabase
     .from("deliveries")
-    .select("id, order_id, scheduled_date, status, vehicle_no, eway_bill_no, notes, orders!inner(order_no, customers!inner(name, phone), order_items(description, qty))")
+    .select("id, order_id, scheduled_date, status, vehicle_no, eway_bill_no, notes, orders!inner(order_no, customers!inner(name, phone)), delivery_items(order_items(id, description, qty, unit))")
     .neq("status", "delivered")
     .order("scheduled_date", { ascending: true });
 
@@ -39,7 +56,16 @@ export default async function DeliveryPage() {
   const deliveries: DeliveryQueueItem[] = ((rows as any[]) ?? []).map((r) => {
     const orderObj = Array.isArray(r.orders) ? r.orders[0] : r.orders;
     const custObj = orderObj?.customers ? (Array.isArray(orderObj.customers) ? orderObj.customers[0] : orderObj.customers) : null;
-    const itemsList = (orderObj?.order_items ?? []).map((it: any) => `${it.qty}x ${it.description}`).join(", ");
+    const lines: DeliveryLine[] = ((r.delivery_items ?? []) as any[])
+      .map((line) => (Array.isArray(line.order_items) ? line.order_items[0] : line.order_items))
+      .filter(Boolean)
+      .map((it: any) => ({
+        id: it.id,
+        description: it.description ?? "Item",
+        qty: it.qty ?? 1,
+        unit: it.unit ?? null,
+      }));
+    const itemsList = lines.map((it) => `${it.qty}x ${it.description}`).join(", ");
 
     return {
       id: r.id,
@@ -53,6 +79,7 @@ export default async function DeliveryPage() {
       notes: r.notes,
       status: r.status,
       items_summary: itemsList || "Order Items",
+      lines,
     };
   });
 

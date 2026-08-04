@@ -15,7 +15,7 @@
  * row exists but its object does not decode.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImageOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getMediaUrl, getMediaUrls, type MediaEntityType, type MediaKind } from "@/lib/media/actions";
@@ -35,6 +35,61 @@ interface MediaRow {
   id: string;
   kind: string;
   created_at: string;
+  /** Which production stage this photo documents (0036). Null for non-production media. */
+  stage_code: string | null;
+  /** Embedded join — Supabase returns the FK target as a nested object (or null). */
+  production_stage_defs: { label_en: string; label_gu: string | null; sort: number } | null;
+  salespersons: { name: string } | null;
+}
+
+/** One stage's photos, in the order the stage happens. */
+interface StageGroup {
+  code: string | null;
+  heading: string;
+  sort: number;
+  rows: MediaRow[];
+}
+
+const UNSTAGED_HEADING = "સ્ટેજ નોંધ્યું નથી / No stage recorded";
+
+/**
+ * Group by stage, ordered by the stage's own `sort` — NOT by upload time, so the
+ * gallery reads in the order the work actually happened. Photos with no stage sink to
+ * the bottom under their own heading: they are the pre-0036 backlog and anything
+ * uploaded outside production, and hiding them would hide evidence.
+ */
+function groupByStage(rows: MediaRow[]): StageGroup[] {
+  const groups = new Map<string, StageGroup>();
+  for (const row of rows) {
+    const code = row.stage_code;
+    const key = code ?? "";
+    const def = row.production_stage_defs;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.rows.push(row);
+      continue;
+    }
+    groups.set(key, {
+      code,
+      heading: def
+        ? [def.label_en, def.label_gu].filter(Boolean).join(" · ")
+        : code ?? UNSTAGED_HEADING,
+      // Unstaged last. Number.MAX_SAFE_INTEGER rather than -1: `sort` is seeded in
+      // tens and a future stage could legitimately be inserted before the first one.
+      sort: def ? def.sort : Number.MAX_SAFE_INTEGER,
+      rows: [row],
+    });
+  }
+  return [...groups.values()].sort((a, b) => a.sort - b.sort);
+}
+
+function tileCaption(row: MediaRow): string {
+  const when = new Date(row.created_at).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+  });
+  const who = row.salespersons?.name;
+  return who ? `${when} · ${who}` : when;
 }
 
 type TileState = "loading" | "thumb" | "full" | "placeholder";
@@ -117,8 +172,11 @@ function MediaTile({ media, initialUrl }: { media: MediaRow; initialUrl?: string
           setState("placeholder");
         }}
       />
-      <span className="absolute bottom-1 left-1 rounded-badge bg-sf/90 px-1.5 py-0.5 text-[10px] font-560 uppercase tracking-[.08em] text-t3">
-        {media.kind}
+      {/* WHEN and WHO, not the kind: the stage heading above already says what this
+          photo is, and "who took it, on what date" is the question a disputed piece of
+          production evidence actually raises. */}
+      <span className="absolute bottom-1 left-1 right-1 truncate rounded-badge bg-sf/90 px-1.5 py-0.5 text-[10px] font-560 tabular-nums text-t3">
+        {tileCaption(media)}
       </span>
     </TileFrame>
   );
@@ -136,6 +194,8 @@ export default function MediaGallery({
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  const groups = useMemo(() => groupByStage(rows ?? []), [rows]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -145,7 +205,12 @@ export default function MediaGallery({
         const supabase = createClient();
         let query = supabase
           .from("media")
-          .select("id, kind, created_at")
+          // The stage labels and the uploader's name come along as embedded joins so
+          // the grid needs no second round-trip to render its headings (0036).
+          // ONE STRING LITERAL, not a concatenation: supabase-js parses this select at
+          // the TYPE level, and `"a" + "b"` widens to `string`, which makes the whole
+          // result degrade to GenericStringError[].
+          .select("id, kind, created_at, stage_code, production_stage_defs(label_en, label_gu, sort), salespersons(name)")
           .eq("entity_type", entityType)
           .eq("entity_id", entityId)
           .eq("status", "ready")
@@ -209,11 +274,25 @@ export default function MediaGallery({
       ) : rows.length === 0 ? (
         !error && <p className="mt-2.5 text-caption text-t3">No photos attached yet.</p>
       ) : (
-        <div className="mt-2.5 grid grid-cols-3 gap-[11px] sm:grid-cols-4 lg:grid-cols-6">
-          {rows.map((row) => (
-            <MediaTile key={row.id} media={row} initialUrl={urls[row.id] ?? null} />
-          ))}
-        </div>
+        groups.map((group) => (
+          <section key={group.code ?? "unstaged"} className="mt-3.5 first:mt-2.5">
+            {/* A single-group gallery needs no heading — it would only repeat the
+                section label above. Headings earn their space once there are two. */}
+            {groups.length > 1 && (
+              <div className="flex items-baseline justify-between border-b border-ln pb-1">
+                <span className="text-caption font-560 text-t2">{group.heading}</span>
+                <span className="text-[11px] font-mono tabular-nums text-t3">
+                  {group.rows.length}
+                </span>
+              </div>
+            )}
+            <div className="mt-2 grid grid-cols-3 gap-[11px] sm:grid-cols-4 lg:grid-cols-6">
+              {group.rows.map((row) => (
+                <MediaTile key={row.id} media={row} initialUrl={urls[row.id] ?? null} />
+              ))}
+            </div>
+          </section>
+        ))
       )}
     </div>
   );

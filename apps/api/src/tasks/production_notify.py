@@ -159,15 +159,123 @@ async def _run_transfer(kind: str, payload: dict) -> dict:
     return {"sent": sent}
 
 
+async def _claim_item_ready(session, item_id: str) -> bool:
+    """Atomically claim the "this item is finished" notification (0038).
+
+    THE single-fire guarantee. Both predicates matter: `ready_notified_at IS NULL` stops a
+    Celery retry re-messaging, and `production_done_at IS NOT NULL` stops a stale payload
+    (an event replayed after an admin override moved the item) claiming an item that is
+    not actually finished.
+    """
+    result = await session.execute(
+        text(
+            "UPDATE order_items SET ready_notified_at = now()"
+            " WHERE id = cast(:id as uuid)"
+            "   AND production_done_at IS NOT NULL AND ready_notified_at IS NULL"
+            " RETURNING id"
+        ),
+        {"id": item_id},
+    )
+    return result.first() is not None
+
+
+async def _run_item_ready(item_id: str) -> dict:
+    """REQ 6 — the last stage cleared: tell the salesperson who sold it.
+
+    Order of operations is load-bearing:
+      1. CLAIM (0038) — before anything is read or sent, so a retry stops here.
+      2. Write the `alerts` row and COMMIT — the durable record. The dashboard shows
+         "ready to deliver" even if WhatsApp is down or `topaz_item_ready` is still in
+         Meta review.
+      3. Send. A failure here is logged and NOT rolled back: re-sending on the next retry
+         to a salesperson who already got the message is worse than one missed nudge, and
+         the alert row already carries the fact.
+    """
+    from uuid import UUID
+
+    async with make_task_session() as session:
+        if not await _claim_item_ready(session, item_id):
+            logger.info("item_ready for %s: already notified or not finished", item_id)
+            await session.commit()
+            return {"sent": 0}
+
+        row = await session.execute(
+            text(
+                "SELECT oi.description, o.order_no, o.id AS order_id, o.customer_id,"
+                "       o.grand_total, c.name AS customer_name,"
+                "       (SELECT coalesce(sum(p.amount), 0) FROM payments p"
+                "         WHERE p.order_id = o.id) AS paid,"
+                "       sp.name AS advisor_name, sp.whatsapp AS advisor_whatsapp"
+                " FROM order_items oi"
+                " JOIN orders o ON o.id = oi.order_id"
+                " JOIN customers c ON c.id = o.customer_id"
+                " LEFT JOIN customer_assignments ca"
+                "        ON ca.customer_id = o.customer_id AND ca.role = 'primary'"
+                "       AND ca.active = true"
+                " LEFT JOIN salespersons sp"
+                "        ON sp.id = ca.salesperson_id AND sp.active = true"
+                " WHERE oi.id = cast(:id as uuid)"
+            ),
+            {"id": item_id},
+        )
+        item = row.mappings().first()
+        if item is None:
+            logger.warning("item_ready: order item %s is gone", item_id)
+            await session.commit()
+            return {"sent": 0}
+
+        balance = None
+        if item["grand_total"] is not None:
+            balance = float(item["grand_total"]) - float(item["paid"] or 0)
+
+        alert_id = await alert_repo.create_alert(
+            session,
+            customer_id=UUID(str(item["customer_id"])),
+            type_="item_ready",
+            detail=f"{item['description']} is ready to deliver ({item['order_no']})",
+            # 0038: the feed's CTA opens THIS order, where the payment form and the
+            # delivery scheduler both live.
+            order_id=UUID(str(item["order_id"])),
+        )
+        # An UNCLAIMED customer has no advisor — the owner is the fallback, because "the
+        # goods are finished and nobody has been told" is the failure this exists to stop.
+        recipient = item["advisor_whatsapp"] or await alert_repo.get_owner_whatsapp(session)
+        await session.commit()
+
+    params = transit_messages.item_ready_params(
+        order_no=str(item["order_no"]),
+        item_description=str(item["description"]),
+        customer_name=str(item["customer_name"]),
+        balance_due=balance,
+    )
+    sent = int(await _send_template(
+        recipient, transit_messages.TEMPLATE_ITEM_READY, params,
+        what=f"item_ready/{item['order_no']}",
+    ))
+    logger.info("item_ready notification for %s: alert %s, %d sent",
+                item["order_no"], alert_id, sent)
+    return {"sent": sent, "alert_id": str(alert_id), "order_id": str(item["order_id"])}
+
+
 async def _run_production(kind: str, payload: dict) -> dict:
     """Stage events.
 
-    Only `blocked` reaches out today: a blocked item needs a human, and nobody wants a
-    WhatsApp per stage tap on eleven stages per item. `stage_done` is deliberately a
-    LOG-ONLY event here — the live board (Realtime) is how sales watch progress, and the
-    customer-facing `production_started` / `production_completed` templates are module
+    Two kinds reach out. `blocked` — a stuck item needs a human. And a `stage_done` that
+    was the item's LAST stage (`done: true` in the payload, computed by
+    api/production.advance) — REQ 6's "ready to deliver" nudge to the salesperson.
+
+    Every OTHER stage tap stays log-only, deliberately: nobody wants a WhatsApp per stage
+    on eleven stages per item. The live board (Realtime) is how sales watch progress, and
+    the customer-facing `production_started` / `production_completed` templates are module
     12's scope, not this one's.
     """
+    if kind == "stage_done" and payload.get("done"):
+        item_id = payload.get("order_item_id")
+        if not item_id:
+            logger.warning("stage_done(done=true) with no order_item_id: %s", payload)
+            return {"sent": 0}
+        return await _run_item_ready(str(item_id))
+
     if kind != "blocked":
         logger.info("production notification %s: %s (log only)", kind, payload)
         return {"sent": 0}

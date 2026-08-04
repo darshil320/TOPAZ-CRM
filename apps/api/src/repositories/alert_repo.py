@@ -14,16 +14,22 @@ async def create_alert(
     salesperson_id: UUID | None = None,
     detail: str | None = None,
     message_id: UUID | None = None,
+    order_id: UUID | None = None,
 ) -> UUID:
     """Insert an alert row and return its id.
 
     Commit is the caller's responsibility. Written by the backend (service role),
     so RLS insert policies do not apply — reads are RLS-scoped in 0010.
+
+    `order_id` (0038) is what lets an alert's CTA open the ORDER rather than the customer:
+    an 'item_ready' alert asks for a payment and a delivery booking, both of which live on
+    the order page. Null for the conversation-driven intent types, which have no order.
     """
     result = await session.execute(
         text(
-            "INSERT INTO alerts (customer_id, salesperson_id, type, detail, message_id)"
-            " VALUES (:cid, :sid, :type, :detail, :mid)"
+            "INSERT INTO alerts (customer_id, salesperson_id, type, detail, message_id,"
+            " order_id)"
+            " VALUES (:cid, :sid, :type, :detail, :mid, :oid)"
             " RETURNING id"
         ),
         {
@@ -32,6 +38,7 @@ async def create_alert(
             "type": type_,
             "detail": detail,
             "mid": str(message_id) if message_id else None,
+            "oid": str(order_id) if order_id else None,
         },
     )
     row = result.first()

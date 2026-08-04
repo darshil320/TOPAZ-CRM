@@ -32,7 +32,14 @@ from ..repositories.followup_repo import (
     release_followup,
 )
 from ..repositories.message_repo import create_message
-from ..services.templates import FOLLOWUP_TEMPLATES, meta_template_params, render_followup
+from ..services import phone_fmt
+from ..services.templates import (
+    FOLLOWUP_TEMPLATES,
+    meta_template_params,
+    missing_params,
+    render_followup,
+    welcome_template_key,
+)
 from ..services.wa_window import within_service_window
 
 logger = logging.getLogger(__name__)
@@ -106,21 +113,40 @@ async def _process_one(session, followup: ClaimedFollowup) -> str:
         await session.commit()
         return "skipped"
 
+    settings = get_settings()
     template_vars = {
         **followup.template_vars,
         "name": context.name or "",
         "advisor_name": context.advisor_name or "",
+        # Rendered for a human, not for the API: the DB stores `916356320206`.
+        "advisor_phone": phone_fmt.display(context.advisor_whatsapp),
     }
+    # An UNCLAIMED customer has no advisor number, and Meta rejects a send with an empty
+    # parameter — so the showroom's own number stands in rather than the message failing.
+    defaults = {"advisor_phone": phone_fmt.display(settings.SHOWROOM_CONTACT_NUMBER)}
+    template_name = _send_template_name(followup.template_name, settings)
     use_free_form = within_service_window(context.last_inbound_at)
 
     try:
         if use_free_form:
-            content = render_followup(followup.template_name, template_vars)
+            content = render_followup(template_name, template_vars, defaults)
             wamid = send_wa_text(context.wa_id, content)
             meta_template = None
         else:
-            meta_template, params = meta_template_params(followup.template_name, template_vars)
-            content = render_followup(followup.template_name, template_vars)
+            blank = missing_params(template_name, template_vars, defaults)
+            if blank:
+                # Sending anyway earns a generic Meta 400 that says nothing about which
+                # parameter was empty. Skip loudly instead, with the key named.
+                logger.error(
+                    "Followup %s not sent: template '%s' would go out with empty "
+                    "parameter(s) %s",
+                    followup.id, template_name, ", ".join(blank),
+                )
+                await mark_followup_skipped(session, followup.id)
+                await session.commit()
+                return "skipped"
+            meta_template, params = meta_template_params(template_name, template_vars, defaults)
+            content = render_followup(template_name, template_vars, defaults)
             wamid = send_wa_template(context.wa_id, meta_template, params)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in _RETRYABLE_STATUS_CODES:
@@ -172,6 +198,18 @@ async def _process_one(session, followup: ClaimedFollowup) -> str:
     await mark_followup_sent(session, followup.id)
     await session.commit()
     return "sent"
+
+
+def _send_template_name(stored_name: str, settings) -> str:
+    """Resolve the STORED template key to the one actually sent.
+
+    Only the welcome has a variant today. Keeping the resolution here (rather than at
+    schedule time in api/enrollment.py) means flipping WELCOME_TEMPLATE_V2 takes effect
+    on the queue that already exists, in both directions.
+    """
+    if stored_name in ("welcome_visit", "welcome_visit_v2"):
+        return welcome_template_key(v2_enabled=settings.WELCOME_TEMPLATE_V2)
+    return stored_name
 
 
 def _skip_reason(followup: ClaimedFollowup, context) -> str | None:

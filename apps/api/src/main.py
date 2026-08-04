@@ -13,6 +13,8 @@ Routes:
   /api/routing               — multi-workshop route legs + templates (module 14)
   /api/transfers             — inter-workshop consignments, the mediator app (module 14)
   /api/job-cards             — render/send the money-free spec sheet (Phase 2B)
+  /api/stage-plan            — per-stage day budgets, skip, snooze (0035)
+  /api/documents             — delivery challan render + signed URL (0037)
   /api/health                — liveness probe
 """
 
@@ -31,7 +33,9 @@ from .api.production import router as production_router
 from .api.public import router as public_router
 from .api.quotations import router as quotations_router
 from .api.recognition import router as recognition_router
+from .api.documents import router as documents_router
 from .api.routing import router as routing_router
+from .api.stage_plan import router as stage_plan_router
 from .api.transfers import router as transfers_router
 from .api.whatsapp import router as whatsapp_router
 from .api.workshops import router as workshops_router
@@ -85,6 +89,10 @@ def create_app() -> FastAPI:
     # Module 14 (multi-workshop routing + the mediator app).
     app.include_router(routing_router, prefix="/api")
     app.include_router(transfers_router, prefix="/api")
+    # Per-stage day budgets + reminders (0035).
+    app.include_router(stage_plan_router, prefix="/api")
+    # Delivery challans (0037).
+    app.include_router(documents_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
 
