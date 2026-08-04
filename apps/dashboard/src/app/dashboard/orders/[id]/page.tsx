@@ -14,6 +14,7 @@ import ReceiptDownloadButton from "./ReceiptDownloadButton";
 import OrderProductionPhotos, { ProductionPhoto } from "./OrderProductionPhotos";
 import JobCardActions from "@/components/JobCardActions";
 import LineItemPhotoCell from "@/components/LineItemPhotoCell";
+import { loadLinePhotos } from "@/lib/media/lineItemPhotos";
 import RouteModal from "../../production/allocate/RouteModal";
 import { listWorkshops } from "@/lib/workshops";
 import { listRouteTemplates } from "@/lib/production/reads";
@@ -34,16 +35,12 @@ export default async function OrderDetailPage({ params }: Props) {
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const { data: order } = await supabase
-    .from("orders")
-    .select("*, customers(name, phone), quotations(quote_no)")
-    .eq("id", id)
-    .single();
-  if (!order) notFound();
-
   const canRoute = ROUTABLE_ROLES.has(sp.role ?? "");
 
+  // Every read below is keyed on the order id, not on the order ROW — so the
+  // header no longer costs a round-trip that the other eight wait behind.
   const [
+    { data: order },
     { data: items },
     { data: out },
     { data: schedule },
@@ -53,6 +50,11 @@ export default async function OrderDetailPage({ params }: Props) {
     workshopList,
     templateList,
   ] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("*, customers(name, phone), quotations(quote_no)")
+      .eq("id", id)
+      .single(),
     supabase
       .from("order_items")
       .select("*, workshops(name, type), production_stage_defs(label_en, label_gu)")
@@ -74,6 +76,16 @@ export default async function OrderDetailPage({ params }: Props) {
     canRoute ? listWorkshops(false) : Promise.resolve({ workshops: [], error: null }),
     canRoute ? listRouteTemplates(true) : Promise.resolve({ data: null, error: null }),
   ]);
+
+  if (!order) notFound();
+
+  // Signed line thumbnails (same precedence the job card prints with). One
+  // batched sign for the whole table — see lib/media/lineItemPhotos.
+  const linePhotos = await loadLinePhotos(
+    supabase,
+    "order_item",
+    (items ?? []).map((it) => ({ id: it.id, product_id: it.product_id })),
+  );
 
   const stages = (stageRows ?? []) as StageDef[];
   const routeWorkshops = workshopList.workshops
@@ -206,7 +218,13 @@ export default async function OrderDetailPage({ params }: Props) {
                       <p className="text-caption text-t3 font-mono">
                         {it.qty}{it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)} · HSN {it.hsn} ({it.gst_rate}% GST)
                       </p>
-                      <LineItemPhotoCell entityType="order_item" entityId={it.id} parentId={order.id} />
+                      <LineItemPhotoCell
+                        entityType="order_item"
+                        entityId={it.id}
+                        parentId={order.id}
+                        photo={linePhotos.get(it.id) ?? null}
+                        description={it.description}
+                      />
 
                       {/* Workshop & Production Stage Badge */}
                       <div className="pt-1 flex flex-wrap items-center gap-2">

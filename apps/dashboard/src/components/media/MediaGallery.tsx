@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ImageOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getMediaUrl, type MediaEntityType, type MediaKind } from "@/lib/media/actions";
+import { getMediaUrl, getMediaUrls, type MediaEntityType, type MediaKind } from "@/lib/media/actions";
 
 export interface MediaGalleryProps {
   entityType: MediaEntityType;
@@ -58,9 +58,12 @@ function Placeholder({ note }: { note: string }) {
   );
 }
 
-function MediaTile({ media }: { media: MediaRow }) {
-  const [state, setState] = useState<TileState>("loading");
-  const [url, setUrl] = useState<string | null>(null);
+function MediaTile({ media, initialUrl }: { media: MediaRow; initialUrl?: string | null }) {
+  // The URL arrives from the gallery's single batched call, so a tile normally
+  // renders its image on first paint. `load` is only the per-tile FALLBACK path
+  // (a thumbnail that will not decode), which is genuinely one-at-a-time.
+  const [state, setState] = useState<TileState>(initialUrl ? "thumb" : "loading");
+  const [url, setUrl] = useState<string | null>(initialUrl ?? null);
   const [note, setNote] = useState("Preview unavailable");
 
   const load = useCallback(async (thumb: boolean) => {
@@ -75,8 +78,13 @@ function MediaTile({ media }: { media: MediaRow }) {
   }, [media.id]);
 
   useEffect(() => {
+    if (initialUrl) {
+      setUrl(initialUrl);
+      setState("thumb");
+      return;
+    }
     void load(true);
-  }, [load]);
+  }, [load, initialUrl]);
 
   if (state === "loading") {
     return (
@@ -125,6 +133,7 @@ export default function MediaGallery({
   className,
 }: MediaGalleryProps) {
   const [rows, setRows] = useState<MediaRow[] | null>(null);
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -151,7 +160,23 @@ export default function MediaGallery({
           setRows([]);
           return;
         }
-        setRows((data ?? []) as MediaRow[]);
+        const mediaRows = (data ?? []) as MediaRow[];
+        if (mediaRows.length === 0) {
+          setRows([]);
+          return;
+        }
+
+        // One batched sign for the whole grid — see getMediaUrls on why this is
+        // not N calls. Rows are published TOGETHER with their URLs so no tile
+        // mounts without one and falls back to its own per-tile request.
+        const signed = await getMediaUrls(mediaRows.map((r) => r.id), true);
+        if (cancelled) return;
+        setUrls(
+          Object.fromEntries(
+            Object.entries(signed.data ?? {}).map(([id, value]) => [id, value.url]),
+          ),
+        );
+        setRows(mediaRows);
       } catch {
         if (!cancelled) {
           setError("Could not load the photos — refresh the page.");
@@ -186,7 +211,7 @@ export default function MediaGallery({
       ) : (
         <div className="mt-2.5 grid grid-cols-3 gap-[11px] sm:grid-cols-4 lg:grid-cols-6">
           {rows.map((row) => (
-            <MediaTile key={row.id} media={row} />
+            <MediaTile key={row.id} media={row} initialUrl={urls[row.id] ?? null} />
           ))}
         </div>
       )}

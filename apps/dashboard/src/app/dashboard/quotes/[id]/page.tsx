@@ -8,6 +8,7 @@ import { statusChip } from "../status";
 import QuoteActions from "../QuoteActions";
 import JobCardActions from "@/components/JobCardActions";
 import LineItemPhotoCell from "@/components/LineItemPhotoCell";
+import { loadLinePhotos } from "@/lib/media/lineItemPhotos";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
@@ -27,15 +28,16 @@ export default async function QuoteDetailPage({ params }: Props) {
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const { data: quote } = await supabase
-    .from("quotations")
-    .select("*, customers(name, phone), salespersons(name)")
-    .eq("id", id)
-    .single();
 
-  if (!quote) notFound();
-
-  const [{ data: items }, { data: children }, parentResult] = await Promise.all([
+  // One wave, not two: only the parent-revision lookup genuinely depends on the
+  // quote row, so everything else is issued alongside it. Previously the items
+  // waited on a round-trip they never needed.
+  const [{ data: quote }, { data: items }, { data: children }] = await Promise.all([
+    supabase
+      .from("quotations")
+      .select("*, customers(name, phone), salespersons(name)")
+      .eq("id", id)
+      .single(),
     supabase
       .from("quotation_items")
       .select("*")
@@ -47,9 +49,18 @@ export default async function QuoteDetailPage({ params }: Props) {
       .select("id, quote_no, revision_no, status")
       .eq("revision_of", id)
       .order("revision_no", { ascending: true }),
+  ]);
+
+  if (!quote) notFound();
+
+  const [parentResult, linePhotos] = await Promise.all([
     quote.revision_of
       ? supabase.from("quotations").select("id, quote_no, revision_no").eq("id", quote.revision_of).single()
       : Promise.resolve({ data: null }),
+    loadLinePhotos(supabase, "quotation_item", (items ?? []).map((it) => ({
+      id: it.id,
+      product_id: it.product_id,
+    }))),
   ]);
 
   const customer = one(quote.customers as { name: string | null; phone: string | null } | null);
@@ -148,7 +159,13 @@ export default async function QuoteDetailPage({ params }: Props) {
                     <td className="px-5 py-3 align-top">
                       <p className="font-semibold text-t1">{it.description}</p>
                       {specs.length > 0 && <p className="mt-0.5 text-caption text-t3">{specs.join(" · ")}</p>}
-                      <LineItemPhotoCell entityType="quotation_item" entityId={it.id} parentId={quote.id} />
+                      <LineItemPhotoCell
+                        entityType="quotation_item"
+                        entityId={it.id}
+                        parentId={quote.id}
+                        photo={linePhotos.get(it.id) ?? null}
+                        description={it.description}
+                      />
                     </td>
                     <td className="px-3 py-3 text-right align-top font-mono text-t2">
                       {it.qty}

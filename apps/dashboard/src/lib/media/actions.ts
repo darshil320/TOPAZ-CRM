@@ -175,3 +175,35 @@ export async function getMediaUrl(
     return { error: networkMessage(err) };
   }
 }
+
+/**
+ * Signed URLs for many images in ONE round-trip.
+ *
+ * Not a convenience wrapper — a correctness fix for perceived speed. Next.js
+ * serialises Server Actions: a component that calls `getMediaUrl` once per tile
+ * does not fan out, it queues. A twenty-photo gallery therefore paid twenty
+ * sequential round-trips (~4s of staggered skeletons). Here the fan-out happens
+ * server-side, where the calls really are concurrent, and the browser waits once.
+ *
+ * A single image that fails to sign is omitted from the map rather than failing
+ * the batch — the caller renders its placeholder for that one tile.
+ */
+export async function getMediaUrls(
+  mediaIds: string[],
+  thumb = true,
+): Promise<ActionResult<Record<string, MediaUrlResult>>> {
+  if (!DASHBOARD_API_KEY) return { error: NOT_CONFIGURED };
+
+  const unique = Array.from(new Set(mediaIds.filter(Boolean)));
+  if (unique.length === 0) return { error: null, data: {} };
+
+  const settled = await Promise.all(
+    unique.map(async (id) => [id, await getMediaUrl(id, thumb)] as const),
+  );
+
+  const data: Record<string, MediaUrlResult> = {};
+  for (const [id, result] of settled) {
+    if (result.data) data[id] = result.data;
+  }
+  return { error: null, data };
+}

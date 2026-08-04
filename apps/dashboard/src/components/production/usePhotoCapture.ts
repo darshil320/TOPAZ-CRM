@@ -31,6 +31,27 @@ const PASSTHROUGH_MIME: Record<string, MediaMime> = {
   "image/webp": "image/webp",
 };
 
+/**
+ * Compression targets — matched to MediaUpload's, which this hook previously
+ * lacked entirely. A modern phone camera hands us 4–8 MB per frame; on shop-floor
+ * 4G that was a 10–20 second upload with the button locked the whole time, per
+ * photo. At 1.5 MB / 2000px it is a second or two, and 2000px is still far more
+ * detail than a stage-proof photo needs.
+ */
+const TARGET_MB = 1.5;
+const MAX_EDGE_PX = 2000;
+
+async function compress(file: File, mime: MediaMime): Promise<File> {
+  const { default: imageCompression } = await import("browser-image-compression");
+  return imageCompression(file, {
+    maxSizeMB: TARGET_MB,
+    maxWidthOrHeight: MAX_EDGE_PX,
+    fileType: mime,
+    useWebWorker: true,
+    initialQuality: 0.82,
+  });
+}
+
 export interface PhotoSlot {
   mediaId: string | null;
   previewUrl: string | null;
@@ -83,6 +104,17 @@ export function usePhotoCapture(target: { entityType: MediaEntityType; kind: Med
 
       try {
         const mime = (PASSTHROUGH_MIME[file.type] || "image/jpeg") as MediaMime;
+
+        // Shrink BEFORE signing: the signed URL has a short TTL, and burning it
+        // while a 6 MB frame compresses is how an upload link expires mid-flight.
+        // A compressor failure is not fatal — fall back to the original bytes.
+        let blob: File = file;
+        try {
+          blob = await compress(file, mime);
+        } catch {
+          blob = file;
+        }
+
         const signed = await signUpload({
           entityType: target.entityType,
           entityId,
@@ -92,15 +124,21 @@ export function usePhotoCapture(target: { entityType: MediaEntityType; kind: Med
         if (signed.error || !signed.data?.upload_url || !signed.data?.media_id) {
           throw new Error(signed.error || "Could not start the upload");
         }
+        if (signed.data.max_bytes && blob.size > signed.data.max_bytes) {
+          throw new Error(
+            `Photo is ${(blob.size / 1024 / 1024).toFixed(1)} MB after compression — ` +
+              "take a new photo instead of uploading a scan.",
+          );
+        }
 
         const put = await fetch(signed.data.upload_url, {
           method: "PUT",
-          headers: { "Content-Type": file.type || "image/jpeg" },
-          body: file,
+          headers: { "Content-Type": mime },
+          body: blob,
         });
         if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
-        const completed = await completeUpload(signed.data.media_id, file.size);
+        const completed = await completeUpload(signed.data.media_id, blob.size);
         if (completed.error) throw new Error(completed.error);
 
         const mediaId = signed.data.media_id;

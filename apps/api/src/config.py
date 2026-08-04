@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # Dashboard URL — embedded in salesperson alert links.
     DASHBOARD_URL: str = "https://topaz.dmcdigital.in"
 
+    # Extra browser origins allowed to read API responses, comma-separated.
+    # DASHBOARD_URL is always allowed; this is for preview deployments and the
+    # custom domain, e.g. "https://topaz-crm.vercel.app,https://www.topaz.dmcdigital.in".
+    # Never "*": these endpoints act on a capability token in the URL.
+    CORS_EXTRA_ORIGINS: str = ""
+
     # Pre-shared key for dashboard server actions → /api/whatsapp/send.
     DASHBOARD_API_KEY: str | None = None
 

@@ -3,10 +3,9 @@ import ApproveActions from "./ApproveActions";
 
 type Props = { params: Promise<{ token: string }> };
 
-// Server-side fetch uses the internal API URL; the browser (ApproveActions)
-// uses the public one. Both fall back to localhost in dev.
+// Server-side only. The approve/reject buttons no longer talk to the API from
+// the browser — they go through a same-origin server action (./actions.ts).
 const SERVER_API = process.env.TOPAZ_API_URL ?? "http://localhost:8000";
-const PUBLIC_API = process.env.NEXT_PUBLIC_API_URL ?? SERVER_API;
 const HOME_STATE = process.env.NEXT_PUBLIC_HOME_STATE ?? "GJ";
 
 interface PublicItem {
@@ -140,7 +139,7 @@ export default async function PublicQuotePage({ params }: Props) {
           </div>
         )}
 
-        <ApproveActions token={token} apiBase={PUBLIC_API} initialStatus={quote.status} />
+        <ApproveActions token={token} initialStatus={quote.status} />
 
         <p className="pb-4 text-center text-[11px] text-slate-400">
           Questions? Reply on WhatsApp or call the showroom.

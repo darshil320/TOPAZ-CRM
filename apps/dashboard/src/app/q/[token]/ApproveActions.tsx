@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { decideQuoteAction } from "./actions";
 
 interface Props {
   token: string;
-  apiBase: string;
   initialStatus: string;
 }
 
 const DECIDED = new Set(["approved", "rejected"]);
 
-/** Customer-facing approve / request-changes buttons. Calls the public,
- * token-gated API directly (no auth). Idempotent server-side. */
-export default function ApproveActions({ token, apiBase, initialStatus }: Props) {
+/** Customer-facing approve / request-changes buttons. The decision goes through
+ * a same-origin server action (see actions.ts for why it is not a direct call
+ * to the API). Idempotent server-side, so a retry after a timeout is safe. */
+export default function ApproveActions({ token, initialStatus }: Props) {
   const [status, setStatus] = useState(initialStatus);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -20,20 +21,12 @@ export default function ApproveActions({ token, apiBase, initialStatus }: Props)
   const decide = (approve: boolean) => {
     setError(null);
     startTransition(async () => {
-      try {
-        const resp = await fetch(
-          `${apiBase}/api/public/quotes/${token}/${approve ? "approve" : "reject"}`,
-          { method: "POST" },
-        );
-        if (!resp.ok) {
-          setError("Something went wrong. Please try again or contact the showroom.");
-          return;
-        }
-        const body = await resp.json();
-        setStatus(body.status ?? (approve ? "approved" : "rejected"));
-      } catch {
-        setError("Network error. Please try again.");
+      const result = await decideQuoteAction(token, approve);
+      if (result.error) {
+        setError(result.error);
+        return;
       }
+      setStatus(result.status ?? (approve ? "approved" : "rejected"));
     });
   };
 

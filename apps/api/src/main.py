@@ -17,7 +17,9 @@ Routes:
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from .config import get_settings
 from .api.auth import router as auth_router
 from .api.auth_hooks import router as auth_hooks_router
 from .api.enrollment import router as enrollment_router
@@ -41,6 +43,28 @@ def create_app() -> FastAPI:
         version="0.3.0",
         docs_url=None,
         redoc_url=None,
+    )
+
+    # ─── CORS ────────────────────────────────────────────────────────────────
+    # The API shipped with none, which made every browser-side call to it fail
+    # in a way that reads as "network error": the request goes out, the response
+    # is withheld from JavaScript. The customer approval page was the one caller
+    # and now routes through a same-origin server action instead, but this stays
+    # so the next browser-side call is not silently dead on arrival.
+    #
+    # An explicit origin list, never "*" — public endpoints act on a capability
+    # token in the URL, and credentials are allowed for future authenticated
+    # browser calls (a wildcard is invalid with credentials anyway).
+    settings = get_settings()
+    origins = [settings.DASHBOARD_URL.rstrip("/")]
+    origins += [o.strip().rstrip("/") for o in settings.CORS_EXTRA_ORIGINS.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=sorted(set(origins)),
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+        max_age=600,
     )
 
     app.include_router(enrollment_router, prefix="/api")
