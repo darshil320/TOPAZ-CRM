@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteQuote, reviseQuote, sendQuote } from "./actions";
@@ -47,9 +47,15 @@ export default function QuoteActions({ quoteId, status }: Props) {
   };
 
   const [sent, setSent] = useState(false);
+  const [optimisticSent, setOptimisticSent] = useOptimistic(
+    sent,
+    (_, next: boolean) => next
+  );
+
   const send = () => {
     setError(null);
     startTransition(async () => {
+      setOptimisticSent(true);
       const result = await sendQuote(quoteId);
       if (result.error) {
         setError(result.error);
@@ -91,10 +97,10 @@ export default function QuoteActions({ quoteId, status }: Props) {
           <button
             type="button"
             onClick={send}
-            disabled={isPending || sent}
+            disabled={isPending || optimisticSent}
             className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
           >
-            {sent ? "Queued ✓" : isPending ? "Sending…" : "Send to customer"}
+            {optimisticSent ? "Queued ✓" : "Send to customer"}
           </button>
         )}
         {isDraft && (

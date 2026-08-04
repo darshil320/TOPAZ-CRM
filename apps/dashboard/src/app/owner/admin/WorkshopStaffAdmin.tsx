@@ -45,7 +45,7 @@ const FIELD =
  * `capabilities_for()` grants them nothing anyway, so the row would be dead weight that
  * merely looks like access.
  */
-const ELIGIBLE_ROLES = new Set(["workshop_manager", "owner", "admin"]);
+const ELIGIBLE_ROLES = new Set(["workshop_manager", "owner", "admin", "salesperson"]);
 
 export default function WorkshopStaffAdmin({
   workshops,

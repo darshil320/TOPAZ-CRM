@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useOptimistic } from "react";
 import Link from "next/link";
 import { Truck, Plus, Search, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -42,12 +42,17 @@ export default function DeliveriesManagementClient({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
+  const [optimisticDeliveries, addOptimisticDelivery] = useOptimistic(
+    deliveries,
+    (state, newRow: DeliveryRow) => [newRow, ...state]
+  );
+
   /** Orders that already have a run on the board — flagged, not hidden: a
    * re-delivery after a failed attempt is legitimate, scheduling one twice by
    * accident is not. */
   const scheduledOrderIds = useMemo(
-    () => new Set(deliveries.filter((d) => d.status !== "failed").map((d) => d.order_id)),
-    [deliveries],
+    () => new Set(optimisticDeliveries.filter((d) => d.status !== "failed").map((d) => d.order_id)),
+    [optimisticDeliveries],
   );
 
   const orderOptions: SelectOption[] = useMemo(
@@ -72,7 +77,7 @@ export default function DeliveriesManagementClient({
 
   const searchable = useMemo(
     () =>
-      deliveries.map((d) => {
+      optimisticDeliveries.map((d) => {
         const order = orderOf(d);
         const customer = customerOf(order);
         const driver = driverOf(d);
@@ -91,7 +96,7 @@ export default function DeliveriesManagementClient({
           ),
         };
       }),
-    [deliveries],
+    [optimisticDeliveries],
   );
 
   const matchingQuery = useMemo(
@@ -127,6 +132,29 @@ export default function DeliveriesManagementClient({
     }
 
     startTransition(async () => {
+      const targetOrder = readyOrders.find((o) => o.id === orderId);
+      const targetDriver = driverId ? staff.find((s) => s.id === driverId) : null;
+      
+      addOptimisticDelivery({
+        id: `temp-${Date.now()}`,
+        order_id: orderId,
+        status: "scheduled",
+        scheduled_date: scheduledDate,
+        delivered_at: null,
+        vehicle_no: vehicleNo || null,
+        eway_bill_no: ewayBillNo || null,
+        notes: notes || null,
+        orders: targetOrder as any,
+        salespersons: targetDriver as any,
+      });
+      
+      setShowModal(false);
+      setOrderId("");
+      setDriverId("");
+      setVehicleNo("");
+      setEwayBillNo("");
+      setNotes("");
+
       const res = await scheduleDeliveryAction(
         orderId,
         scheduledDate,
@@ -140,13 +168,6 @@ export default function DeliveriesManagementClient({
         setError(res.error);
         return;
       }
-
-      setShowModal(false);
-      setOrderId("");
-      setDriverId("");
-      setVehicleNo("");
-      setEwayBillNo("");
-      setNotes("");
     });
   }
 

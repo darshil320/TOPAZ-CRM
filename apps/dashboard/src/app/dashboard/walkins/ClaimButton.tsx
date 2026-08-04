@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import { claimCustomer } from "./actions";
 
@@ -10,9 +10,15 @@ export default function ClaimButton({ customerId }: { customerId: string }) {
   const [claimed, setClaimed] = useState(false);
   const router = useRouter();
 
+  const [optimisticClaimed, setOptimisticClaimed] = useOptimistic(
+    claimed,
+    (_, next: boolean) => next
+  );
+
   const handleClaim = () => {
     setError(null);
     startTransition(async () => {
+      setOptimisticClaimed(true);
       const result = await claimCustomer(customerId);
       if (result.error) {
         setError(result.error);
@@ -27,7 +33,7 @@ export default function ClaimButton({ customerId }: { customerId: string }) {
     });
   };
 
-  if (claimed) {
+  if (optimisticClaimed) {
     return <span className="text-xs font-semibold text-green-600 shrink-0">Claimed ✓</span>;
   }
 
@@ -38,7 +44,7 @@ export default function ClaimButton({ customerId }: { customerId: string }) {
         disabled={isPending}
         className="text-xs font-medium bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg px-3 py-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {isPending ? "Claiming…" : "Claim"}
+        Claim
       </button>
       {error && <p className="text-[10px] text-red-600">{error}</p>}
     </div>

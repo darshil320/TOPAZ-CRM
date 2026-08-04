@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { patchOrderStatus } from "./actions";
@@ -11,9 +11,14 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const transitions = NEXT_TRANSITIONS[status] ?? [];
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(
+    status,
+    (_, nextStatus: string) => nextStatus
+  );
+
+  const transitions = NEXT_TRANSITIONS[optimisticStatus] ?? [];
   if (transitions.length === 0) {
-    return <p className="text-caption text-t3">No further actions for a {status} order.</p>;
+    return <p className="text-caption text-t3">No further actions for a {optimisticStatus} order.</p>;
   }
 
   const move = (to: string) => {
@@ -25,6 +30,7 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
       reason = input.trim();
     }
     startTransition(async () => {
+      setOptimisticStatus(to);
       const result = await patchOrderStatus(orderId, to, reason);
       if (result.error) {
         setError(result.error);
@@ -47,7 +53,7 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
               disabled={isPending}
               className={danger ? "border-warn/30 text-warn hover:bg-warnS" : undefined}
             >
-              {isPending ? "Working..." : t.label}
+              {t.label}
             </Button>
           );
         })}
