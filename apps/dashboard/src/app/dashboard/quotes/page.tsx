@@ -100,60 +100,76 @@ export default async function QuotesPage({ searchParams }: Props) {
           </p>
         </Card>
       ) : (
-        <Card className="space-y-4">
-          <SectionHeader label={isFiltered ? "Matching Quotations" : "All Quotations"} total={totalCount} />
+        <div className="bg-sf rounded-card border border-ln p-0 overflow-hidden shadow-sh">
+          <div className="px-4 py-3 border-b border-ln">
+            <SectionHeader label={isFiltered ? "Matching Quotations" : "All Quotations"} total={totalCount} />
+          </div>
 
-          <div className="space-y-2">
-            {(quotes ?? []).map((q) => {
-              const chip = statusChip(q.status);
-              const customer = Array.isArray(q.customers) ? q.customers[0] : q.customers;
-              const author = Array.isArray(q.salespersons) ? q.salespersons[0] : q.salespersons;
-              const initials = customer?.name
-                ? customer.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
-                : "QTN";
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-body">
+              <thead>
+                <tr className="border-b border-ln text-label-sm uppercase text-t3 bg-sf2">
+                  <th className="px-4 py-3 font-semibold">Quote No</th>
+                  <th className="px-4 py-3 font-semibold">Customer</th>
+                  <th className="px-4 py-3 font-semibold">Created Date</th>
+                  <th className="px-4 py-3 font-semibold">Salesperson</th>
+                  <th className="px-4 py-3 font-semibold text-right">Totals</th>
+                  <th className="px-4 py-3 font-semibold text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ln2">
+                {(quotes ?? []).map((q) => {
+                  const chip = statusChip(q.status);
+                  const customer = Array.isArray(q.customers) ? q.customers[0] : q.customers;
+                  const author = Array.isArray(q.salespersons) ? q.salespersons[0] : q.salespersons;
+                  const initials = customer?.name
+                    ? customer.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+                    : "QTN";
 
-              return (
-                <Link
-                  key={q.id}
-                  href={`/dashboard/quotes/${q.id}`}
-                  className="flex items-center justify-between gap-3 rounded-card border border-ln bg-sf2 p-3 sm:p-4 transition-all hover:border-acc/40 active:scale-[0.99] group shadow-sh"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-md bg-acc text-white flex items-center justify-center font-bold font-mono text-xs shrink-0 shadow-sh">
-                      {initials}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-ui font-bold text-t1 group-hover:text-acc transition-colors truncate">
+                  return (
+                    <tr key={q.id} className="hover:bg-sf2 transition-colors group">
+                      <td className="px-4 py-3">
+                        <Link href={`/dashboard/quotes/${q.id}`} className="font-bold text-acc font-mono group-hover:underline flex items-center gap-2">
+                          <div className="w-7 h-7 rounded bg-acc/10 text-acc flex items-center justify-center font-bold font-mono text-[10px] shrink-0">
+                            {initials}
+                          </div>
                           {q.quote_no}
-                        </span>
-                        {q.revision_no > 1 && (
-                          <Pill tone="neutral" dot={false}>
-                            Rev {q.revision_no}
-                          </Pill>
-                        )}
+                          {q.revision_no > 1 && (
+                            <span className="text-[10px] font-mono text-t3 bg-sf3 px-1.5 py-0.5 rounded">
+                              v{q.revision_no}
+                            </span>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-t1 font-semibold">{customer?.name ?? "Unknown"}</div>
+                        {customer?.phone && <div className="text-t3 font-mono text-caption">{customer.phone}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-caption text-t2 font-mono">
+                        {formatDate(q.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-caption text-t2 font-medium">
+                        {author?.name ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-t1 font-bold font-mono">{formatINR(q.grand_total)}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
                         <Pill tone={q.status === "approved" ? "pos" : q.status === "rejected" ? "warn" : "neutral"} dot={false}>
                           {chip.label}
                         </Pill>
-                      </div>
-                      <p className="mt-0.5 truncate text-caption text-t3 font-medium">
-                        Customer: <span className="text-t1 font-semibold">{customer?.name ?? "Unknown customer"}</span>
-                        {customer?.phone && <span className="text-t3 font-mono"> · {customer.phone}</span>}
-                        <span className="text-t3 font-mono"> · {formatDate(q.created_at)}</span>
-                        {author?.name && <span className="text-t3"> · By {author.name}</span>}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-ui font-bold font-mono text-t1">{formatINR(q.grand_total)}</span>
-                  </div>
-                </Link>
-              );
-            })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <Pagination page={page} limit={limit} total={totalCount} />
-        </Card>
+          <div className="p-4 border-t border-ln bg-sf">
+            <Pagination page={page} limit={limit} total={totalCount} />
+          </div>
+        </div>
       )}
     </div>
   );

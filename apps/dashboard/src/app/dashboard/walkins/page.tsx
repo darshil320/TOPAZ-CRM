@@ -17,7 +17,6 @@ export default async function WalkinsPage() {
     supabase
       .from("customer_assignments")
       .select("customer_id")
-      .eq("salesperson_id", sp.id)
       .eq("active", true),
     supabase
       .from("customers")

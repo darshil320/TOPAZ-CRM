@@ -505,7 +505,7 @@ export default function DeliveriesManagementClient({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-body">
+            <table className="w-full min-w-[1000px] text-left text-body">
               <thead>
                 <tr className="border-b border-ln text-label-sm uppercase text-t3 bg-sf2">
                   <th className="px-4 py-3 font-semibold">Orders &amp; Customers</th>

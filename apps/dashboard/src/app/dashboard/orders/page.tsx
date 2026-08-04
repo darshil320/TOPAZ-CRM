@@ -119,61 +119,79 @@ export default async function OrdersPage({ searchParams }: Props) {
           </p>
         </div>
       ) : (
-        <div className="bg-sf rounded-card border border-ln p-4 space-y-4 shadow-sh">
-          <SectionHeader
-            label={isFiltered ? "Matching Orders" : "All Orders List"}
-            total={`${totalCount} Total`}
-          />
-
-          <div className="space-y-2 mt-3">
-            {(orders ?? []).map((o) => {
-              const chip = orderStatusChip(o.status);
-              const customer = Array.isArray(o.customers) ? o.customers[0] : o.customers;
-              const owner = Array.isArray(o.salespersons) ? o.salespersons[0] : o.salespersons;
-              const due = outstandingByOrder.get(o.id);
-              const fulfilment = fulfillmentLabel(o.fulfillment_status);
-
-              return (
-                <ListRow
-                  key={o.id}
-                  href={`/dashboard/orders/${o.id}`}
-                  primary={
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">{o.order_no}</span>
-                      <Pill tone={pillToneForStatus(o.status)} dot={false}>
-                        {chip.label}
-                      </Pill>
-                      {/* Only when there is something to say: "Not delivered" on every
-                          confirmed order would be noise on a list this long. */}
-                      {o.fulfillment_status && o.fulfillment_status !== "not_delivered" && (
-                        <Pill tone={fulfilment.tone} dot={false}>
-                          {fulfilment.label}
-                        </Pill>
-                      )}
-                    </div>
-                  }
-                  secondary={
-                    <span>
-                      Customer: <span className="text-t1 font-medium">{customer?.name ?? "Unknown"}</span>
-                      {customer?.phone && <span className="text-t3 font-mono"> · {customer.phone}</span>}
-                      <span className="text-t3"> · Created {formatDate(o.created_at)}</span>
-                      {owner?.name && <span className="text-t3"> · Sales: {owner.name}</span>}
-                    </span>
-                  }
-                  trailing={
-                    <div className="text-right">
-                      <div>{formatINR(o.grand_total)}</div>
-                      {due != null && Number(due) > 0 && (
-                        <div className="text-[11px] text-warn">{formatINR(due)} due</div>
-                      )}
-                    </div>
-                  }
-                />
-              );
-            })}
+        <div className="bg-sf rounded-card border border-ln p-0 overflow-hidden shadow-sh">
+          <div className="px-4 py-3 border-b border-ln">
+            <SectionHeader
+              label={isFiltered ? "Matching Orders" : "All Orders List"}
+              total={`${totalCount} Total`}
+            />
           </div>
 
-          <Pagination page={page} limit={limit} total={totalCount} />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-body">
+              <thead>
+                <tr className="border-b border-ln text-label-sm uppercase text-t3 bg-sf2">
+                  <th className="px-4 py-3 font-semibold">Order No</th>
+                  <th className="px-4 py-3 font-semibold">Customer</th>
+                  <th className="px-4 py-3 font-semibold">Created Date</th>
+                  <th className="px-4 py-3 font-semibold">Salesperson</th>
+                  <th className="px-4 py-3 font-semibold text-right">Totals</th>
+                  <th className="px-4 py-3 font-semibold text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ln2">
+                {(orders ?? []).map((o) => {
+                  const chip = orderStatusChip(o.status);
+                  const customer = Array.isArray(o.customers) ? o.customers[0] : o.customers;
+                  const owner = Array.isArray(o.salespersons) ? o.salespersons[0] : o.salespersons;
+                  const due = outstandingByOrder.get(o.id);
+                  const fulfilment = fulfillmentLabel(o.fulfillment_status);
+
+                  return (
+                    <tr key={o.id} className="hover:bg-sf2 transition-colors group">
+                      <td className="px-4 py-3">
+                        <Link href={`/dashboard/orders/${o.id}`} className="font-bold text-acc font-mono group-hover:underline">
+                          {o.order_no}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-t1 font-semibold">{customer?.name ?? "Unknown"}</div>
+                        {customer?.phone && <div className="text-t3 font-mono text-caption">{customer.phone}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-caption text-t2 font-mono">
+                        {formatDate(o.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-caption text-t2 font-medium">
+                        {owner?.name ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-t1 font-bold font-mono">{formatINR(o.grand_total)}</div>
+                        {due != null && Number(due) > 0 && (
+                          <div className="text-[11px] text-warn font-semibold">{formatINR(due)} due</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <Pill tone={pillToneForStatus(o.status)} dot={false}>
+                            {chip.label}
+                          </Pill>
+                          {o.fulfillment_status && o.fulfillment_status !== "not_delivered" && (
+                            <Pill tone={fulfilment.tone} dot={false}>
+                              {fulfilment.label}
+                            </Pill>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="p-4 border-t border-ln bg-sf">
+            <Pagination page={page} limit={limit} total={totalCount} />
+          </div>
         </div>
       )}
     </div>
