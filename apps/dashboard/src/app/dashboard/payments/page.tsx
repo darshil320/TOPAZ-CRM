@@ -23,15 +23,27 @@ export default async function PaymentsPage() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [{ data: todayPays }, { data: outstanding }, { data: orders }] = await Promise.all([
+  const [{ data: todayPays }, { data: orders }] = await Promise.all([
     supabase.from("payments").select("amount, kind, paid_at").gte("paid_at", startOfToday.toISOString()),
-    supabase.from("order_outstanding").select("order_id, outstanding"),
     supabase
       .from("orders")
       .select("id, order_no, created_at, status, customers(name)")
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
+
+  // Scoped to the orders this page actually renders, and therefore resolved after
+  // them. `order_outstanding` is an aggregate over orders ⋈ payments (0016), so
+  // selecting it whole summed every payment ever taken — then discarded every row
+  // outside the 500 above. Same figures, bounded work.
+  const orderIds = (orders ?? []).map((o) => o.id);
+  const { data: outstanding } =
+    orderIds.length > 0
+      ? await supabase
+          .from("order_outstanding")
+          .select("order_id, outstanding")
+          .in("order_id", orderIds)
+      : { data: [] };
 
   const collectedToday = (todayPays ?? []).reduce(
     (sum, p) => sum + (p.kind === "refund" ? -Number(p.amount) : Number(p.amount)),

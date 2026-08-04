@@ -53,6 +53,44 @@ view. It is a SEPARATE column from `orders.status` — an order sits at `ready` 
 part-shipped, and the pipeline enum is deliberately untouched. The dispatch board's order
 picker filters on it, so a part-delivered order stays schedulable.
 
+### Performance pass — one deploy-order rule: API before dashboard
+
+The dashboard's batched image signing (`lib/media/actions.ts::getMediaUrls`) now calls a new
+route, **`POST /api/media/urls`**. Deploy the **API first**. A dashboard that is live against
+an older API gets a 404 from it and renders placeholder tiles instead of photos — line-item
+thumbnails and the production galleries — with the rest of every page unaffected. Nothing
+breaks permanently and no data is at risk; it self-heals the moment the API is up.
+
+The other changes in that pass need no coordination: HTTP routes now share one pooled DB
+connection instead of opening (and discarding) a TLS connection per request — see
+`apps/api/src/database.py` and the `DB_POOL_*` settings, which have working defaults, so
+there is nothing to set. If `DATABASE_URL` is ever repointed at Supabase's **transaction**
+pooler (port 6543), set `DB_DISABLE_PREPARED_STATEMENT_CACHE=true` at the same time; the
+deployed URL is the session pooler (5432), where the default is both safe and faster.
+
+### Read-path indexes (`0043`) — push any time, no deploy coupling
+
+`0043_read_path_indexes.sql` is pure performance: `create extension pg_trgm` plus indexes,
+every statement `if not exists`. No schema, policy or data change, nothing in the app
+depends on it having run, and re-running it is a no-op. Safe to push on its own, before or
+after any of the steps above.
+
+What it fixes, all of it measured off the actual read paths:
+
+- `audit_log` had **no index at all**, so the "Order Timeline" card sequentially scanned an
+  append-only table that only grows.
+- The orders and quotations lists sort by `created_at desc` with no index — every page,
+  including page 1, sorted the whole table to return 25 rows.
+- The list search box does `ilike '%term%'`, which no btree index can serve. `pg_trgm` GIN
+  indexes on `customers.name/phone/wa_id`, `orders.order_no` and `quotations.quote_no`
+  replace three sequential scans per search.
+- Photo reads filter on `status = 'ready'`, which the existing `media_entity_idx` (0025)
+  does not cover.
+
+It lands **ahead of** `migrations_pending/0041`/`0042`, so promoting those later is an
+out-of-order push (`supabase db push` may need `--include-all`). That is inherent to
+holding them back and nothing in `0043` touches what they change.
+
 **Ops step, unchanged from `0037`:** sync the challan counter with their paper book before
 the first challan is generated, or the app starts at `T.F 1` and duplicates numbers they
 have already issued by hand:

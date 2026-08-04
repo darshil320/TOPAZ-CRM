@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import order_repo as repo
 from ..repositories import payment_repo
 from ..repositories import quotation_repo
@@ -101,7 +101,7 @@ def _compute(items: list[OrderItemIn], discount: Decimal, place_of_supply: str):
 @router.post("/from-quote/{quotation_id}", status_code=status.HTTP_201_CREATED)
 async def create_from_quote(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     settings = get_settings()
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         src_customer = await quotation_repo.quotation_customer_id(session, quotation_id)
         if src_customer is None:
@@ -125,7 +125,7 @@ async def create_from_quote(quotation_id: UUID, caller_uid: str = Depends(get_ca
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_order(req: OrderCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         await authz.assert_can_write_customer(session, caller, str(req.customer_id))
         order_no = await numbering.allocate(session, "ORD")
@@ -144,7 +144,7 @@ async def create_order(req: OrderCreate, caller_uid: str = Depends(get_caller_ui
 @router.patch("/{order_id}/status")
 async def patch_status(order_id: UUID, req: StatusPatch,
                        caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize_order(session, caller_uid, order_id)
         current = await repo.get_status(session, order_id)
         if current is None:
@@ -170,7 +170,7 @@ async def patch_status(order_id: UUID, req: StatusPatch,
 async def set_schedule(order_id: UUID, req: ScheduleReplace,
                        caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Replace an order's unpaid payment schedule (paid rows are preserved)."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize_order(session, caller_uid, order_id)
         rows = [
             payment_repo.ScheduleRow(label=r.label, due_date=r.due_date, amount=r.amount)
@@ -184,7 +184,7 @@ async def set_schedule(order_id: UUID, req: ScheduleReplace,
 @router.patch("/{order_id}")
 async def patch_order(order_id: UUID, req: OrderPatch,
                       caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize_order(session, caller_uid, order_id)
         ok = await repo.patch_order(
             session, order_id, expected_delivery_date=req.expected_delivery_date, notes=req.notes

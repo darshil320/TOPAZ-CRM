@@ -87,6 +87,22 @@ async def get_media(session: AsyncSession, media_id: UUID) -> dict | None:
     return None if row is None else dict(row)
 
 
+async def get_media_many(session: AsyncSession, media_ids: list[UUID]) -> list[dict]:
+    """The rows for many ids in ONE query, so a gallery costs one round-trip.
+
+    Missing and non-`ready` ids are simply absent from the result — a caller
+    rendering twenty tiles must not lose the page because one row was GC'd. Order
+    is not guaranteed; callers key by id.
+    """
+    if not media_ids:
+        return []
+    result = await session.execute(
+        text(f"SELECT {_COLUMNS} FROM media WHERE id = ANY(:ids)"),
+        {"ids": [str(m) for m in media_ids]},
+    )
+    return [dict(r) for r in result.mappings().all()]
+
+
 async def mark_ready(session: AsyncSession, media_id: UUID, *, size_bytes: int) -> dict | None:
     """Flip pending → ready. IDEMPOTENT: re-completing an already-ready row is a
     no-op that still returns the row, because module 10's real-world failure mode is

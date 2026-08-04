@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import media_repo as repo
 from ..services import media_entities, storage
 from . import authz
@@ -61,6 +61,15 @@ class SignUploadRequest(BaseModel):
 
 class CompleteRequest(BaseModel):
     bytes: int = Field(gt=0)
+
+
+class UrlsRequest(BaseModel):
+    """Batch signed-read request. The ceiling is a real bound, not a guess: the
+    largest caller is an order's photo gallery, and signing is billable work on
+    Supabase's side — an unbounded list would let one call fan out arbitrarily."""
+
+    media_ids: list[UUID] = Field(min_length=1, max_length=100)
+    thumb: bool = True
 
 
 async def _authorize_upload(session, caller: authz.Caller, entity_type: str, entity_id: UUID) -> None:
@@ -168,7 +177,7 @@ async def sign_upload(req: SignUploadRequest, caller_uid: str = Depends(get_call
     media_id = uuid4()
     storage_key = media_entities.build_key(req.entity_type, req.entity_id, media_id, req.mime)
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         if caller.role == "accounts":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -205,7 +214,7 @@ async def sign_upload(req: SignUploadRequest, caller_uid: str = Depends(get_call
         # Sign BEFORE committing the row: if Storage is down we must not leave a
         # pending row that can never be completed.
         try:
-            upload_url = storage.signed_upload_url(
+            upload_url = await storage.signed_upload_url_async(
                 settings.MEDIA_BUCKET, storage_key, settings.MEDIA_UPLOAD_TTL_SECONDS
             )
         except storage.StorageError as exc:
@@ -262,7 +271,7 @@ async def complete_upload(media_id: UUID, req: CompleteRequest,
             detail=f"Image too large ({req.bytes} bytes, max {settings.MEDIA_MAX_BYTES})",
         )
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         row = await repo.get_media(session, media_id)
         if row is None:
@@ -282,7 +291,9 @@ async def complete_upload(media_id: UUID, req: CompleteRequest,
         # the client's self-reported number — otherwise a caller PUTs 500 MB and
         # reports `{"bytes": 1}`.
         try:
-            actual_bytes = storage.object_size(settings.MEDIA_BUCKET, row["storage_key"])
+            actual_bytes = await storage.object_size_async(
+                settings.MEDIA_BUCKET, row["storage_key"]
+            )
         except storage.StorageError as exc:
             logger.error("Storage stat failed for %s: %s", row["storage_key"], exc)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
@@ -327,7 +338,7 @@ async def media_url(media_id: UUID, thumb: bool = False,
     """Short-lived signed READ url. `thumb=true` falls back to the full image when
     the thumbnail hasn't been generated (or failed)."""
     settings = get_settings()
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         row = await repo.get_media(session, media_id)
         if row is None or row["status"] != "ready":
@@ -339,9 +350,76 @@ async def media_url(media_id: UUID, thumb: bool = False,
                                 detail="Not authorized to view this image")
     key = row["thumb_key"] if (thumb and row["thumb_key"]) else row["storage_key"]
     try:
-        url = storage.signed_url(settings.MEDIA_BUCKET, key, settings.MEDIA_URL_TTL_SECONDS)
+        url = await storage.signed_url_async(
+            settings.MEDIA_BUCKET, key, settings.MEDIA_URL_TTL_SECONDS
+        )
     except storage.StorageError as exc:
         logger.error("Media URL sign failed for %s: %s", media_id, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
                             detail="Could not generate the image link") from exc
     return {"url": url, "is_thumb": key != row["storage_key"]}
+
+
+@router.post("/urls")
+async def media_urls(req: UrlsRequest, caller_uid: str = Depends(get_caller_uid)) -> dict:
+    """Signed READ urls for MANY images in ONE call.
+
+    WHY THIS EXISTS (perf, not convenience): `/{media_id}/url` costs a caller
+    verification, a DB round-trip and an HTTPS sign per image. A line-item table or
+    a production gallery asked for twenty of them, and Next.js serialises Server
+    Actions — so the dashboard paid twenty sequential round-trips and filled the
+    table in visibly. This route does the same work as one caller lookup, one
+    `id = ANY(...)` query and one batched Storage sign.
+
+    PARTIAL SUCCESS IS THE CONTRACT, deliberately: an id that is missing, not
+    `ready`, not visible to this role, or whose object failed to sign is absent
+    from `urls`. The caller renders its placeholder for that tile. One dead storage
+    key must not blank out a whole gallery — and a 404 for the batch would.
+    """
+    settings = get_settings()
+    ids = list(dict.fromkeys(req.media_ids))
+    if not ids:
+        return {"urls": {}}
+
+    async with get_api_session() as session:
+        caller = await authz.resolve_caller(session, caller_uid)
+        rows = await repo.get_media_many(session, ids)
+
+    # Same rule as media_url above (and the media_select RLS policy): customer
+    # media is off-limits to the production/delivery roles.
+    hides_customer_media = caller.role in ("workshop_manager", "delivery")
+    keyed: dict[str, dict] = {}
+    for row in rows:
+        if row["status"] != "ready":
+            continue
+        if row["entity_type"] == "customer" and hides_customer_media:
+            continue
+        keyed[str(row["id"])] = row
+
+    if not keyed:
+        return {"urls": {}}
+
+    # Decide the object per media row BEFORE signing, so the batch signs each
+    # distinct storage key exactly once.
+    wanted = {
+        media_id: (row["thumb_key"] if (req.thumb and row["thumb_key"]) else row["storage_key"])
+        for media_id, row in keyed.items()
+    }
+    try:
+        signed = await storage.signed_urls_async(
+            settings.MEDIA_BUCKET, list(wanted.values()), settings.MEDIA_URL_TTL_SECONDS
+        )
+    except storage.StorageError as exc:
+        # The whole request failed (Storage unreachable/unconfigured), not one key.
+        logger.error("Batch media URL sign failed for %d image(s): %s", len(wanted), exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Could not generate the image links") from exc
+
+    urls = {
+        media_id: {"url": signed[key], "is_thumb": key != keyed[media_id]["storage_key"]}
+        for media_id, key in wanted.items()
+        if key in signed
+    }
+    if len(urls) < len(wanted):
+        logger.warning("Batch media URL signed %d of %d requested image(s)", len(urls), len(wanted))
+    return {"urls": urls}

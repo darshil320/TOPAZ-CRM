@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Moon, Sun, LogOut } from "lucide-react";
+import { Moon, Sun, LogOut, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
 import { isActive, navForRole, type NavItem, type Role } from "./nav-config";
@@ -124,9 +124,17 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
               sheetOpen ? "translate-y-0" : "translate-y-full"
             }`}
           >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-sf3" />
+            {/* Handle and Close */}
+            <div className="relative flex justify-center pt-3 pb-1 mb-1">
+              <div className="w-10 h-1 rounded-full bg-sf3 mt-1" />
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                className="absolute right-4 top-2 p-1 text-t3 hover:bg-sf3 rounded-full transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {user && (

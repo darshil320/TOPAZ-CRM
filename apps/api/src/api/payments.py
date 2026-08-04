@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import document_repo
 from ..repositories import payment_repo as repo
 from ..services import numbering, storage
@@ -62,7 +62,7 @@ async def receipt_url(payment_id: UUID, caller_uid: str = Depends(get_caller_uid
     salesperson). 404 if the receipt hasn't been rendered yet.
     """
     settings = get_settings()
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         row = await session.execute(
             text("SELECT customer_id FROM payments WHERE id = :id"), {"id": str(payment_id)}
         )
@@ -76,7 +76,7 @@ async def receipt_url(payment_id: UUID, caller_uid: str = Depends(get_caller_uid
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Receipt not generated yet")
     try:
-        url = storage.signed_url(settings.DOCUMENTS_BUCKET, key)
+        url = await storage.signed_url_async(settings.DOCUMENTS_BUCKET, key)
     except storage.StorageError as exc:
         logger.error("Receipt URL sign failed for payment %s: %s", payment_id, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
@@ -86,7 +86,7 @@ async def receipt_url(payment_id: UUID, caller_uid: str = Depends(get_caller_uid
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def record_payment(req: PaymentCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         customer_id = await repo.order_customer_id(session, req.order_id)
         if customer_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")

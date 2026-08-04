@@ -13,6 +13,28 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # ─── API connection pool (database.get_api_session) ──────────────────────
+    # A session-mode Supabase pooler has a finite client-connection budget that
+    # the API shares with every Celery worker, so these are deployment facts.
+    # pool_size + max_overflow is the ceiling this process can hold at once.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+    # Fail a saturated pool fast rather than hanging a manager's phone.
+    DB_POOL_TIMEOUT_SECONDS: int = 10
+    # Under Supabase's own idle-connection timeout, so a recycled connection is
+    # replaced by us before it is closed under us.
+    DB_POOL_RECYCLE_SECONDS: int = 900
+    # SET THIS TRUE IF DATABASE_URL POINTS AT A TRANSACTION-MODE POOLER
+    # (Supabase's port 6543). Transaction mode can hand consecutive statements to
+    # different server connections, which invalidates SQLAlchemy's per-connection
+    # prepared-statement cache and surfaces as intermittent
+    # "prepared statement __asyncpg_stmt_N__ does not exist".
+    # The deployed URL is the SESSION pooler (port 5432 — see docs/HANDOFF.md), where
+    # a client connection owns its server connection and the cache is safe and faster,
+    # hence the default. This was harmless while every request built its own engine;
+    # it matters now that connections are reused.
+    DB_DISABLE_PREPARED_STATEMENT_CACHE: bool = False
+
     # Pre-shared key the edge worker sends in the API-Key header.
     EDGE_API_KEY: str
 

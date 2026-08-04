@@ -213,6 +213,37 @@ create index if not exists orders_fulfillment_open_idx
     on orders (fulfillment_status)
     where fulfillment_status <> 'fully_delivered';
 
+-- ─── THE RULE, IN ONE PLACE ───────────────────────────────────────────────────
+-- Pure, IMMUTABLE, no table reads, so the trigger and the view cannot drift apart.
+--
+-- ─── WHY orders.status IS AN INPUT ───────────────────────────────────────────
+-- `order_items.delivered_at` only exists for goods that went out THROUGH a delivery. An
+-- order marked 'installed' or 'closed' by hand — the normal path before per-item delivery
+-- existed, and still the path when somebody corrects the record — has no stamped items at
+-- all. Deriving from the items alone would label such an order "Not delivered" while its
+-- own status says the furniture is standing in the customer's house, which is a visibly
+-- wrong answer on the orders list.
+--
+-- So a TERMINAL DELIVERED STATE WINS: for those, the order's own status is the more
+-- authoritative record and the item stamps are simply missing history. 'cancelled' is
+-- deliberately NOT in that set — a cancelled order's goods did not go anywhere.
+create or replace function compute_order_fulfillment(p_status text, p_total int, p_done int)
+returns text language sql immutable as $$
+    select case
+        when p_status in ('delivered', 'installed', 'closed') then 'fully_delivered'
+        -- An order with no items reads NOT delivered: count = 0 = count must not be
+        -- mistaken for "everything went out".
+        when coalesce(p_done, 0) = 0      then 'not_delivered'
+        when p_done < p_total             then 'partially_delivered'
+        else                                   'fully_delivered'
+    end;
+$$;
+
+comment on function compute_order_fulfillment(text, int, int) is
+    'The Not/Partially/Fully rule, shared by the sync triggers and the order_fulfillment '
+    'view so they cannot disagree. A terminal delivered order status wins over missing '
+    'item stamps (0040).';
+
 create or replace function sync_order_fulfillment()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -224,11 +255,8 @@ begin
     if v_order is null then return coalesce(new, old); end if;
     select count(*), count(delivered_at) into v_total, v_done
       from order_items where order_id = v_order;
-    -- An order with no items reads NOT delivered: count = 0 = count must not be mistaken
-    -- for "everything went out".
-    v_status := case when v_done = 0        then 'not_delivered'
-                     when v_done < v_total  then 'partially_delivered'
-                     else                        'fully_delivered' end;
+    select compute_order_fulfillment(o.status, v_total, v_done) into v_status
+      from orders o where o.id = v_order;
     update orders set fulfillment_status = v_status
      where id = v_order and fulfillment_status is distinct from v_status;
     return coalesce(new, old);
@@ -245,19 +273,43 @@ create trigger order_items_sync_fulfillment
     after insert or delete or update of delivered_at on order_items
     for each row execute function sync_order_fulfillment();
 
+-- The order's OWN status is an input to the rule, so a status change has to recompute it.
+-- BEFORE, writing NEW directly: an AFTER trigger issuing `update orders` from a trigger on
+-- `orders` is the recursion this avoids entirely.
+create or replace function sync_order_fulfillment_on_status()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+    v_total int;
+    v_done  int;
+begin
+    select count(*), count(delivered_at) into v_total, v_done
+      from order_items where order_id = new.id;
+    new.fulfillment_status := compute_order_fulfillment(new.status, v_total, v_done);
+    return new;
+end;
+$$;
+
+comment on function sync_order_fulfillment_on_status() is
+    'Keeps fulfillment_status in step when an order''s status changes (e.g. marked '
+    'installed by hand, which stamps no items). BEFORE UPDATE so it writes NEW and cannot '
+    'recurse (0040).';
+
+drop trigger if exists orders_sync_fulfillment on orders;
+create trigger orders_sync_fulfillment
+    before update of status on orders
+    for each row execute function sync_order_fulfillment_on_status();
+
 -- The same fact, computed rather than stored — the `order_outstanding` idiom (0016).
 -- security_invoker so a salesperson sees only their own customers' orders.
 create or replace view order_fulfillment with (security_invoker = true) as
-    select o.id                            as order_id,
-           count(oi.id)::int               as item_count,
-           count(oi.delivered_at)::int     as delivered_count,
-           case when count(oi.delivered_at) = 0             then 'not_delivered'
-                when count(oi.delivered_at) < count(oi.id)  then 'partially_delivered'
-                else                                             'fully_delivered' end
-                                           as fulfillment
+    select o.id                        as order_id,
+           count(oi.id)::int           as item_count,
+           count(oi.delivered_at)::int as delivered_count,
+           compute_order_fulfillment(o.status, count(oi.id)::int,
+                                     count(oi.delivered_at)::int) as fulfillment
       from orders o
       left join order_items oi on oi.order_id = o.id
-     group by o.id;
+     group by o.id, o.status;
 
 grant select on order_fulfillment to authenticated;
 

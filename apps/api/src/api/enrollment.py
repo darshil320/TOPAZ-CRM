@@ -21,7 +21,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from topaz_shared import EnrollmentRequest
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories.enrollment_repo import (
     enroll_customer,
     enroll_face,
@@ -57,7 +57,7 @@ async def enroll(
     settings = get_settings()
     verify_api_key(api_key, (settings.DASHBOARD_API_KEY, settings.EDGE_API_KEY))
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         consent_id, customer_id = await enroll_customer(
             session,
             name=req.name,
@@ -134,7 +134,7 @@ async def pending_consent(
     settings = get_settings()
     verify_api_key(api_key, (settings.EDGE_API_KEY,))
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         token = await find_pending_consent_token(
             session, settings.ENROLLMENT_PENDING_WINDOW_SECONDS
         )

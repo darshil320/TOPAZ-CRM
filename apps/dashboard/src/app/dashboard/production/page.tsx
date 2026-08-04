@@ -9,58 +9,84 @@ export default async function ProductionPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: stageDefs }, { data: rawItems }, { data: mediaRows }, { data: eventRows }] =
-    await Promise.all([
-      supabase.from("production_stage_defs").select("*").eq("active", true).order("sort", { ascending: true }),
-      // Module 14 additions: `transit_transfer_id` (is it on a lorry right now), the
-      // active assignment's `due_at` (the deadline WITH a time), and the item's route
-      // legs so the card can show "Leg 2 / 3 → Sharma Furniture".
-      supabase
-        .from("order_items")
-        .select(
-          "id, description, qty, unit, dimensions, material, current_stage, current_stage_at," +
-            " blocked, blocked_at, order_id, workshop_id, transit_transfer_id," +
-            " orders!inner(order_no, expected_delivery_date, customer_id," +
-            " customers!inner(name, phone))," +
-            " workshops(name, type)," +
-            " order_item_assignments(due_at, active)," +
-            " order_item_route_legs(seq, status, stage_to, workshop_id, workshops(name))",
-        )
-        .not("workshop_id", "is", null)
-        .is("production_done_at", null)
-        .order("current_stage_at", { ascending: false }),
-      supabase
-        .from("media")
-        // `stage_code` (0036) is what makes the drawer's photo captions real — before
-        // it, every tile was hardcoded to the string "production".
-        .select("id, entity_id, storage_key, mime, created_at, stage_code, salespersons(name)")
-        .eq("entity_type", "order_item")
-        .eq("status", "ready"),
-      supabase
-        .from("production_events")
-        .select("id, order_item_id, kind, stage_code, note, at")
-        .order("at", { ascending: true }),
-    ]);
+  const [{ data: stageDefs }, { data: rawItems }] = await Promise.all([
+    supabase.from("production_stage_defs").select("*").eq("active", true).order("sort", { ascending: true }),
+    // Module 14 additions: `transit_transfer_id` (is it on a lorry right now), the
+    // active assignment's `due_at` (the deadline WITH a time), and the item's route
+    // legs so the card can show "Leg 2 / 3 → Sharma Furniture".
+    supabase
+      .from("order_items")
+      .select(
+        "id, description, qty, unit, dimensions, material, current_stage, current_stage_at," +
+          " blocked, blocked_at, order_id, workshop_id, transit_transfer_id," +
+          " orders!inner(order_no, expected_delivery_date, customer_id," +
+          " customers!inner(name, phone))," +
+          " workshops(name, type)," +
+          " order_item_assignments(due_at, active)," +
+          " order_item_route_legs(seq, status, stage_to, workshop_id, workshops(name))",
+      )
+      .not("workshop_id", "is", null)
+      .is("production_done_at", null)
+      .order("current_stage_at", { ascending: false }),
+  ]);
 
-  // Sign URLs for media items. `stageCode` is null for anything uploaded before 0036
-  // and for photos that were never attached to a stage — the drawer labels those
-  // honestly rather than guessing.
+  // SCOPED TO THE ITEMS ON THE BOARD, which is why they wait for `rawItems`.
+  // Both of these used to be fetched unbounded — every ready order_item photo and
+  // every production event in the database — and then thrown away for the ~95% that
+  // belong to finished items the board does not render. That cost grows forever;
+  // the board's size does not.
+  const boardItemIds = ((rawItems as any[]) ?? []).map((r) => r.id as string);
+  const [{ data: mediaRows }, { data: eventRows }] =
+    boardItemIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("media")
+            // `stage_code` (0036) is what makes the drawer's photo captions real — before
+            // it, every tile was hardcoded to the string "production".
+            .select("id, entity_id, storage_key, mime, created_at, stage_code, salespersons(name)")
+            .eq("entity_type", "order_item")
+            .eq("status", "ready")
+            .in("entity_id", boardItemIds),
+          supabase
+            .from("production_events")
+            .select("id, order_item_id, kind, stage_code, note, at")
+            .in("order_item_id", boardItemIds)
+            .order("at", { ascending: true }),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+  // ONE batched sign for every photo on the board. Signing them one at a time in this
+  // loop was a sequential HTTPS round-trip per photo, so the board got slower with
+  // every picture the workshop took.
+  //
+  // `stageCode` is null for anything uploaded before 0036 and for photos that were
+  // never attached to a stage — the drawer labels those honestly rather than guessing.
   const stageSort = new Map((stageDefs ?? []).map((s) => [s.code, s.sort]));
+  const photoKeys = Array.from(new Set((mediaRows ?? []).map((m) => m.storage_key)));
+  const signedByKey = new Map<string, string>();
+  if (photoKeys.length > 0) {
+    const { data: signedList } = await supabase.storage
+      .from("media")
+      .createSignedUrls(photoKeys, 3600);
+    for (const row of signedList ?? []) {
+      if (row.path && row.signedUrl) signedByKey.set(row.path, row.signedUrl);
+    }
+  }
+
   const mediaMap = new Map<string, ProductionItem["photos"]>();
   for (const m of mediaRows ?? []) {
-    const { data: signed } = await supabase.storage.from("media").createSignedUrl(m.storage_key, 3600);
-    if (signed?.signedUrl) {
-      const uploader = Array.isArray(m.salespersons) ? m.salespersons[0] : m.salespersons;
-      const list = mediaMap.get(m.entity_id) || [];
-      list.push({
-        id: m.id,
-        url: signed.signedUrl,
-        stageCode: m.stage_code,
-        createdAt: m.created_at,
-        uploadedBy: uploader?.name ?? null,
-      });
-      mediaMap.set(m.entity_id, list);
-    }
+    const url = signedByKey.get(m.storage_key);
+    if (!url) continue;
+    const uploader = Array.isArray(m.salespersons) ? m.salespersons[0] : m.salespersons;
+    const list = mediaMap.get(m.entity_id) || [];
+    list.push({
+      id: m.id,
+      url,
+      stageCode: m.stage_code,
+      createdAt: m.created_at,
+      uploadedBy: uploader?.name ?? null,
+    });
+    mediaMap.set(m.entity_id, list);
   }
   // Order every item's photos by the stage they document, so the drawer reads in the
   // order the work happened. Unstaged photos sink to the bottom; within a stage, oldest

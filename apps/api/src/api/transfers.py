@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import (
     production_repo,
     route_repo,
@@ -162,7 +162,7 @@ async def my_runs(caller_uid: str = Depends(get_caller_uid)) -> dict:
     A courier with nothing assigned gets an empty list, not a 403: "no runs today" is a
     normal state and the app must render it rather than an error.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         caps = stage_flow.capabilities_for(role=caller.role, staff_role=None)
         if stage_flow.CAP_TRANSIT not in caps:
@@ -179,7 +179,7 @@ async def my_runs(caller_uid: str = Depends(get_caller_uid)) -> dict:
 
 @router.get("/{transfer_id}")
 async def get_transfer(transfer_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         transfer = await _load_or_404(session, transfer_id, lock=False)
         await _assert_can_read(session, caller, transfer)
@@ -220,7 +220,7 @@ async def list_transfers(
     if direction not in (None, "in", "out"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="direction must be 'in' or 'out'")
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         if workshop_id is not None and not caller.is_admin:
             role = await workshop_staff_repo.staff_role_at(
@@ -254,7 +254,7 @@ async def create_transfer(req: TransferCreate,
     next route leg; `to_workshop_id` overrides it, which is how a `rework` send-back or
     a `capacity` reshuffle is expressed without inventing a route.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
 
         items: list[dict] = []
@@ -375,7 +375,7 @@ async def create_transfer(req: TransferCreate,
 @router.post("/{transfer_id}/assign")
 async def assign(transfer_id: UUID, req: AssignRequest,
                  caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         transfer = await _load_or_404(session, transfer_id)
         _assert_edge(transfer, "assign")
@@ -467,7 +467,7 @@ async def _handover_step(
         raise _conflict(
             f"A handover photo is required to mark this consignment '{new_status}'"
         )
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         transfer = await _load_or_404(session, transfer_id)
         _assert_edge(transfer, edge)
@@ -509,7 +509,7 @@ async def receive(transfer_id: UUID, req: HandoverStepRequest,
     """
     if req.media_id is None:
         raise _conflict("A photo of the goods as received is required")
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         transfer = await _load_or_404(session, transfer_id)
         _assert_edge(transfer, "receive")
@@ -547,7 +547,7 @@ async def cancel(transfer_id: UUID, req: CancelRequest,
     """Abandon a consignment. Every destination leg goes back to `pending` and the
     origin's leg is reopened, because the goods are physically still there and its
     manager must be able to keep working."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         transfer = await _load_or_404(session, transfer_id)
         _assert_edge(transfer, "cancel")

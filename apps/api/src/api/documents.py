@@ -36,7 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import delivery_repo, document_repo
 from ..services import storage
 from . import authz
@@ -72,7 +72,7 @@ async def delivery_consignments(
     customer's name to a salesperson who only owns the first. An unreadable recipient is
     OMITTED rather than 403'd — the caller is legitimately entitled to their own row.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         exists = await session.execute(
             text("SELECT 1 FROM deliveries WHERE id = :id"), {"id": str(delivery_id)}
@@ -109,7 +109,7 @@ async def generate_challan(
     polls the GET below. Re-generating is allowed and idempotent in the way that matters —
     the challan NUMBER is allocated once and reused; only `documents.version` moves.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         consignment = await _consignment_or_404(session, consignment_id)
         # Same boundary as scheduling the delivery itself (0040's schedule_delivery):
@@ -141,7 +141,7 @@ async def challan_url(
 ) -> dict:
     """A short-lived signed URL for this consignment's challan PDF."""
     settings = get_settings()
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         consignment = await _consignment_or_404(session, consignment_id)
         # READ is wider than write on purpose: accounts reconcile challans against
@@ -167,7 +167,7 @@ async def challan_url(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Challan not generated yet")
     try:
-        url = storage.signed_url(settings.DOCUMENTS_BUCKET, key)
+        url = await storage.signed_url_async(settings.DOCUMENTS_BUCKET, key)
     except storage.StorageError as exc:
         logger.error("Challan URL sign failed for consignment %s: %s", consignment_id, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,

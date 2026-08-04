@@ -36,7 +36,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import stage_plan_repo
 from ..services import stage_flow, stage_plan
 from ..services.stage_plan import PlanRow
@@ -128,7 +128,7 @@ def _to_plan_rows(rows: list[PlanRowInput]) -> list[PlanRow]:
 
 @router.get("/items/{order_item_id}")
 async def get_plan(order_item_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         context = await _load_context(session, order_item_id)
         await _assert_can_read(session, caller, context)
@@ -159,7 +159,7 @@ async def get_plan(order_item_id: UUID, caller_uid: str = Depends(get_caller_uid
 async def put_plan(order_item_id: UUID, req: PutPlanRequest,
                    caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Replace this item's whole stage schedule, atomically."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         context = await _load_context(session, order_item_id)
         caps = await authz.capabilities_at_workshop(
@@ -229,7 +229,7 @@ async def snooze_stage(order_item_id: UUID, stage_code: str, req: SnoozeRequest,
     holding the goods, and making them ask the owner to silence a nag would guarantee the
     nag is ignored instead.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         context = await _load_context(session, order_item_id)
         caps = await authz.capabilities_at_workshop(
@@ -252,7 +252,7 @@ async def snooze_stage(order_item_id: UUID, stage_code: str, req: SnoozeRequest,
 
 @router.get("/stage-defs")
 async def list_stage_defaults(caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await authz.resolve_caller(session, caller_uid)
         stages = await stage_plan_repo.stage_defs_with_defaults(session)
     return {"stages": stages}
@@ -266,7 +266,7 @@ async def set_stage_default(stage_code: str, req: StageDefaultRequest,
     `default_days = null` means "not costed": seed_from_defaults() marks such a stage
     SKIPPED rather than inventing a duration for it.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="change a stage's default duration")
         row = await stage_plan_repo.set_default_days(session, stage_code, req.default_days)

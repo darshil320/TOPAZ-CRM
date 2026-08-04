@@ -5,6 +5,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { normalizeSearchTerm, uuidParam } from "@/lib/search";
 import { buildOrderSearchFilter } from "@/lib/listSearch";
 import { listSalespersonOptions } from "@/lib/salespersonOptions";
+import { describeReadError } from "@/lib/readError";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import ListRow from "@/components/ui/ListRow";
@@ -57,14 +58,29 @@ export default async function OrdersPage({ searchParams }: Props) {
   if (searchFilter) ordersQuery = ordersQuery.or(searchFilter);
   if (salespersonId) ordersQuery = ordersQuery.eq("salesperson_id", salespersonId);
 
-  const [{ data: orders, count, error }, { data: outstanding }, salespersonOptions] =
-    await Promise.all([
-      ordersQuery.order("created_at", { ascending: false }).range(from, to),
-      supabase.from("order_outstanding").select("order_id, outstanding"),
-      listSalespersonOptions(supabase),
-    ]);
+  const [{ data: orders, count, error }, salespersonOptions] = await Promise.all([
+    ordersQuery.order("created_at", { ascending: false }).range(from, to),
+    listSalespersonOptions(supabase),
+  ]);
 
   const totalCount = count ?? (orders ?? []).length;
+
+  // Scoped to THIS page's orders, and therefore resolved after them.
+  // `order_outstanding` is an aggregate over orders ⋈ payments (0016): selecting it
+  // unfiltered made every list render sum every payment ever taken, to render a
+  // "due" figure for 25 rows. One extra round-trip is cheaper than that scan, and
+  // it stops getting more expensive as the business takes more money.
+  const pageOrderIds = (orders ?? []).map((o) => o.id);
+  const { data: outstanding } =
+    pageOrderIds.length > 0
+      ? await supabase
+          .from("order_outstanding")
+          .select("order_id, outstanding")
+          .in("order_id", pageOrderIds)
+      : { data: [] };
+  // Names the actual cause instead of advising a refresh that cannot work — see
+  // lib/readError.ts. The raw Postgres message is logged server-side, not rendered.
+  const readFailure = describeReadError(error, "orders");
 
   const outstandingByOrder = new Map(
     (outstanding ?? []).map((o) => [o.order_id, o.outstanding]),
@@ -87,9 +103,9 @@ export default async function OrdersPage({ searchParams }: Props) {
         allOptionLabel="All salespersons"
       />
 
-      {error ? (
+      {readFailure ? (
         <div className="rounded-md border border-warn/20 bg-warnS px-4 py-3 text-caption font-semibold text-warn">
-          Failed to load orders — refresh the page.
+          {readFailure.message}
         </div>
       ) : (orders ?? []).length === 0 ? (
         <div className="bg-sf rounded-card border border-ln p-12 text-center shadow-sh">

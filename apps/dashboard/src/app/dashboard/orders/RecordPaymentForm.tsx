@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import Button, { IconButton } from "@/components/ui/Button";
 import { recordPayment } from "../payments/actions";
@@ -12,7 +11,6 @@ const FIELD =
   "w-full rounded-md border border-ln bg-sf2 px-3 py-2 text-[12.5px] text-t1 font-medium focus:border-acc focus:bg-sf focus:outline-none transition-all";
 
 export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: string; defaultDate: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +32,9 @@ export default function RecordPaymentForm({ orderId, defaultDate }: { orderId: s
       setOpen(false);
       setAmount("");
       setReference("");
-      router.refresh();
+      // No router.refresh(): `recordPayment` revalidates this order's page, so the
+      // action response already carries the re-rendered tree. Refreshing as well
+      // re-ran the whole detail page a second time before the receipt appeared.
     });
   };
 

@@ -51,7 +51,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import production_repo as repo
 from ..repositories import route_repo, stage_plan_repo, transfer_repo, workshop_staff_repo
 from ..services import handover, stage_flow
@@ -86,7 +86,7 @@ async def _active_workshop(session, workshop_id: UUID) -> None:
 
 @router.get("/unallocated")
 async def unallocated(caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         if caller.role not in ("owner", "admin", "salesperson"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -106,7 +106,7 @@ async def allocate(req: AllocateRequest, caller_uid: str = Depends(get_caller_ui
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Due date is in the past")
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         # A workshop manager must never self-allocate work; accounts/delivery have
         # no production role at all.
@@ -259,7 +259,7 @@ async def my_queue(caller_uid: str = Depends(get_caller_uid)) -> dict:
     write routes gate on (services/stage_flow), so the disabled state and the 403 can
     never disagree.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         if caller.is_admin:
             rows = await session.execute(
@@ -315,7 +315,7 @@ async def item_detail(order_item_id: UUID, caller_uid: str = Depends(get_caller_
     through their consignment (GET /api/transfers/{id}), which is scoped to the goods
     actually in their van.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         state = await repo.item_production_state(session, order_item_id)
         if state is None:
@@ -357,7 +357,7 @@ async def advance(order_item_id: UUID, req: AdvanceRequest,
     consignment to the next workshop is opened in the same transaction (module 14 D6,
     client-confirmed: auto on stage done, with a lead-only manual override).
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         item = await _load_item_or_404(session, order_item_id)
         _assert_workable(item)
@@ -465,7 +465,7 @@ async def block(order_item_id: UUID, req: BlockRequest,
     when the goods are on the lorry, and refusing the block would leave the only person
     who can see the problem with no way to report it (module 14 D9).
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         item = await _load_item_or_404(session, order_item_id)
         if item["current_stage"] is None:
@@ -488,7 +488,7 @@ async def block(order_item_id: UUID, req: BlockRequest,
 @router.post("/items/{order_item_id}/unblock")
 async def unblock(order_item_id: UUID, req: UnblockRequest,
                   caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         item = await _load_item_or_404(session, order_item_id)
         if item["current_stage"] is None:
@@ -519,7 +519,7 @@ async def override_stage(order_item_id: UUID, req: OverrideRequest,
     Every skipped event carries the reason, so the item's timeline says out loud that a
     human overrode it rather than showing eleven suspiciously fast stage taps.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="override a production stage")
         item = await _load_item_or_404(session, order_item_id)

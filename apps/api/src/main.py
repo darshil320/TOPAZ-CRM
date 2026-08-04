@@ -19,6 +19,7 @@ Routes:
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,12 +63,30 @@ def _sqlstate(exc: BaseException) -> str | None:
     return getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup/shutdown for the process-wide pools.
+
+    Both pools (Postgres via `database`, Storage via `services.storage`) are what
+    make a request cheap: they exist so a route reuses an established TLS
+    connection instead of opening one. Disposing them on shutdown hands them back
+    on a redeploy rather than leaving the Supabase side to time them out.
+    """
+    yield
+    from .database import dispose_api_engine
+    from .services import storage
+
+    await dispose_api_engine()
+    await storage.aclose()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Topaz CRM API",
         version="0.3.0",
         docs_url=None,
         redoc_url=None,
+        lifespan=_lifespan,
     )
 
     # ─── CORS ────────────────────────────────────────────────────────────────

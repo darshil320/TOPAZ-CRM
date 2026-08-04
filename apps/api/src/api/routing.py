@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import production_repo, route_repo
 from ..services import route_plan, stage_flow
 from ..services.route_plan import LegSpec, RoutePlanError
@@ -116,7 +116,7 @@ async def _assert_workshops_active(session, workshop_ids: list[str]) -> None:
 
 @router.get("/items/{order_item_id}/route")
 async def get_route(order_item_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         state = await production_repo.item_production_state(session, order_item_id)
         if state is None:
@@ -147,7 +147,7 @@ async def plan_route(order_item_id: UUID, req: RouteRequest,
     if req.legs is not None and req.template_id is not None:
         raise _unprocessable("Supply `legs` or `template_id`, not both")
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         caps = stage_flow.capabilities_for(role=caller.role, staff_role=None)
         if stage_flow.CAP_ALLOCATE not in caps:
@@ -308,7 +308,7 @@ async def reflow_route(order_item_id: UUID, req: ReflowRequest,
     the only signal that the order is running late. So this is an explicit owner/admin
     action, it demands a reason, and it writes an audit row.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="reflow a production route")
 
@@ -377,7 +377,7 @@ async def reflow_route(order_item_id: UUID, req: ReflowRequest,
 # ─── Route templates ─────────────────────────────────────────────────────────
 @router.get("/templates")
 async def list_templates(active: bool = True, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await authz.resolve_caller(session, caller_uid)
         templates = await route_repo.list_templates(session, active_only=active)
     return {"templates": templates}
@@ -389,7 +389,7 @@ async def create_template(req: TemplateRequest,
     """A template is validated the same way a real route is, minus the item-specific
     start stage: a template that cannot be applied to anything is a trap that only
     surfaces weeks later at the allocate screen."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage route templates")
         await _assert_workshops_active(session, [str(leg.workshop_id) for leg in req.legs])
@@ -426,7 +426,7 @@ async def create_template(req: TemplateRequest,
 @router.post("/templates/{template_id}/deactivate")
 async def deactivate_template(template_id: UUID,
                               caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage route templates")
         row = await route_repo.deactivate_template(session, template_id)

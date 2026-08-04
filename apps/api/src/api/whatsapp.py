@@ -19,7 +19,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, field_validator
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories.message_repo import update_status_by_wamid
 from ..services.wa_webhook import parse_inbound_texts, parse_status_updates
 from ..tasks.ai import handle_inbound_reply
@@ -107,7 +107,7 @@ async def _dispatch_inbound(payload: dict) -> None:
 
     statuses = parse_status_updates(payload)
     if statuses:
-        async with make_task_session() as session:
+        async with get_api_session() as session:
             for update in statuses:
                 applied = await update_status_by_wamid(session, update.wamid, update.status)
                 if not applied:

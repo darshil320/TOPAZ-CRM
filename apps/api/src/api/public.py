@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import quotation_repo as repo
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _client_ip(request: Request) -> str | None:
 @router.get("/quotes/{token}")
 async def public_quote(token: UUID) -> dict:
     """Customer-facing quote summary. Marks the quote 'viewed' on first open."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         summary = await repo.get_public_summary(session, token)
         if summary is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
@@ -54,7 +54,7 @@ async def public_quote(token: UUID) -> dict:
 
 async def _decide(token: UUID, request: Request, *, approve: bool) -> dict:
     ip = _client_ip(request)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         decision = await repo.record_decision(session, token, approve=approve, ip=ip)
         if decision is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")

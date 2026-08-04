@@ -410,6 +410,61 @@ def test_order_fulfillment_view_agrees_with_the_column():
         assert (total, done) == (2, 1)
 
 
+def test_a_terminal_order_status_wins_over_missing_item_stamps():
+    """An order marked installed by hand has NO stamped items — that is the pre-per-item
+    history, and it is still the path when somebody corrects the record. Reading it as
+    "Not delivered" while its own status says the furniture is in the customer's house is a
+    visibly wrong answer on the orders list."""
+    _seed()
+    with as_service() as cur:
+        for status in ("delivered", "installed", "closed"):
+            cur.execute("savepoint s")
+            cur.execute("update orders set status = %s where id = %s", (status, ORD1))
+            assert _one(cur, "select fulfillment_status from orders where id = %s",
+                        (ORD1,)) == "fully_delivered", status
+            assert _one(cur, "select fulfillment from order_fulfillment where order_id = %s",
+                        (ORD1,)) == "fully_delivered", status
+            cur.execute("rollback to savepoint s")
+
+
+def test_a_cancelled_order_is_not_fully_delivered():
+    """'cancelled' is deliberately not a terminal DELIVERED state — its goods went nowhere."""
+    _seed()
+    with as_service() as cur:
+        cur.execute("update orders set status = 'cancelled' where id = %s", (ORD1,))
+        assert _one(cur, "select fulfillment_status from orders where id = %s",
+                    (ORD1,)) == "not_delivered"
+
+
+def test_a_status_change_alone_updates_the_column():
+    """The rule takes orders.status as an input, so a status change must recompute it —
+    otherwise the column silently lags the record it is derived from."""
+    _seed()
+    with as_service() as cur:
+        assert _one(cur, "select fulfillment_status from orders where id = %s",
+                    (ORD2,)) == "not_delivered"
+        cur.execute("update orders set status = 'installed' where id = %s", (ORD2,))
+        assert _one(cur, "select fulfillment_status from orders where id = %s",
+                    (ORD2,)) == "fully_delivered"
+
+
+def test_the_rule_is_one_shared_function():
+    """The trigger and the view must not be able to drift. Pure — no rows involved."""
+    _seed()
+    with as_service() as cur:
+        cases = [
+            ("ready", 3, 0, "not_delivered"),
+            ("ready", 3, 1, "partially_delivered"),
+            ("ready", 3, 3, "fully_delivered"),
+            ("confirmed", 0, 0, "not_delivered"),
+            ("installed", 3, 0, "fully_delivered"),
+            ("cancelled", 3, 0, "not_delivered"),
+        ]
+        for status, total, done, expected in cases:
+            cur.execute("select compute_order_fulfillment(%s, %s, %s)", (status, total, done))
+            assert cur.fetchone()[0] == expected, (status, total, done)
+
+
 def test_an_order_with_no_items_is_not_delivered():
     """count(delivered_at) = count(id) = 0 must not read as 'fully delivered'."""
     _seed()

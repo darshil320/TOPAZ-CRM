@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import audit_repo
 from ..repositories import workshop_repo as repo
 from ..repositories import workshop_staff_repo as staff_repo
@@ -113,7 +113,7 @@ async def _appoint_lead(session, workshop_id: UUID, salesperson_id: UUID | None,
 async def list_workshops(active: bool = True, caller_uid: str = Depends(get_caller_uid)) -> dict:
     """All workshops (active by default) with `open_item_count`. Any active staff
     member may read — a workshop name carries no money."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await authz.resolve_caller(session, caller_uid)
         rows = await repo.list_workshops(session, active_only=active)
     return {"workshops": rows}
@@ -121,7 +121,7 @@ async def list_workshops(active: bool = True, caller_uid: str = Depends(get_call
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_workshop(req: WorkshopCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshops")
         await _check_manager(session, req.manager_salesperson_id)
@@ -152,7 +152,7 @@ async def create_workshop(req: WorkshopCreate, caller_uid: str = Depends(get_cal
 async def patch_workshop(workshop_id: UUID, req: WorkshopPatch,
                          caller_uid: str = Depends(get_caller_uid)) -> dict:
     changes = req.model_dump(exclude_unset=True)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshops")
         appoint_lead = "manager_salesperson_id" in changes
@@ -184,7 +184,7 @@ async def patch_workshop(workshop_id: UUID, req: WorkshopPatch,
 async def deactivate_workshop(workshop_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Retire a workshop. Refused while it still holds unfinished allocated items —
     deactivating it would strand them off the board with nobody responsible."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshops")
         if await repo.get_workshop(session, workshop_id) is None:
@@ -221,7 +221,7 @@ async def my_workshops(caller_uid: str = Depends(get_caller_uid)) -> dict:
     `manager_salesperson_id = me` filter, which matched nothing for a sub-manager and
     left them staring at an empty queue.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         if caller.is_admin:
             rows = await repo.list_workshops(session, active_only=True)
@@ -236,7 +236,7 @@ async def list_staff(workshop_id: UUID, active: bool = True,
     """The roster. Readable by any active staff member — a name and the word 'lead'
     carry no money, and the courier app shows the destination lead's phone so the
     driver can call ahead."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await authz.resolve_caller(session, caller_uid)
         if await repo.get_workshop(session, workshop_id) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workshop not found")
@@ -254,7 +254,7 @@ async def add_staff(workshop_id: UUID, req: StaffRequest,
     automatically retires the incumbent (that is what "promote" means, and doing it in
     two client calls would fail on the one-active-lead index between them).
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshop staff")
 
@@ -303,7 +303,7 @@ async def remove_staff(workshop_id: UUID, salesperson_id: UUID,
     nobody could then receive an incoming consignment there, and the goods would be
     stuck on a lorry with no one authorised to accept them.
     """
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshop staff")
 

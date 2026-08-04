@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useTransition, useOptimistic } from "react";
-import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { patchOrderStatus } from "./actions";
 import { NEXT_TRANSITIONS, REASON_REQUIRED } from "./status";
 
 export default function OrderStatusActions({ orderId, status }: { orderId: string; status: string }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +30,11 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
     startTransition(async () => {
       setOptimisticStatus(to);
       const result = await patchOrderStatus(orderId, to, reason);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
+      if (result.error) setError(result.error);
+      // NO router.refresh() ON SUCCESS. `patchOrderStatus` calls revalidatePath for
+      // this page, so Next already ships the re-rendered tree in the action's own
+      // response. Calling refresh() as well fired a SECOND request that re-ran every
+      // query on the order page — the whole detail render, twice, per tap.
     });
   };
 

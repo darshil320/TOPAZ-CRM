@@ -27,6 +27,16 @@ const ROUTABLE_ROLES = new Set(["owner", "admin", "salesperson"]);
 
 type Props = { params: Promise<{ id: string }> };
 
+/** One production photo row, as the gallery below needs it. */
+type GalleryMediaRow = {
+  id: string;
+  entity_id: string;
+  storage_key: string;
+  created_at: string;
+  stage_code: string | null;
+  production_stage_defs?: { label_en: string } | { label_en: string }[] | null;
+};
+
 function one<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
 }
@@ -103,13 +113,37 @@ export default async function OrderDetailPage({ params }: Props) {
 
   if (!order) notFound();
 
-  // Signed line thumbnails (same precedence the job card prints with). One
-  // batched sign for the whole table — see lib/media/lineItemPhotos.
-  const linePhotos = await loadLinePhotos(
-    supabase,
-    "order_item",
-    (items ?? []).map((it) => ({ id: it.id, product_id: it.product_id })),
-  );
+  const itemIds = (items ?? []).map((i) => i.id);
+
+  // Both of these need the line items and nothing else, so they run together
+  // rather than one behind the other:
+  //   - the signed line thumbnails (same precedence the job card prints with)
+  //   - the production photo gallery's rows
+  const [linePhotos, { data: rawMediaRows }] = await Promise.all([
+    loadLinePhotos(
+      supabase,
+      "order_item",
+      (items ?? []).map((it) => ({ id: it.id, product_id: it.product_id })),
+    ),
+    itemIds.length > 0
+      ? supabase
+          .from("media")
+          // stage_code (0036) is the stage the photo DOCUMENTS. Before it, this page
+          // labelled every photo with the item's CURRENT stage — so yesterday's frame-work
+          // photo was captioned "Polishing" the moment the item moved on.
+          .select(
+            "id, entity_id, storage_key, mime, created_at, stage_code," +
+              " production_stage_defs(label_en, label_gu)",
+          )
+          .eq("entity_type", "order_item")
+          .in("entity_id", itemIds)
+          .eq("status", "ready")
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+  // The two branches give PostgREST no single literal select string to infer from, so
+  // the row shape is stated here instead (same convention as `stages` below).
+  const rawMedia = (rawMediaRows ?? []) as unknown as GalleryMediaRow[];
 
   const stages = (stageRows ?? []) as StageDef[];
   const routeWorkshops = workshopList.workshops
@@ -129,46 +163,49 @@ export default async function OrderDetailPage({ params }: Props) {
   const paid = out?.paid ?? 0;
   const outstanding = out?.outstanding ?? order.grand_total;
 
-  // Fetch production media photos for this order's items
-  const itemIds = (items ?? []).map((i) => i.id);
-  const { data: rawMedia } =
-    itemIds.length > 0
-      ? await supabase
-          .from("media")
-          // stage_code (0036) is the stage the photo DOCUMENTS. Before it, this page
-          // labelled every photo with the item's CURRENT stage — so yesterday's frame-work
-          // photo was captioned "Polishing" the moment the item moved on.
-          .select("id, entity_id, storage_key, mime, created_at, stage_code, production_stage_defs(label_en, label_gu)")
-          .eq("entity_type", "order_item")
-          .in("entity_id", itemIds)
-          .eq("status", "ready")
-          .order("created_at", { ascending: false })
-      : { data: [] };
+  // ONE batched sign for the whole gallery. It used to be `createSignedUrl` inside
+  // the loop below — one sequential HTTPS round-trip to Storage per photo, which is
+  // what made a well-photographed order the slowest page in the app.
+  //
+  // Storage reports per-path failures inside a successful batch, so a key that could
+  // not be signed is simply absent from the map and its photo is dropped — the same
+  // outcome the per-photo version had, without costing the other twenty.
+  const photoKeys = Array.from(new Set((rawMedia ?? []).map((m) => m.storage_key)));
+  const signedByKey = new Map<string, string>();
+  if (photoKeys.length > 0) {
+    const { data: signedList } = await supabase.storage
+      .from("media")
+      .createSignedUrls(photoKeys, 3600);
+    for (const row of signedList ?? []) {
+      if (row.path && row.signedUrl) signedByKey.set(row.path, row.signedUrl);
+    }
+  }
+
+  const itemsById = new Map((items ?? []).map((i) => [i.id, i]));
 
   const orderPhotos: ProductionPhoto[] = [];
   for (const m of rawMedia ?? []) {
-    const matchingItem = (items ?? []).find((i) => i.id === m.entity_id);
+    const signedUrl = signedByKey.get(m.storage_key);
+    if (!signedUrl) continue;
+    const matchingItem = itemsById.get(m.entity_id);
     // The photo's OWN stage when it has one; the item's current stage only as a fallback
     // for photos uploaded before 0036 existed.
     const photoStage = one((m as any).production_stage_defs as { label_en: string } | null);
     const itemStage = one(matchingItem?.production_stage_defs as { label_en: string } | null);
-    const { data: signed } = await supabase.storage.from("media").createSignedUrl(m.storage_key, 3600);
-    if (signed?.signedUrl) {
-      orderPhotos.push({
-        id: m.id,
-        orderItemId: m.entity_id,
-        itemDescription: matchingItem?.description ?? "Item",
-        stageCode: (m as any).stage_code ?? matchingItem?.current_stage ?? null,
-        stageLabel:
-          photoStage?.label_en ??
-          (m as any).stage_code ??
-          itemStage?.label_en ??
-          matchingItem?.current_stage ??
-          null,
-        imageUrl: signed.signedUrl,
-        createdAt: m.created_at,
-      });
-    }
+    orderPhotos.push({
+      id: m.id,
+      orderItemId: m.entity_id,
+      itemDescription: matchingItem?.description ?? "Item",
+      stageCode: (m as any).stage_code ?? matchingItem?.current_stage ?? null,
+      stageLabel:
+        photoStage?.label_en ??
+        (m as any).stage_code ??
+        itemStage?.label_en ??
+        matchingItem?.current_stage ??
+        null,
+      imageUrl: signedUrl,
+      createdAt: m.created_at,
+    });
   }
 
   return (

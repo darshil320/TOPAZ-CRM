@@ -18,7 +18,7 @@ from fastapi import APIRouter, Header, status
 from topaz_shared import LinkSalespersonRequest
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories.salesperson_repo import link_salesperson_by_phone
 from .enrollment import verify_api_key
 
@@ -34,7 +34,7 @@ async def link_salesperson(
     settings = get_settings()
     verify_api_key(api_key, (settings.DASHBOARD_API_KEY,))
 
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         salesperson_id = await link_salesperson_by_phone(
             session, auth_uid=req.auth_uid, phone=req.phone
         )

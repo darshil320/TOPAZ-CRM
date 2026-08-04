@@ -182,12 +182,22 @@ export async function getMediaUrl(
  * Not a convenience wrapper — a correctness fix for perceived speed. Next.js
  * serialises Server Actions: a component that calls `getMediaUrl` once per tile
  * does not fan out, it queues. A twenty-photo gallery therefore paid twenty
- * sequential round-trips (~4s of staggered skeletons). Here the fan-out happens
- * server-side, where the calls really are concurrent, and the browser waits once.
+ * sequential round-trips (~4s of staggered skeletons).
  *
- * A single image that fails to sign is omitted from the map rather than failing
- * the batch — the caller renders its placeholder for that one tile.
+ * This now maps onto ONE API call (`POST /api/media/urls`), which does the whole
+ * job as one caller lookup + one `id = ANY(...)` query + one batched Storage
+ * sign. The previous version fanned out to `/{id}/url` server-side, which was
+ * concurrent from the browser's point of view but still cost the API N caller
+ * verifications, N DB round-trips and N Storage signs.
+ *
+ * The API omits an image it could not serve rather than failing the batch, so a
+ * single dead storage key costs one placeholder tile, not the page.
+ *
+ * `MAX_BATCH` mirrors the API's own ceiling (`UrlsRequest.media_ids`): a caller
+ * with more images chunks instead of getting a 422.
  */
+const MAX_BATCH = 100;
+
 export async function getMediaUrls(
   mediaIds: string[],
   thumb = true,
@@ -197,13 +207,35 @@ export async function getMediaUrls(
   const unique = Array.from(new Set(mediaIds.filter(Boolean)));
   if (unique.length === 0) return { error: null, data: {} };
 
-  const settled = await Promise.all(
-    unique.map(async (id) => [id, await getMediaUrl(id, thumb)] as const),
-  );
-
-  const data: Record<string, MediaUrlResult> = {};
-  for (const [id, result] of settled) {
-    if (result.data) data[id] = result.data;
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += MAX_BATCH) {
+    chunks.push(unique.slice(i, i + MAX_BATCH));
   }
-  return { error: null, data };
+
+  try {
+    const responses = await Promise.all(
+      chunks.map(async (chunk) => {
+        const resp = await fetch(`${MEDIA_API}/urls`, {
+          method: "POST",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          headers: await apiHeaders(true),
+          body: JSON.stringify({ media_ids: chunk, thumb }),
+        });
+        if (!resp.ok) return { error: await readError(resp), urls: {} };
+        const body = (await resp.json()) as { urls: Record<string, MediaUrlResult> };
+        return { error: null as string | null, urls: body.urls ?? {} };
+      }),
+    );
+
+    const data: Record<string, MediaUrlResult> = {};
+    for (const r of responses) {
+      Object.assign(data, r.urls);
+    }
+    // Report a chunk failure, but still hand back whatever did resolve — a partly
+    // illustrated table beats an empty one.
+    const failed = responses.find((r) => r.error)?.error ?? null;
+    return { error: failed, data };
+  } catch (err) {
+    return { error: networkMessage(err) };
+  }
 }

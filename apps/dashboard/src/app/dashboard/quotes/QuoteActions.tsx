@@ -29,7 +29,6 @@ export default function QuoteActions({ quoteId, status }: Props) {
         return;
       }
       router.push(`/dashboard/orders/${result.id}`);
-      router.refresh();
     });
   };
 
@@ -42,7 +41,6 @@ export default function QuoteActions({ quoteId, status }: Props) {
         return;
       }
       router.push(`/dashboard/quotes/${result.id}`);
-      router.refresh();
     });
   };
 
@@ -62,7 +60,8 @@ export default function QuoteActions({ quoteId, status }: Props) {
         return;
       }
       setSent(true);
-      router.refresh();
+      // No refresh: `sendQuote` revalidates this quote's page, so the action's own
+      // response carries the fresh tree. See OrderStatusActions for the same note.
     });
   };
 
@@ -76,7 +75,6 @@ export default function QuoteActions({ quoteId, status }: Props) {
         return;
       }
       router.push("/dashboard/quotes");
-      router.refresh();
     });
   };
 

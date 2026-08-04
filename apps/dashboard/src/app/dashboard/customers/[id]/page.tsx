@@ -28,16 +28,14 @@ export default async function CustomerPage({ params }: Props) {
   const isOwner = isOwnerRole(sp);
 
   const supabase = await createServerSupabaseClient();
-  const { data: assignment } = await supabase
-    .from("customer_assignments")
-    .select("id")
-    .eq("customer_id", id)
-    .eq("salesperson_id", sp.id)
-    .eq("active", true)
-    .single();
-  if (!assignment && !isOwner) redirect("/dashboard");
 
+  // The "am I on this customer?" check is issued WITH the page's reads, not ahead of
+  // them: it used to cost a serial round-trip that every other query waited behind,
+  // for a redirect that RLS already backs up. A salesperson who is not assigned reads
+  // nothing here anyway (`is_assigned_to_customer`, 0004) — this check only turns that
+  // empty page into a redirect, so running it concurrently gives nothing away.
   const [
+    { data: assignment },
     { data: customer },
     { data: visits },
     { data: messages },
@@ -47,6 +45,13 @@ export default async function CustomerPage({ params }: Props) {
     teamResult,
     { data: activeSalespersons },
   ] = await Promise.all([
+    supabase
+      .from("customer_assignments")
+      .select("id")
+      .eq("customer_id", id)
+      .eq("salesperson_id", sp.id)
+      .eq("active", true)
+      .maybeSingle(),
     supabase.from("customers").select("*").eq("id", id).single(),
     supabase.from("visits").select("id, match_band, occurred_at, photo_key").eq("customer_id", id).order("occurred_at", { ascending: false }).limit(5),
     supabase.from("messages").select("id, content, direction, sender_type, draft_status, created_at").eq("customer_id", id).order("created_at", { ascending: false }).limit(30),
@@ -59,6 +64,7 @@ export default async function CustomerPage({ params }: Props) {
       : Promise.resolve({ data: null }),
   ]);
 
+  if (!assignment && !isOwner) redirect("/dashboard");
   if (!customer) notFound();
 
   const teamRows = teamResult.data ?? [];

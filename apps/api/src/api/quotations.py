@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import quotation_repo as repo
 from ..services import gst, numbering
 from . import authz
@@ -94,7 +94,7 @@ def _default_valid_until(supplied: date | None) -> date:
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_quotation(req: QuoteCreate, caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         await authz.assert_can_write_customer(session, caller, str(req.customer_id))
         quote_no = await numbering.allocate(session, "QTN")
@@ -123,7 +123,7 @@ async def _authorize(session, caller_uid: str, quotation_id: UUID) -> None:
 async def update_quotation(quotation_id: UUID, req: QuoteUpdate,
                            caller_uid: str = Depends(get_caller_uid)) -> dict:
     totals, items = _compute(req.items, req.discount, req.place_of_supply)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, quotation_id)
         ok = await repo.update_draft(
             session, quotation_id, totals=totals, items=items,
@@ -140,7 +140,7 @@ async def update_quotation(quotation_id: UUID, req: QuoteUpdate,
 
 @router.post("/{quotation_id}/revise", status_code=status.HTTP_201_CREATED)
 async def revise_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, quotation_id)
         new_quote_no = await numbering.allocate(session, "QTN")
         new_id = await repo.clone_for_revision(session, quotation_id, new_quote_no=new_quote_no)
@@ -154,7 +154,7 @@ async def revise_quotation(quotation_id: UUID, caller_uid: str = Depends(get_cal
 
 @router.delete("/{quotation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> None:
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, quotation_id)
         ok = await repo.soft_delete_draft(session, quotation_id)
         if not ok:
@@ -167,7 +167,7 @@ async def delete_quotation(quotation_id: UUID, caller_uid: str = Depends(get_cal
 async def send_quotation(quotation_id: UUID, caller_uid: str = Depends(get_caller_uid)) -> dict:
     """Render (if needed) + WhatsApp the quote to the customer, advancing it to
     'sent'. Draft-only; the render + send + status flip happen in the worker."""
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, quotation_id)
         current = await repo.get_status(session, quotation_id)
     if current is None:

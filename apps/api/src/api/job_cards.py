@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
-from ..database import make_task_session
+from ..database import get_api_session
 from ..repositories import document_repo, job_card_repo, order_repo, quotation_repo
 from ..services import storage
 from . import authz
@@ -65,7 +65,7 @@ async def _authorize(session, caller_uid: str, source: str, entity_id: UUID):
 async def create_job_card(source: str, entity_id: UUID,
                           caller_uid: str = Depends(get_caller_uid)) -> dict:
     _check_source(source)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, source, entity_id)
         # Cheap count, not a full job-card load: the previous version resolved every
         # photo key here only to test emptiness, then the Celery task threw it away
@@ -91,7 +91,7 @@ async def send_job_card_route(source: str, entity_id: UUID, req: SendRequest,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Workshop job cards come from an order — a quotation has no allocation yet",
         )
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, source, entity_id)
         if req.to == "workshop":
             recipients = await job_card_repo.workshop_recipients(session, entity_id)
@@ -123,7 +123,7 @@ async def job_card_url(source: str, entity_id: UUID,
     _check_source(source)
     settings = get_settings()
     kind = _doc_kind(settings.JOB_CARD_FORMAT)
-    async with make_task_session() as session:
+    async with get_api_session() as session:
         await _authorize(session, caller_uid, source, entity_id)
         key = await document_repo.latest_storage_key(session, source, entity_id, kind)
         if key is None:
@@ -133,7 +133,7 @@ async def job_card_url(source: str, entity_id: UUID,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Job card not generated yet")
     try:
-        url = storage.signed_url(settings.DOCUMENTS_BUCKET, key)
+        url = await storage.signed_url_async(settings.DOCUMENTS_BUCKET, key)
     except storage.StorageError as exc:
         logger.error("Job card URL sign failed for %s %s: %s", source, entity_id, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
