@@ -2,15 +2,21 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
 import { formatINR, formatDate } from "@/lib/format";
+import { normalizeSearchTerm, uuidParam } from "@/lib/search";
+import { buildOrderSearchFilter } from "@/lib/listSearch";
+import { listSalespersonOptions } from "@/lib/salespersonOptions";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import ListRow from "@/components/ui/ListRow";
+import ListFilterBar from "@/components/ui/ListFilterBar";
 import Pill, { type PillTone } from "@/components/ui/Pill";
 import { orderStatusChip } from "./status";
 
 import Pagination from "@/components/ui/Pagination";
 
-type Props = { searchParams: Promise<{ page?: string; limit?: string }> };
+type Props = {
+  searchParams: Promise<{ page?: string; limit?: string; q?: string; sp?: string }>;
+};
 
 function pillToneForStatus(status: string | null | undefined): PillTone {
   if (status === "installed" || status === "closed" || status === "delivered") return "pos";
@@ -19,7 +25,7 @@ function pillToneForStatus(status: string | null | undefined): PillTone {
 }
 
 export default async function OrdersPage({ searchParams }: Props) {
-  const { page: pageStr, limit: limitStr } = await searchParams;
+  const { page: pageStr, limit: limitStr, q, sp: spParam } = await searchParams;
   const page = Math.max(1, Number(pageStr) || 1);
   const limit = Math.min(100, Math.max(5, Number(limitStr) || 25));
   const from = (page - 1) * limit;
@@ -28,15 +34,32 @@ export default async function OrdersPage({ searchParams }: Props) {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
 
+  const term = normalizeSearchTerm(q);
+  const salespersonId = uuidParam(spParam);
+  const isFiltered = term !== null || salespersonId !== null;
+
   const supabase = await createServerSupabaseClient();
-  const [{ data: orders, count, error }, { data: outstanding }] = await Promise.all([
-    supabase
-      .from("orders")
-      .select("id, order_no, status, grand_total, expected_delivery_date, created_at, customers(name)", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, to),
-    supabase.from("order_outstanding").select("order_id, outstanding"),
-  ]);
+
+  // Resolved first: the search spans customers and quotations, which PostgREST
+  // cannot reach from an `or` on orders (see lib/listSearch.ts).
+  const searchFilter = term ? await buildOrderSearchFilter(supabase, term) : null;
+
+  let ordersQuery = supabase
+    .from("orders")
+    .select(
+      "id, order_no, status, grand_total, expected_delivery_date, created_at, customers(name, phone), salespersons(name)",
+      { count: "exact" },
+    );
+
+  if (searchFilter) ordersQuery = ordersQuery.or(searchFilter);
+  if (salespersonId) ordersQuery = ordersQuery.eq("salesperson_id", salespersonId);
+
+  const [{ data: orders, count, error }, { data: outstanding }, salespersonOptions] =
+    await Promise.all([
+      ordersQuery.order("created_at", { ascending: false }).range(from, to),
+      supabase.from("order_outstanding").select("order_id, outstanding"),
+      listSalespersonOptions(supabase),
+    ]);
 
   const totalCount = count ?? (orders ?? []).length;
 
@@ -48,7 +71,17 @@ export default async function OrdersPage({ searchParams }: Props) {
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
       <PageHeader
         title="Orders"
-        subtitle={`${totalCount} active & historical customer orders`}
+        subtitle={
+          isFiltered
+            ? `${totalCount} matching order${totalCount === 1 ? "" : "s"}`
+            : `${totalCount} active & historical customer orders`
+        }
+      />
+
+      <ListFilterBar
+        searchPlaceholder="Search order no, quote no, customer name or mobile…"
+        options={salespersonOptions}
+        allOptionLabel="All salespersons"
       />
 
       {error ? (
@@ -57,13 +90,19 @@ export default async function OrdersPage({ searchParams }: Props) {
         </div>
       ) : (orders ?? []).length === 0 ? (
         <div className="bg-sf rounded-card border border-ln p-12 text-center shadow-sh">
-          <p className="text-body font-semibold text-t1">No orders found</p>
-          <p className="mt-1 text-caption text-t3">Approved quotes automatically become orders in one click.</p>
+          <p className="text-body font-semibold text-t1">
+            {isFiltered ? "No orders match this search" : "No orders found"}
+          </p>
+          <p className="mt-1 text-caption text-t3">
+            {isFiltered
+              ? "Try a different order number, quote number, customer name or mobile number."
+              : "Approved quotes automatically become orders in one click."}
+          </p>
         </div>
       ) : (
         <div className="bg-sf rounded-card border border-ln p-4 space-y-4 shadow-sh">
           <SectionHeader
-            label="All Orders List"
+            label={isFiltered ? "Matching Orders" : "All Orders List"}
             total={`${totalCount} Total`}
           />
 
@@ -71,6 +110,7 @@ export default async function OrdersPage({ searchParams }: Props) {
             {(orders ?? []).map((o) => {
               const chip = orderStatusChip(o.status);
               const customer = Array.isArray(o.customers) ? o.customers[0] : o.customers;
+              const owner = Array.isArray(o.salespersons) ? o.salespersons[0] : o.salespersons;
               const due = outstandingByOrder.get(o.id);
 
               return (
@@ -88,7 +128,9 @@ export default async function OrdersPage({ searchParams }: Props) {
                   secondary={
                     <span>
                       Customer: <span className="text-t1 font-medium">{customer?.name ?? "Unknown"}</span>
+                      {customer?.phone && <span className="text-t3 font-mono"> · {customer.phone}</span>}
                       <span className="text-t3"> · Created {formatDate(o.created_at)}</span>
+                      {owner?.name && <span className="text-t3"> · Sales: {owner.name}</span>}
                     </span>
                   }
                   trailing={
