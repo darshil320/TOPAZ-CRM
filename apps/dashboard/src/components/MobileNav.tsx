@@ -120,12 +120,12 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
             role="dialog"
             aria-modal="true"
             aria-label="More navigation"
-            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-200 ease-out pb-[env(safe-area-inset-bottom)] ${
+            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-200 ease-out pb-[env(safe-area-inset-bottom)] flex flex-col max-h-[90dvh] ${
               sheetOpen ? "translate-y-0" : "translate-y-full"
             }`}
           >
             {/* Handle and Close */}
-            <div className="relative flex justify-center pt-4 pb-2 mb-1">
+            <div className="relative flex justify-center pt-4 pb-2 mb-1 shrink-0">
               <div className="w-12 h-1.5 rounded-full bg-ln mt-2" />
               <button
                 type="button"
@@ -136,8 +136,9 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {user && (
+            
+            <div className="overflow-y-auto overscroll-contain flex-1">
+              {user && (
               <div className="mx-4 mt-2 mb-3 p-3 rounded-card bg-sf2 border border-ln">
                 <div className="flex items-center gap-2.5 pb-2.5 border-b border-ln2 mb-2">
                   <span className="w-7 h-7 rounded-full bg-acc flex items-center justify-center text-white text-xs font-semibold font-mono">
@@ -196,6 +197,7 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
                 );
               })}
             </ul>
+            </div>
           </div>
         </>
       )}
