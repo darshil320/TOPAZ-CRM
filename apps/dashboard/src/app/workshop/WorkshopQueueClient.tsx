@@ -541,7 +541,7 @@ export default function WorkshopQueueClient({
             <div className="space-y-1.5">
               <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
                 <div
-                  className={`h-full transition-all duration-500 ${
+                  className={`h-full transition-all duration-200 ease-out ${
                     item.blocked
                       ? "bg-red-500"
                       : inTransit

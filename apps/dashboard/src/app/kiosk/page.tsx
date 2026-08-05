@@ -127,7 +127,7 @@ export default function KioskPage() {
 
       <div className="w-full max-w-xl flex-1 flex items-center justify-center my-8">
         <div
-          className={`w-full bg-white/80 backdrop-blur-md border border-amber-100/50 rounded-3xl shadow-xl shadow-amber-950/5 p-6 md:p-10 transition-all duration-300 transform ${animClass}`}
+          className={`w-full bg-white/80 backdrop-blur-md border border-amber-100/50 rounded-3xl shadow-xl shadow-amber-950/5 p-6 md:p-10 transition-[transform,opacity] duration-200 ease-out transform ${animClass}`}
         >
           {step === 1 && (
             <form onSubmit={handleNextStep1} className="flex flex-col gap-6">

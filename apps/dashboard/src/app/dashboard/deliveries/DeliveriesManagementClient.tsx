@@ -651,8 +651,8 @@ export default function DeliveriesManagementClient({
 
       {/* Schedule Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-sf border border-ln rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 ease-out">
+          <div className="bg-sf border border-ln rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 ease-out" style={{ transformOrigin: "center" }}>
             <div className="flex items-center justify-between border-b border-ln pb-3">
               <h3 className="text-body font-bold text-t1 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-500" />

@@ -42,7 +42,7 @@ export function Popover({
 
 export function PopoverPanel({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <div className={cn("bg-sf rounded-pop shadow-shp p-[5px] animate-popIn z-50", className)}>
+    <div className={cn("bg-sf rounded-pop shadow-shp p-[5px] animate-popIn z-50 origin-top", className)}>
       {children}
     </div>
   );

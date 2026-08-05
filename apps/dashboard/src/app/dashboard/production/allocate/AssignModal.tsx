@@ -102,8 +102,8 @@ export default function AssignModal({
       </Button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm">
-          <div className="my-8 w-full max-w-lg space-y-4 rounded-pop border border-ln bg-sf p-6 shadow-shp animate-popIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-200 ease-out">
+          <div className="w-full max-w-lg rounded-2xl border border-ln bg-sf p-6 shadow-2xl animate-in zoom-in-95 duration-200 ease-out" style={{ transformOrigin: "center" }}>
             <div className="flex items-start justify-between gap-3 border-b border-ln2 pb-3">
               <div className="min-w-0">
                 <h3 className="text-section font-semibold text-t1">

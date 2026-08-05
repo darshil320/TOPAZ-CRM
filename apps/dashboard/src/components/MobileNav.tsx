@@ -120,7 +120,7 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
             role="dialog"
             aria-modal="true"
             aria-label="More navigation"
-            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-300 ease-in-out pb-[env(safe-area-inset-bottom)] ${
+            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-200 ease-out pb-[env(safe-area-inset-bottom)] ${
               sheetOpen ? "translate-y-0" : "translate-y-full"
             }`}
           >
