@@ -250,9 +250,9 @@ export default function WorkshopAdmin({
   return (
     <div className="space-y-4" id="workshops">
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <SectionHeader label="Workshops" />
-          <p className="mt-0.5 text-caption text-t3">
+          <p className="mt-0.5 text-caption text-t3 truncate">
             {workshops.length} registered · {activeCount} active production site
             {activeCount === 1 ? "" : "s"}
           </p>
@@ -266,9 +266,10 @@ export default function WorkshopAdmin({
           }}
           variant={showAddForm ? "secondary" : "primary"}
           disabled={loadError !== null}
+          className="shrink-0"
         >
           {showAddForm ? <X className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
-          {showAddForm ? "Cancel" : "Add Workshop"}
+          <span className="whitespace-nowrap">{showAddForm ? "Cancel" : "Add Workshop"}</span>
         </Button>
       </div>
 

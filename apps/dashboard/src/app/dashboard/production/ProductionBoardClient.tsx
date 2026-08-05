@@ -156,6 +156,8 @@ export default function ProductionBoardClient({
           </Link>
           <Link
             href="/workshop"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-caption font-semibold bg-sf2 hover:bg-sf3 text-t1 border border-ln px-3.5 py-2 rounded-card transition-colors"
           >
             Open Workshop PWA 📱
