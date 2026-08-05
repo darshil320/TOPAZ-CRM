@@ -55,7 +55,7 @@ export default function LineItemPhotoCell({
   }
 
   return (
-    <div className="mt-1.5 flex items-start gap-2.5">
+    <div className="mt-2 flex flex-wrap items-center gap-2.5">
       {photo ? (
         <a
           href={photo.url}

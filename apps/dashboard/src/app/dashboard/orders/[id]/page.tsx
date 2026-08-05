@@ -271,7 +271,7 @@ export default async function OrderDetailPage({ params }: Props) {
           <SectionHeader label="Ordered Items & Tax Breakdown" total={`${(items ?? []).length} items`} />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-body">
+          <table className="w-full min-w-[800px] text-left text-body">
             <thead>
               <tr className="border-b border-ln text-label-sm uppercase text-t3">
                 <th className="px-4 py-2.5 font-semibold">Item Description</th>

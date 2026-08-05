@@ -140,7 +140,7 @@ export default async function QuoteDetailPage({ params }: Props) {
           <SectionHeader label="Line Items" />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-ui">
+          <table className="w-full min-w-[800px] text-ui">
             <thead>
               <tr className="border-b border-ln text-left text-caption uppercase font-semibold text-t3 bg-sf2/50">
                 <th className="px-5 py-2.5">Description</th>
