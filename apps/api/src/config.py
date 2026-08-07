@@ -65,7 +65,16 @@ class Settings(BaseSettings):
     ALERT_COOLDOWN_MINUTES: int = 30
 
     # Cadence engine (followups table + Celery beat).
-    WELCOME_FOLLOWUP_DELAY_MINUTES: int = 120   # kiosk enrollment → welcome message
+    # Kiosk enrollment → welcome message. 10 minutes: the customer is still in the
+    # showroom, so the message lands while the visit is live and the advisor's number in
+    # it is immediately useful.
+    #
+    # The BEAT is the real floor, not this number: a followup can only go out on a tick
+    # of send_due_followups, so the actual delay is this value rounded up to the next
+    # tick. tasks/celery_app.py runs that beat at */5 FOR THIS REASON — at the old */30
+    # a "10 minute" welcome landed up to 40 minutes late. Lowering this below ~5 buys
+    # nothing without also tightening the beat.
+    WELCOME_FOLLOWUP_DELAY_MINUTES: int = 10
     FOLLOWUP_BATCH_SIZE: int = 25               # max sends per beat tick
     FOLLOWUP_STALE_DAYS: int = 3                # pending past due → cancelled
 
@@ -153,6 +162,12 @@ class Settings(BaseSettings):
     # workshop manager on a cheap Android. 'pdf' keeps the printable document for
     # anyone who wants to file or print it. Both render from the SAME HTML template.
     JOB_CARD_FORMAT: str = "image"
+    # How long a SHARE link to a job card stays valid. Longer than the 1h "Open"
+    # link on purpose: a share goes to somebody outside the business (an interior
+    # designer, a carpenter, a relative of the customer) who will not open it the
+    # moment it is sent. Still finite — it carries the customer's name and photos of
+    # their furniture, so it must expire. 7 days.
+    JOB_CARD_SHARE_TTL_SECONDS: int = 604_800
     # Fixed render width so every job card looks identical on every handset.
     JOB_CARD_IMAGE_WIDTH_PX: int = 1000
     # 2x device pixel ratio — small text must survive WhatsApp's own recompression.

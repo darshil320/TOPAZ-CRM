@@ -1,166 +1,463 @@
 <!doctype html>
 {#
-  Delivery challan — TOPAZ'S OWN FORMAT (0037), transcribed from the client's paper
-  challan (sample "T.F 66", supplied 2026-08-04).
-
-  Layout order is theirs and is load-bearing — a driver and a customer both read this
-  document top to bottom at the tailgate:
-      logo + CHALLAN no · date/name/address/mobile · D.P · tempo + driver · barrier note
-      · PRODUCT / RECEIVED tick table · delivery rent + balance · declaration + customer
-      signature · thank-you letter · authorised signature · footer address.
-
-  Every value comes from build_challan_context(); this template computes nothing.
+  Delivery challan — TOPAZ'S UPDATED FORMAT (T.F 4 sample).
+  Pure visual template rendered by build_challan_context().
 #}
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <style>
-  * { box-sizing: border-box; }
-  /* A4 with generous margins — their sheet has a wide right margin and the signature
-     lines need room to be written on. */
-  @page { size: A4; margin: 18mm 16mm; }
-  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #111; font-size: 12.5px; margin: 0; line-height: 1.45; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { size: A4; margin: 12mm 14mm; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #111111;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
-  header { display: flex; justify-content: space-between; align-items: flex-start; }
-  .logo { display: flex; align-items: baseline; gap: 8px; }
-  .logo .mark { font-size: 30px; line-height: 1; color: #444; }
-  .logo .wordmark { font-size: 27px; letter-spacing: 6px; font-weight: 400; color: #333; }
-  .logo .sub { font-size: 9.5px; letter-spacing: 1.5px; color: #777; text-align: right; margin-top: 2px; }
-  .challan-no { font-size: 13px; font-weight: 700; padding-top: 14px; }
+  .container {
+    width: 100%;
+    margin: 0 auto;
+  }
 
-  .party { margin-top: 18px; }
-  .party .line { margin: 2px 0; }
-  .party .label { font-weight: 700; }
-  /* A blank field still prints its rule, because the office fills these in by hand when
-     the record is thin — the same way their pre-printed pad works. */
-  .fill { display: inline-block; min-width: 240px; border-bottom: 1px solid #999; }
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 12px;
+  }
+  .brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 22px;
+    height: 22px;
+    background: #000000;
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+    margin-top: 3px;
+  }
+  .brand-text .company-name {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    line-height: 1;
+    color: #000000;
+  }
+  .brand-text .sub-tag {
+    font-size: 10.5px;
+    letter-spacing: 2px;
+    color: #666666;
+    margin-top: 4px;
+    font-weight: 400;
+  }
 
-  .dispatch { margin-top: 14px; font-size: 12px; }
-  .dispatch .line { margin: 1px 0; }
-  .barrier { margin-top: 2px; font-size: 12px; }
+  .doc-title {
+    text-align: right;
+  }
+  .doc-title .type {
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-weight: 500;
+    color: #555555;
+    text-transform: uppercase;
+  }
+  .doc-title .number {
+    font-size: 24px;
+    font-weight: 700;
+    color: #000000;
+    margin: 2px 0;
+  }
+  .doc-title .date {
+    font-size: 12px;
+    color: #444444;
+    letter-spacing: 0.5px;
+  }
 
-  table { width: 76%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #000; padding: 7px 9px; text-align: left; vertical-align: middle; }
-  th { font-weight: 700; }
-  .received { width: 38%; }
-  /* An empty cell with a visible height: the tick is written here by hand. */
-  td.tick { height: 30px; }
-  /* Quiet by design: the piece is what the customer ticks, the order number is only there
-     so a mixed-order challan can be reconciled later. */
-  .order-ref { font-size: 9px; color: #555; letter-spacing: .3px; margin-top: 2px; }
+  .divider {
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 16px;
+  }
 
-  .money { margin-top: 12px; }
-  .money .line { margin: 2px 0; }
-  .declaration { margin-top: 4px; }
+  /* Form Details Grid */
+  .details-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .grid-row {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .grid-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .col-full { width: 100%; }
+  .col-half { width: 48%; }
+  .col-quarter { width: 23%; }
 
-  .sig-customer { margin-top: 2px; text-align: right; padding-right: 24%; }
-  .sig-rule { border-bottom: 1px solid #333; width: 62%; margin: 26px 0 0; }
+  .label {
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888888;
+    margin-bottom: 3px;
+  }
+  .value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #000000;
+    min-height: 18px;
+  }
 
-  .letter { margin-top: 34px; font-size: 12px; }
-  .letter p { margin: 0 0 10px; }
-  .regards { margin-top: 18px; }
-  .sig-authorised { margin-top: 26px; text-align: right; padding-right: 6%; }
+  /* Product Table */
+  .product-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+  }
+  .product-table th {
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+  }
+  .product-table th.col-sr { width: 10%; text-align: left; }
+  .product-table th.col-desc { width: 55%; text-align: left; }
+  .product-table th.col-qty { width: 15%; text-align: left; }
+  .product-table th.col-rec { width: 20%; text-align: right; }
 
-  footer { margin-top: 90px; text-align: right; font-size: 12px; line-height: 1.5; }
+  .product-table td {
+    padding: 12px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid #eeeeee;
+    vertical-align: middle;
+  }
+  .product-table tr:nth-child(even) td {
+    background-color: #f9f9f9;
+  }
+  .product-table td.col-sr {
+    color: #888888;
+    font-weight: 500;
+  }
+  .product-table td.col-desc {
+    font-weight: 600;
+    color: #111111;
+  }
+  .product-table td.col-qty {
+    font-weight: 600;
+    color: #111111;
+  }
+  .product-table td.col-rec {
+    text-align: right;
+  }
+  .checkbox-box {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 1px solid #cccccc;
+    background-color: #ffffff;
+    border-radius: 1px;
+  }
+  .order-ref {
+    font-size: 9.5px;
+    color: #666666;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+
+  /* Post-Table Section (Declaration & Money) */
+  .post-table {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    gap: 20px;
+  }
+  .declaration-block {
+    width: 52%;
+  }
+  .declaration-block .label {
+    margin-bottom: 6px;
+  }
+  .declaration-text {
+    font-size: 11.5px;
+    color: #444444;
+    line-height: 1.45;
+  }
+
+  .money-block {
+    width: 44%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .rent-line {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 13px;
+    color: #333333;
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+  .rent-label { font-weight: 400; color: #444444; }
+  .rent-value { font-weight: 700; color: #000000; }
+
+  .balance-payable-banner {
+    width: 100%;
+    background-color: #111111;
+    color: #ffffff;
+    padding: 11px 16px;
+    border-radius: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .balance-payable-banner .banner-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .balance-payable-banner .banner-value {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  /* Signature Cards */
+  .signatures-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .sig-card {
+    width: 48.5%;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 12px 14px;
+    height: 95px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .sig-card .sig-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #777777;
+  }
+  .sig-card .sig-line-container {
+    width: 100%;
+  }
+  .sig-card .sig-line {
+    border-bottom: 1px solid #dddddd;
+    margin-bottom: 4px;
+  }
+  .sig-card .sig-sub {
+    font-size: 9.5px;
+    color: #888888;
+  }
+
+  /* Note of Thanks */
+  .thanks-section {
+    margin-bottom: 22px;
+  }
+  .thanks-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #b8860b;
+    margin-bottom: 4px;
+  }
+  .thanks-text {
+    font-size: 11.5px;
+    color: #444444;
+    line-height: 1.45;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 11px;
+    color: #666666;
+  }
+  .footer-left .company {
+    font-weight: 700;
+    color: #111111;
+    font-size: 11.5px;
+    margin-bottom: 2px;
+  }
+  .footer-right {
+    text-align: right;
+  }
 </style>
 </head>
 <body>
-  <header>
-    <div class="logo">
-      <span class="mark">&#9698;</span>
-      <div>
-        <div class="wordmark">TOPAZ</div>
-        <div class="sub">luxury homes</div>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo-mark"></div>
+        <div class="brand-text">
+          <div class="company-name">TOPAZ</div>
+          <div class="sub-tag">luxury homes</div>
+        </div>
       </div>
-    </div>
-    <div class="challan-no">CHALLAN :- {{ challan_no }}</div>
-  </header>
+      <div class="doc-title">
+        <div class="type">DELIVERY CHALLAN</div>
+        <div class="number">{{ challan_no }}</div>
+        <div class="date">{{ challan_date }}</div>
+      </div>
+    </header>
 
-  <section class="party">
-    <div class="line"><span class="label">DATE :-</span> {{ challan_date }}</div>
-    <div class="line"><span class="label">NAME:-</span> {{ customer.name }}</div>
-    <div class="line">
-      <span class="label">ADDRESS:-</span>
-      {% if customer.address %}{{ customer.address }}{% else %}<span class="fill"></span>{% endif %}
-    </div>
-    <div class="line" style="margin-top: 10px;">
-      <span class="label">MOBILE NO :-</span>
-      {% if customer.mobile %}{{ customer.mobile }}{% else %}<span class="fill" style="min-width: 160px;"></span>{% endif %}
-    </div>
-    <div class="line">
-      <span class="label">D.P &ndash;</span>
-      {% if dp_code %}{{ dp_code }}{% else %}<span class="fill" style="min-width: 120px;"></span>{% endif %}
-    </div>
-  </section>
+    <div class="divider"></div>
 
-  <section class="dispatch">
-    <div class="line">
-      TEMPO NUMBER : -
-      {% if delivery.tempo_number %}{{ delivery.tempo_number }}{% else %}<span class="fill" style="min-width: 160px;"></span>{% endif %}
-    </div>
-    <div class="line">
-      DRIVER NAME:
-      {% if delivery.driver_name %}{{ delivery.driver_name }}{% endif %}
-      {%- if delivery.driver_phone %} - {{ delivery.driver_phone }}{% endif %}
-      {%- if not delivery.driver_name and not delivery.driver_phone %}<span class="fill" style="min-width: 200px;"></span>{% endif %}
-    </div>
-    <div class="barrier">{{ barrier_note }}</div>
-  </section>
+    <section class="details-grid">
+      <div class="grid-row">
+        <div class="grid-col col-half">
+          <div class="label">CUSTOMER NAME</div>
+          <div class="value">{{ customer.name }}</div>
+        </div>
+        <div class="grid-col col-half">
+          <div class="label">MOBILE NO.</div>
+          <div class="value">{{ customer.mobile }}</div>
+        </div>
+      </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>PRODUCT</th>
-        <th class="received">RECEIVEd (&#10003; / X)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in items %}
-      <tr>
-        <td>
-          <strong>{{ item.product }}</strong>
-          {#- A consignment may cover more than one of this customer's orders (0040). Their
-              paper has no order column, so it rides as a sub-label — and only when the
-              challan actually spans several orders (build_challan_context blanks it
-              otherwise), keeping a single-order run identical to their sample. #}
-          {% if item.order_no %}<div class="order-ref">{{ item.order_no }}</div>{% endif %}
-        </td>
-        <td class="tick"></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      <div class="grid-row">
+        <div class="grid-col col-full">
+          <div class="label">DELIVERY ADDRESS</div>
+          <div class="value">{{ customer.address }}</div>
+        </div>
+      </div>
 
-  <section class="money">
-    <div class="line">
-      Delivery rent :-
-      {% if delivery.delivery_rent %}{{ delivery.delivery_rent }}{% endif %}
-    </div>
-    <div class="line">Balance Amount :- {{ balance_due }}</div>
-    <div class="declaration">{{ receipt_declaration }}</div>
-  </section>
+      <div class="grid-row">
+        <div class="grid-col col-quarter">
+          <div class="label">DESIGN PARTNER</div>
+          <div class="value">{{ dp_code }}</div>
+        </div>
+        <div class="grid-col col-quarter">
+          <div class="label">VEHICLE NO.</div>
+          <div class="value">{{ delivery.tempo_number }}</div>
+        </div>
+        <div class="grid-col col-quarter">
+          <div class="label">DRIVER NAME</div>
+          <div class="value">{{ delivery.driver_name }}</div>
+        </div>
+        <div class="grid-col col-quarter">
+          <div class="label">DRIVER CONTACT</div>
+          <div class="value">{{ delivery.driver_phone }}</div>
+        </div>
+      </div>
+    </section>
 
-  <div class="sig-customer">Customer Signature:</div>
-  <div class="sig-rule"></div>
+    <table class="product-table">
+      <thead>
+        <tr>
+          <th class="col-sr">SR</th>
+          <th class="col-desc">PRODUCT DESCRIPTION</th>
+          <th class="col-qty">QTY</th>
+          <th class="col-rec">RECEIVED</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="col-sr">{{ item.sr }}</td>
+          <td class="col-desc">
+            {{ item.product }}
+            {% if item.order_no %}<div class="order-ref">{{ item.order_no }}</div>{% endif %}
+          </td>
+          <td class="col-qty">{{ item.qty }}</td>
+          <td class="col-rec"><div class="checkbox-box"></div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
-  {% if delivery.notes %}
-  <p style="margin-top: 16px; font-size: 12px;"><strong>Note:</strong> {{ delivery.notes }}</p>
-  {% endif %}
+    <section class="post-table">
+      <div class="declaration-block">
+        <div class="label">DECLARATION</div>
+        <div class="declaration-text">{{ receipt_declaration }}</div>
+      </div>
 
-  <section class="letter">
-    <p>Dear Customer,</p>
-    <p>{{ thank_you_letter }}</p>
-    <div class="regards">
-      Regards,<br />
-      {{ seller.letter_signoff }}
-    </div>
-  </section>
+      <div class="money-block">
+        {% if delivery.delivery_rent %}
+        <div class="rent-line">
+          <span class="rent-label">Delivery Charges</span>
+          <span class="rent-value">{{ delivery.delivery_rent }}</span>
+        </div>
+        {% endif %}
 
-  <div class="sig-authorised">Authorised Signature:</div>
+        {% if balance_due %}
+        <div class="balance-payable-banner">
+          <span class="banner-label">BALANCE PAYABLE</span>
+          <span class="banner-value">{{ balance_due }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </section>
 
-  <footer>
-    {{ seller.name }}<br />
-    {% for line in seller.address_lines %}{{ line }}<br />{% endfor %}
-  </footer>
+    <section class="signatures-row">
+      <div class="sig-card">
+        <div class="sig-label">CUSTOMER SIGNATURE</div>
+        <div class="sig-line-container">
+          <div class="sig-line"></div>
+          <div class="sig-sub">Name &amp; Date</div>
+        </div>
+      </div>
+
+      <div class="sig-card">
+        <div class="sig-label">FOR TOPAZ FURNITURE &amp; DECORS</div>
+        <div class="sig-line-container">
+          <div class="sig-line"></div>
+          <div class="sig-sub">Name &amp; Date</div>
+        </div>
+      </div>
+    </section>
+
+    {% if delivery.notes %}
+    <p style="margin-bottom: 16px; font-size: 11.5px; color: #444;"><strong>Note:</strong> {{ delivery.notes }}</p>
+    {% endif %}
+
+    <section class="thanks-section">
+      <div class="thanks-title">A NOTE OF THANKS</div>
+      <div class="thanks-text">{{ thank_you_letter }}</div>
+    </section>
+
+    <footer>
+      <div class="footer-left">
+        <div class="company">{{ seller.name }}</div>
+        <div>{% for line in seller.address_lines %}{{ line }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</div>
+      </div>
+      <div class="footer-right">
+        <div>{{ seller.phone }} &middot; {{ seller.email }}</div>
+        <div>GSTIN {{ seller.gstin }}</div>
+      </div>
+    </footer>
+  </div>
 </body>
 </html>

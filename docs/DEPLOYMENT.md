@@ -55,13 +55,23 @@ picker filters on it, so a part-delivered order stays schedulable.
 
 ### Performance pass — one deploy-order rule: API before dashboard
 
-The dashboard now calls two new routes: **`POST /api/media/urls`** (batched image signing,
-`lib/media/actions.ts::getMediaUrls`) and **`GET /api/workshops/staff`** (every workshop's
-roster in one call, replacing one call per workshop on the admin tab). Deploy the **API
-first**. A dashboard live against an older API gets 404s from both and degrades visibly but
-harmlessly — placeholder tiles instead of line-item/production photos, and a "could not load"
-banner on the admin page's staff card. Nothing breaks permanently, no data is at risk, and it
-self-heals the moment the API is up.
+The dashboard now calls three new routes: **`POST /api/media/urls`** (batched image signing,
+`lib/media/actions.ts::getMediaUrls`), **`GET /api/workshops/staff`** (every workshop's
+roster in one call, replacing one call per workshop on the admin tab) and
+**`GET /api/job-cards/{source}/{id}/share`** (the Share button). Deploy the **API
+first**. A dashboard live against an older API gets 404s from these and degrades visibly but
+harmlessly — placeholder tiles instead of line-item/production photos, a "could not load"
+banner on the admin page's staff card, and "No job card yet" from Share. Nothing breaks
+permanently, no data is at risk, and it self-heals the moment the API is up.
+
+**Job card sharing** (`JOB_CARD_SHARE_TTL_SECONDS`, default 7 days) hands out an
+unauthenticated signed Storage link so the card can go to anyone — a designer, a
+carpenter, the customer's family — not only to the customer and the allocated workshops.
+The artifact is already designed for this (no prices, no totals — migration 0027), but it
+does carry the customer's name and photos of their furniture, so the link expires, the
+caller still needs write access to that customer, and **every share writes an
+`audit_log` row** (`action = 'job_card_shared'`). Shorten the TTL if the client wants a
+tighter window.
 
 The other changes in that pass need no coordination: HTTP routes now share one pooled DB
 connection instead of opening (and discarding) a TLS connection per request — see
@@ -69,6 +79,37 @@ connection instead of opening (and discarding) a TLS connection per request — 
 there is nothing to set. If `DATABASE_URL` is ever repointed at Supabase's **transaction**
 pooler (port 6543), set `DB_DISABLE_PREPARED_STATEMENT_CACHE=true` at the same time; the
 deployed URL is the session pooler (5432), where the default is both safe and faster.
+
+### Order cancellation mid-production — API before dashboard, no migration
+
+Cancelling was legal **only from `confirmed`**, and the `0024` denorm trigger flips an
+order to `in_production` on its first production event — so once a workshop touched the
+job, cancellation was locked out permanently and a customer who pulled out mid-build
+could not be recorded at all. `ALLOWED_TRANSITIONS` now permits `cancelled` from
+**`confirmed`, `in_production` and `ready`** (`services/order_status.py`).
+
+It deliberately stops at `delivered`. Undoing a delivered sale is a **return** — goods
+coming back, a credit note, a restocking decision — and nothing in this schema models
+that; flipping the status would assert the furniture is not with the customer when it is.
+If the client needs returns, that is a scope conversation (SOW §11), not a status value.
+
+Three behaviours to know before UAT:
+
+- **Cancelling stands production down in the same transaction**: open route legs →
+  `cancelled`, active workshop assignments → inactive, unfinished `order_item_stage_plan`
+  rows → `skipped` (with `planned_days`/`due_at` cleared, which is what actually silences
+  the reminder scan). Without this the workshop keeps getting WhatsApp stage reminders for
+  a cancelled piece.
+- **Two hard blockers, both returning 409 with the action that clears them**: items in
+  transit between workshops, and items loaded on a delivery run that has not completed.
+  There is no honest way to cancel an order whose custody is in the air.
+- **Money is reported, never erased.** Payments are immutable by trigger (0016), so
+  cancelling cannot delete a receipt. The new `GET /api/orders/{id}/cancellation-preview`
+  returns the amount already collected so the confirm dialog can say a refund is owed
+  *before* the operator commits; record the refund as a `kind='refund'` payment as usual.
+
+New route, so **API before dashboard** — an older API 404s the preview and the dialog
+shows the error instead of the figures. No migration and no schema change.
 
 ### Read-path indexes (`0043`) — push any time, no deploy coupling
 
@@ -178,7 +219,13 @@ DASHBOARD_API_KEY           = (first key from A1)
 EDGE_API_KEY                = (second key from A1)
 DASHBOARD_URL               = http://localhost:3000 for now — real value after Track D
 ```
-Keep the already-correct ones: `REDIS_URL=${{Redis.REDIS_URL}}`, MATCH_THRESHOLD 0.45, NEW_THRESHOLD 0.30, HNSW_EF_SEARCH 40, ENROLLMENT_PENDING_WINDOW_SECONDS 120, WELCOME_FOLLOWUP_DELAY_MINUTES 120, FOLLOWUP_BATCH_SIZE 25, FOLLOWUP_STALE_DAYS 3.
+Keep the already-correct ones: `REDIS_URL=${{Redis.REDIS_URL}}`, MATCH_THRESHOLD 0.45, NEW_THRESHOLD 0.30, HNSW_EF_SEARCH 40, ENROLLMENT_PENDING_WINDOW_SECONDS 120, FOLLOWUP_BATCH_SIZE 25, FOLLOWUP_STALE_DAYS 3.
+
+**`WELCOME_FOLLOWUP_DELAY_MINUTES` must be changed to `10`** (was 120). This variable is
+set explicitly in the Railway service, so it OVERRIDES the code default — editing
+`config.py` alone does not change production behaviour. The welcome now goes out while
+the customer is still in the showroom; the beat's `*/5` cadence makes the real delay
+10–15 min.
 
 ### A7. Redeploy + verify (5 min)
 1. Redeploy all three services

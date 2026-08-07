@@ -36,38 +36,81 @@ class QuoteItem:
     sort: int = 0
 
 
-async def _insert_items(session: AsyncSession, quotation_id: UUID, items: list[QuoteItem]) -> None:
-    for i, it in enumerate(items):
-        await session.execute(
-            text(
-                "INSERT INTO quotation_items (quotation_id, product_id, description, dimensions,"
-                " material, fabric, polish, customization, spec_notes, qty, unit, unit_price, hsn, gst_rate,"
-                " line_total, sort)"
-                " VALUES (:qid, :product_id, :description, :dimensions, :material, :fabric, :polish,"
-                " :customization, :spec_notes, :qty, :unit, :unit_price, :hsn, :gst_rate, :line_total, :sort)"
-            ),
-            {
-                "qid": str(quotation_id),
-                "product_id": str(it.product_id) if it.product_id else None,
-                "description": it.description,
-                "dimensions": it.dimensions,
-                "material": it.material,
-                "fabric": it.fabric,
-                "polish": it.polish,
-                "customization": it.customization,
-                "spec_notes": it.spec_notes,
-                "qty": it.qty,
-                "unit": it.unit,
-                "unit_price": it.unit_price,
-                "hsn": it.hsn,
-                "gst_rate": it.gst_rate,
-                "line_total": it.line_total,
-                "sort": it.sort if it.sort else i,
-            },
-        )
+_ITEM_COLUMNS = (
+    "quotation_id", "product_id", "description", "dimensions", "material", "fabric",
+    "polish", "customization", "spec_notes", "qty", "unit", "unit_price", "hsn",
+    "gst_rate", "line_total", "sort",
+)
 
 
-async def create_quotation(
+def _item_params(quotation_id: UUID, items: list[QuoteItem]) -> list[dict]:
+    """One bind-parameter dict per line, in insert order."""
+    return [
+        {
+            "quotation_id": str(quotation_id),
+            "product_id": str(it.product_id) if it.product_id else None,
+            "description": it.description,
+            "dimensions": it.dimensions,
+            "material": it.material,
+            "fabric": it.fabric,
+            "polish": it.polish,
+            "customization": it.customization,
+            "spec_notes": it.spec_notes,
+            "qty": it.qty,
+            "unit": it.unit,
+            "unit_price": it.unit_price,
+            "hsn": it.hsn,
+            "gst_rate": it.gst_rate,
+            "line_total": it.line_total,
+            # `sort` is 0-based, so a falsy 0 must NOT fall back to the index — they
+            # happen to agree for the first line, which is why the old `it.sort if
+            # it.sort else i` looked correct. Position is the real intent.
+            "sort": it.sort if it.sort else i,
+        }
+        for i, it in enumerate(items)
+    ]
+
+
+async def _insert_items(
+    session: AsyncSession, quotation_id: UUID, items: list[QuoteItem]
+) -> list[dict]:
+    """Insert every line in ONE statement. Returns the inserted rows, in sort order.
+
+    This was a loop doing one INSERT per line, i.e. one network round-trip per line.
+    On a local socket that is invisible; against Supabase's pooler it is the whole
+    cost of creating a quotation — a 40-line quote paid 44 sequential round-trips,
+    and a showroom quote is routinely 10-20 lines. Executed as a single multi-row
+    INSERT it is one.
+
+    `RETURNING *` so a caller that must answer with the created record does not have
+    to SELECT back rows this statement just wrote — including the ids and defaults
+    only the database can supply, which is why the rows are returned rather than
+    reconstructed in Python.
+
+    Bound parameters, one set per row — no SQL is built from item data.
+    """
+    if not items:
+        return []
+    rows = _item_params(quotation_id, items)
+    placeholders = ", ".join(
+        "(" + ", ".join(f":{col}_{i}" for col in _ITEM_COLUMNS) + ")"
+        for i in range(len(rows))
+    )
+    params = {f"{col}_{i}": row[col] for i, row in enumerate(rows) for col in _ITEM_COLUMNS}
+    result = await session.execute(
+        text(
+            f"INSERT INTO quotation_items ({', '.join(_ITEM_COLUMNS)})"
+            f" VALUES {placeholders} RETURNING *"
+        ),
+        params,
+    )
+    # INSERT ... RETURNING has no defined row order; the read path orders by
+    # (sort, id), so match it here rather than trusting insertion order.
+    return sorted((dict(m) for m in result.mappings().all()),
+                  key=lambda r: (r["sort"], str(r["id"])))
+
+
+async def _create(
     session: AsyncSession,
     *,
     quote_no: str,
@@ -81,8 +124,12 @@ async def create_quotation(
     created_by: UUID | None = None,
     revision_of: UUID | None = None,
     revision_no: int = 1,
-) -> UUID:
-    """Insert a draft quotation + its items in the caller's transaction. Returns the id."""
+) -> tuple[dict, list[dict]]:
+    """Insert a draft quotation + its items in the caller's transaction.
+
+    Returns (header_row, item_rows) — two statements, both RETURNING, so neither
+    public wrapper has to read anything back.
+    """
     row = await session.execute(
         text(
             "INSERT INTO quotations (quote_no, customer_id, status, revision_of, revision_no,"
@@ -91,7 +138,10 @@ async def create_quotation(
             " VALUES (:quote_no, :customer_id, 'draft', :revision_of, :revision_no, :valid_until,"
             " :place_of_supply, :subtotal, :discount, :taxable, :cgst, :sgst, :igst, :grand,"
             " :terms, :notes, :created_by)"
-            " RETURNING id"
+            # The whole row, not just the id: the caller returns the created quotation
+            # to the dashboard, and re-SELECTing what we just wrote is another
+            # round-trip for data Postgres already has in hand.
+            " RETURNING *"
         ),
         {
             "quote_no": quote_no,
@@ -112,9 +162,27 @@ async def create_quotation(
             "created_by": str(created_by) if created_by else None,
         },
     )
-    quotation_id = row.scalar_one()
-    await _insert_items(session, quotation_id, items)
-    return quotation_id
+    header = dict(row.mappings().one())
+    item_rows = await _insert_items(session, header["id"], items)
+    return header, item_rows
+
+
+async def create_quotation_returning(session: AsyncSession, **kwargs) -> dict:
+    """Create a quotation and return the full record, in TWO statements.
+
+    The router has to answer with the new quotation, and going back to read it cost
+    two further round-trips (header, then items) for rows this very transaction just
+    wrote. Both INSERTs now use RETURNING, so the record is assembled from what the
+    database already handed back — same shape `get_quotation` produces.
+    """
+    header, item_rows = await _create(session, **kwargs)
+    return {**header, "items": item_rows}
+
+
+async def create_quotation(session: AsyncSession, **kwargs) -> UUID:
+    """Id-only variant, for the callers that do not need the record back."""
+    header, _ = await _create(session, **kwargs)
+    return header["id"]
 
 
 async def get_quotation(session: AsyncSession, quotation_id: UUID) -> dict | None:

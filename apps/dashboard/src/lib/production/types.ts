@@ -91,7 +91,10 @@ export interface StagePlanRow {
   skipped: boolean;
   remind: boolean;
   due_at: string | null;
+  /** When the reminder LAST fired. Repeats daily until the stage is done (0045). */
   reminded_at: string | null;
+  /** How many daily reminders this stage has had. Capped server-side (0045). */
+  reminder_count: number;
   snoozed_until: string | null;
   label_en: string;
   label_gu: string | null;

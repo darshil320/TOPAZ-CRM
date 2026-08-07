@@ -34,25 +34,43 @@ class OrderItem:
     sort: int = 0
 
 
+_ITEM_COLUMNS = (
+    "order_id", "product_id", "description", "dimensions", "material", "fabric",
+    "polish", "customization", "qty", "unit", "unit_price", "hsn", "gst_rate",
+    "line_total", "sort",
+)
+
+
 async def _insert_items(session: AsyncSession, order_id: UUID, items: list[OrderItem]) -> None:
-    for i, it in enumerate(items):
-        await session.execute(
-            text(
-                "INSERT INTO order_items (order_id, product_id, description, dimensions, material,"
-                " fabric, polish, customization, qty, unit, unit_price, hsn, gst_rate, line_total, sort)"
-                " VALUES (:oid, :product_id, :description, :dimensions, :material, :fabric, :polish,"
-                " :customization, :qty, :unit, :unit_price, :hsn, :gst_rate, :line_total, :sort)"
-            ),
-            {
-                "oid": str(order_id),
-                "product_id": str(it.product_id) if it.product_id else None,
-                "description": it.description, "dimensions": it.dimensions,
-                "material": it.material, "fabric": it.fabric, "polish": it.polish,
-                "customization": it.customization, "qty": it.qty, "unit": it.unit,
-                "unit_price": it.unit_price, "hsn": it.hsn, "gst_rate": it.gst_rate,
-                "line_total": it.line_total, "sort": it.sort if it.sort else i,
-            },
-        )
+    """Insert every line in ONE statement — see quotation_repo._insert_items for why.
+
+    This one also carries confirming an order from a quote, which copies the whole
+    line set, so it paid a round-trip per line at the exact moment the salesperson is
+    stood in front of the customer waiting for the order number.
+    """
+    if not items:
+        return
+    rows = [
+        {
+            "order_id": str(order_id),
+            "product_id": str(it.product_id) if it.product_id else None,
+            "description": it.description, "dimensions": it.dimensions,
+            "material": it.material, "fabric": it.fabric, "polish": it.polish,
+            "customization": it.customization, "qty": it.qty, "unit": it.unit,
+            "unit_price": it.unit_price, "hsn": it.hsn, "gst_rate": it.gst_rate,
+            "line_total": it.line_total, "sort": it.sort if it.sort else i,
+        }
+        for i, it in enumerate(items)
+    ]
+    placeholders = ", ".join(
+        "(" + ", ".join(f":{col}_{i}" for col in _ITEM_COLUMNS) + ")"
+        for i in range(len(rows))
+    )
+    params = {f"{col}_{i}": row[col] for i, row in enumerate(rows) for col in _ITEM_COLUMNS}
+    await session.execute(
+        text(f"INSERT INTO order_items ({', '.join(_ITEM_COLUMNS)}) VALUES {placeholders}"),
+        params,
+    )
 
 
 async def _insert_order(
@@ -211,6 +229,114 @@ async def set_status(
              "payload": f'{{"reason": {_json_str(reason)}}}'},
         )
     return True
+
+
+async def cancellation_state(session: AsyncSession, order_id: UUID) -> dict:
+    """What stands in the way of cancelling this order, and what it will cost.
+
+    ONE query, because every field here is needed to answer "may I cancel?" and a
+    per-check round-trip would put four of them in front of a button tap.
+
+    Two of these are BLOCKERS and two are DISCLOSURES, and the difference matters:
+
+      * `in_transit_items` — goods are physically on a lorry between workshops. There
+        is no honest way to cancel an order whose custody is mid-handover; the
+        transfer has to be received or cancelled first, which is a real action
+        somebody must take.
+      * `open_delivery_items` — the goods are loaded on a run that has not completed.
+        Unschedule it first, for the same reason.
+      * `paid` — money already taken. NOT a blocker: a showroom cancels and refunds
+        afterwards, and payments are immutable by trigger (0016), so cancelling can
+        never quietly erase a receipt. It is returned so the caller can say a refund
+        is owed instead of the operator discovering it later.
+      * `delivered_items` — pieces already handed over. Also not a blocker (the rest
+        of the order may still be cancelled) but it changes what cancelling means, so
+        the number is surfaced.
+    """
+    result = await session.execute(
+        text(
+            "SELECT o.status,"
+            "       o.grand_total,"
+            "       (SELECT count(*) FROM order_items i"
+            "         WHERE i.order_id = o.id AND i.transit_transfer_id IS NOT NULL)"
+            "         AS in_transit_items,"
+            "       (SELECT count(*) FROM delivery_items di"
+            "         JOIN deliveries d ON d.id = di.delivery_id"
+            "         WHERE di.order_id = o.id"
+            "           AND d.status NOT IN ('delivered', 'failed')) AS open_delivery_items,"
+            "       (SELECT count(*) FROM order_items i"
+            "         WHERE i.order_id = o.id AND i.delivered_at IS NOT NULL)"
+            "         AS delivered_items,"
+            "       (SELECT count(*) FROM order_items i WHERE i.order_id = o.id) AS total_items,"
+            "       coalesce((SELECT sum(CASE WHEN p.kind = 'refund' THEN -p.amount ELSE p.amount END)"
+            "                  FROM payments p WHERE p.order_id = o.id), 0) AS paid"
+            " FROM orders o WHERE o.id = :id"
+        ),
+        {"id": str(order_id)},
+    )
+    row = result.mappings().first()
+    return {} if row is None else dict(row)
+
+
+async def cancel_open_production(session: AsyncSession, order_id: UUID) -> dict:
+    """Stand down the production machinery for a cancelled order.
+
+    Called INSIDE the cancelling transaction, so an order can never be left cancelled
+    while its workshops are still being chased for it.
+
+    Three things stop, and each would otherwise keep running against an order nobody
+    is building any more:
+
+      * open route legs → 'cancelled'. Same treatment `route_repo.cancel_open_legs`
+        gives a re-planned route: legs are cancelled, never deleted, because an
+        `active` leg is a record of goods having physically been somewhere.
+      * active workshop assignments → inactive, so the item stops counting towards a
+        workshop's `open_item_count` and leaves its queue.
+      * unfinished stage-plan rows → `skipped`, which is what takes them out of
+        `due_reminders` (0035). Without this the workshop keeps getting WhatsApp
+        reminders for a cancelled piece — the most visible way this bug would show.
+
+    Rows already `done`/`received` are untouched: they are history, not work.
+    """
+    legs = await session.execute(
+        text(
+            "UPDATE order_item_route_legs SET status = 'cancelled'"
+            " WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = :order)"
+            "   AND status IN ('pending', 'in_transit', 'active')"
+        ),
+        {"order": str(order_id)},
+    )
+    assignments = await session.execute(
+        text(
+            "UPDATE order_item_assignments SET active = false"
+            " WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = :order)"
+            "   AND active = true"
+        ),
+        {"order": str(order_id)},
+    )
+    plans = await session.execute(
+        text(
+            # `planned_days` and `due_at` MUST be cleared alongside the flag:
+            # stage_plan_skip_consistency (0035) rejects a skipped row that still
+            # carries either, on the grounds that a skipped stage with a deadline is a
+            # contradiction. Clearing due_at is also what actually silences the
+            # reminder scan, which keys on it.
+            "UPDATE order_item_stage_plan"
+            "   SET skipped = true, planned_days = NULL, due_at = NULL"
+            " WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = :order)"
+            "   AND skipped = false"
+            "   AND NOT EXISTS (SELECT 1 FROM production_events e"
+            "                    WHERE e.order_item_id = order_item_stage_plan.order_item_id"
+            "                      AND e.stage_code = order_item_stage_plan.stage_code"
+            "                      AND e.kind = 'done')"
+        ),
+        {"order": str(order_id)},
+    )
+    return {
+        "legs_cancelled": int(legs.rowcount or 0),
+        "assignments_closed": int(assignments.rowcount or 0),
+        "stage_plans_skipped": int(plans.rowcount or 0),
+    }
 
 
 async def patch_order(

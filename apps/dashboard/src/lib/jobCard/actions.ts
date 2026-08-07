@@ -111,6 +111,63 @@ export async function sendJobCard(
   }
 }
 
+export interface JobCardPage {
+  url: string;
+  filename: string;
+}
+
+export interface JobCardShareResult {
+  error: string | null;
+  pages?: JobCardPage[];
+  totalPages?: number;
+  format?: "image" | "pdf";
+  expiresIn?: number;
+}
+
+/**
+ * Signed links to EVERY page of the latest job card, for sharing with anyone.
+ *
+ * Distinct from `getJobCardUrl`, which returns one page and lasts an hour: a share
+ * goes to somebody outside the business (a designer, a carpenter, the customer's
+ * family) who is not logged in and will not open it immediately. The API signs all
+ * pages for 7 days and records the share in the audit log.
+ *
+ * Not a WhatsApp send: the Cloud API only permits free-form media to someone inside
+ * an open 24-hour service window, which an arbitrary third party is not — see the
+ * Share button in components/JobCardActions.tsx.
+ */
+export async function getJobCardShare(
+  source: JobCardSource,
+  entityId: string,
+): Promise<JobCardShareResult> {
+  if (!DASHBOARD_API_KEY) return { error: NOT_CONFIGURED };
+
+  try {
+    const resp = await fetch(`${JOB_CARD_API}/${source}/${entityId}/share`, {
+      method: "GET",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(),
+    });
+    if (resp.status === 404) return { error: "No job card yet — generate one first." };
+    if (!resp.ok) return { error: await readError(resp) };
+    const body = (await resp.json()) as {
+      pages: JobCardPage[];
+      total_pages: number;
+      format: "image" | "pdf";
+      expires_in: number;
+    };
+    return {
+      error: null,
+      pages: body.pages,
+      totalPages: body.total_pages,
+      format: body.format,
+      expiresIn: body.expires_in,
+    };
+  } catch (err) {
+    return { error: networkMessage(err) };
+  }
+}
+
 /** Short-lived signed link to the latest rendered job card. 404 until one exists. */
 export async function getJobCardUrl(
   source: JobCardSource,

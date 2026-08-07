@@ -315,6 +315,12 @@ export default function WorkshopAdmin({
           </div>
         ) : (
           <div className="overflow-x-auto">
+            {/* NO `min-w` floor here, deliberately. `Pill` is `whitespace-nowrap`, so the
+                Type column already claims its chip's intrinsic width and the table
+                overflows into this scroller only by as much as it actually needs — 106px
+                on a 390px phone, and nothing at all from tablet up. A fixed 900px floor
+                (as the orders table uses) also stops the pill wrapping, but it pushes the
+                Type column 510px off-screen, which fixes the chip by hiding it. */}
             <table className="w-full border-collapse text-left text-ui">
               <thead>
                 <tr className="border-b border-ln bg-sf2 text-caption font-semibold uppercase tracking-wider text-t3">

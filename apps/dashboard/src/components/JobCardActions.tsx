@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Button from "@/components/ui/Button";
+import ShareJobCardButton from "@/components/ShareJobCardButton";
 import {
   createJobCard,
   getJobCardUrl,
@@ -10,15 +11,23 @@ import {
 } from "@/lib/jobCard/actions";
 
 /**
- * Generate / open / send the job card — the money-free spec sheet.
+ * Generate / open / send / share the job card — the money-free spec sheet.
+ *
+ * The two "Send" buttons go to the two audiences the business has a WhatsApp
+ * relationship with (the customer, inside their 24h window; the allocated
+ * workshops). "Share" covers everyone else — see ShareJobCardButton for why that
+ * cannot be another WhatsApp send.
  */
 export default function JobCardActions({
   source,
   entityId,
+  docLabel,
   canSendToWorkshop = false,
 }: {
   source: JobCardSource;
   entityId: string;
+  /** Document number, used in the share text. */
+  docLabel?: string;
   canSendToWorkshop?: boolean;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -85,6 +94,10 @@ export default function JobCardActions({
         >
           {busy === "open" ? "Opening…" : "Open"}
         </Button>
+
+        {/* Anyone at all — the customer's designer, a carpenter, a family member.
+            Sits next to Open because it is a read/share action, not a send. */}
+        <ShareJobCardButton source={source} entityId={entityId} docLabel={docLabel} />
 
         <Button
           variant="secondary"

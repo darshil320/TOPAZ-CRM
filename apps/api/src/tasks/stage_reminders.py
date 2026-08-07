@@ -13,13 +13,25 @@ caveats that would sink it on exactly the handsets this app is built for. WhatsA
 the same phone today, and `topaz_production_alert` is ALREADY APPROVED — this whole
 requirement therefore ships with no new Meta submission.
 
-─── SINGLE FIRE ─────────────────────────────────────────────────────────────────
-`stage_plan_repo.claim_reminder` does `UPDATE … WHERE reminded_at IS NULL RETURNING id`
-and the send happens only if a row came back. That claim is what makes an hourly beat
-safe: a Celery retry after a partial failure claims nothing and sends nothing. The
-failure mode it trades away is a LOST reminder (claimed, then the send failed), which is
-strictly better than an hourly nag to a shop floor — a reminder people mute is worse than
-no reminder, because they mute the real ones with it.
+─── ONCE PER DAY, UNTIL THE STAGE IS PAST (0045) ────────────────────────────────
+The reminder REPEATS: a stage that is overdue and still unfinished is nagged about once
+per IST calendar day, and stops the moment the workshop marks that stage done. 0035
+originally fired once and never again; the client asked for the repeat, so `reminded_at`
+became "when we last nagged" instead of a permanent tombstone.
+
+`stage_plan_repo.claim_reminder` does `UPDATE … WHERE reminded_at < today RETURNING
+reminder_count` and the send happens only if a row came back. That conditional claim is
+what keeps an HOURLY beat safe under a DAILY rule: the other twenty-three ticks claim
+nothing and send nothing, as does a Celery retry after a partial failure. The failure
+mode it trades away is one lost day's reminder (claimed, then the send failed) — under
+the old rule that lost the reminder outright, now tomorrow's tick asks again.
+
+TWO THINGS STOP THE REPEAT, and both matter:
+  * the stage being marked done / the item finishing — the intended, common ending. It
+    is a predicate in due_reminders, not a flag anyone has to remember to set.
+  * `_MAX_REMINDERS` — the backstop. A nag with no ceiling is how a shop floor learns to
+    mute WhatsApp, taking the real alerts with it. After the cap the dashboard `alerts`
+    row is the remaining record, and a human is clearly needed anyway.
 
 The `alerts` row is written BEFORE the send and is the durable record: the dashboard
 shows the deadline even when WhatsApp is down. The message is the nudge, the alert is the
@@ -43,6 +55,11 @@ _BATCH = 100
 
 _ALERT_TYPE = "stage_due"
 
+# Repeat ceiling, re-exported from the repository so there is ONE definition. Migration
+# 0045's partial index hard-codes the same number in its predicate — if this changes, that
+# index must be rebuilt in a new migration or exhausted rows stay in the scan.
+_MAX_REMINDERS = stage_plan_repo.MAX_REMINDERS
+
 
 async def _send_template(to: str | None, params: list[dict], *, what: str) -> bool:
     """Fire one approved-template send. A failure never aborts the scan."""
@@ -61,24 +78,46 @@ async def _send_template(to: str | None, params: list[dict], *, what: str) -> bo
         return False
 
 
-def _issue_line(row: dict) -> str:
-    """What the recipient reads on the `Issue:` line of `topaz_production_alert`."""
+def _issue_line(row: dict, *, nth: int) -> str:
+    """What the recipient reads on the `Issue:` line of `topaz_production_alert`.
+
+    `nth` (the post-increment reminder count) is spelled out from the SECOND reminder on.
+    A daily repeat that reads identically every morning is indistinguishable from the app
+    malfunctioning, and it hides the one fact that should escalate the response: how long
+    this has been ignored. The first reminder stays unadorned — "reminder 1 of 14" on a
+    stage that is one hour late is noise.
+    """
     label = row.get("stage_label_en") or row["stage_code"]
     overdue = transit_messages.overdue_by(row["due_at"])
     prefix = "Blocked — " if row.get("blocked") else ""
-    return f"{prefix}Stage '{label}' {overdue}"
+    repeat = f" (reminder {nth} of {_MAX_REMINDERS})" if nth > 1 else ""
+    return f"{prefix}Stage '{label}' {overdue}{repeat}"
 
 
 async def _remind_one(session, row: dict, *, owner_phone: str | None) -> bool:
-    """Claim, record, then send. Returns True if this row was ours to fire."""
-    if not await stage_plan_repo.claim_reminder(session, row["id"]):
-        return False           # another tick (or another worker) already has it
+    """Claim, record, then send. Returns True if this row was ours to fire today."""
+    nth = await stage_plan_repo.claim_reminder(session, row["id"])
+    if nth is None:
+        # Already nagged about today by another tick/worker, or the repeat cap is spent.
+        # Explicit `is None` rather than falsiness: the count is 1-based post-increment,
+        # so it is never 0, but a truthiness check here would be a trap for the next
+        # person who changes the counter's base.
+        return False
 
     detail = (
         f"{row['order_no']} · {row['description']} — "
         f"stage '{row.get('stage_label_en') or row['stage_code']}' due "
         f"{transit_messages.format_ist(row['due_at'])}"
     )
+    if nth > 1:
+        detail = f"{detail} (day {nth} unresolved)"
+
+    # ONE alert row per reminder, deliberately, now that reminders repeat daily. The
+    # alternative — updating a single row in place — would erase the history of how many
+    # days an item sat overdue, which is precisely the signal the owner is asking the
+    # dashboard for. The volume is bounded by _MAX_REMINDERS per stage, and each row's
+    # `detail` names the day, so a stale deadline reads as a run of alerts rather than as
+    # one alert that quietly aged.
     await alert_repo.create_alert(
         session, customer_id=row["customer_id"], type_=_ALERT_TYPE, detail=detail
     )
@@ -90,7 +129,7 @@ async def _remind_one(session, row: dict, *, owner_phone: str | None) -> bool:
         order_no=str(row["order_no"]),
         item_description=str(row["description"]),
         workshop_name=str(row.get("workshop_name") or "Unassigned"),
-        issue=_issue_line(row),
+        issue=_issue_line(row, nth=nth),
         detail=f"Planned finish {transit_messages.format_ist(row['due_at'])}",
     )
 

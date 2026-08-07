@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from ..config import get_settings
 from ..database import get_api_session
-from ..repositories import document_repo, job_card_repo, order_repo, quotation_repo
+from ..repositories import audit_repo, document_repo, job_card_repo, order_repo, quotation_repo
 from ..services import storage
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
@@ -114,6 +114,84 @@ PDF_KIND = "job_card_pdf"
 
 def _doc_kind(fmt: str) -> str:
     return IMAGE_KIND if fmt == "image" else PDF_KIND
+
+
+@router.get("/{source}/{entity_id}/share")
+async def job_card_share(source: str, entity_id: UUID,
+                         caller_uid: str = Depends(get_caller_uid)) -> dict:
+    """EVERY page of the latest job card, signed for sharing with ANYONE.
+
+    Why this is separate from `/url`:
+
+      * `/url` returns ONE key (`latest_storage_key`) because it exists to open the
+        card in a tab. A job card rendered as images is one file PER PAGE, so a
+        3-page card shared through `/url` shares only page 1 — silently.
+      * A share link outlives the sharer's session. `/url` is a 1h convenience link;
+        this one uses JOB_CARD_SHARE_TTL_SECONDS (7 days) because the recipient is
+        outside the business and will not open it immediately.
+
+    THE RECIPIENT IS NOT AUTHENTICATED, by design — that is what "share with anyone"
+    means. The link is an unguessable signed Storage URL that expires. What limits
+    the exposure is the artifact itself: a job card carries no prices, no totals and
+    no contact details (migration 0027 + services/job_card_html). It DOES carry the
+    customer's name and photos of their furniture, so:
+
+      * the caller still needs write access to the customer (same gate as sending);
+      * the share is recorded in `audit_log`, so "who sent this outside?" has an
+        answer;
+      * the link expires.
+
+    Pages are batch-signed in one round-trip (services/storage.signed_urls_async).
+    """
+    _check_source(source)
+    settings = get_settings()
+    kind = _doc_kind(settings.JOB_CARD_FORMAT)
+    async with get_api_session() as session:
+        caller, customer_id = await _authorize(session, caller_uid, source, entity_id)
+        keys = await document_repo.latest_storage_keys(session, source, entity_id, kind)
+        if not keys:
+            # JOB_CARD_FORMAT can be changed after a card was rendered, so fall back
+            # to whatever IS on file. `kind` is reassigned, not just read: the format
+            # reported below decides whether the dashboard hands the files to the OS
+            # share sheet as images, so saying "image" about a PDF is a real bug.
+            kind = PDF_KIND if kind == IMAGE_KIND else IMAGE_KIND
+            keys = await document_repo.latest_storage_keys(session, source, entity_id, kind)
+        if not keys:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Job card not generated yet")
+        await audit_repo.record(
+            session, entity=source, entity_id=entity_id, action="job_card_shared",
+            actor=caller.salesperson_id,
+            payload={"pages": len(keys), "customer_id": customer_id,
+                     "ttl_seconds": settings.JOB_CARD_SHARE_TTL_SECONDS},
+        )
+        await session.commit()
+
+    try:
+        signed = await storage.signed_urls_async(
+            settings.DOCUMENTS_BUCKET, keys, settings.JOB_CARD_SHARE_TTL_SECONDS
+        )
+    except storage.StorageError as exc:
+        logger.error("Job card share sign failed for %s %s: %s", source, entity_id, exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Could not generate the share link") from exc
+
+    # Key order is page order (document_repo.latest_storage_keys). A page that failed
+    # to sign is dropped rather than failing the share — but say so, because a
+    # SILENTLY short job card is a worse outcome here than an error.
+    pages = [{"url": signed[k], "filename": k.rsplit("/", 1)[-1]} for k in keys if k in signed]
+    if len(pages) != len(keys):
+        logger.warning("Job card share for %s %s signed %d of %d page(s)",
+                       source, entity_id, len(pages), len(keys))
+    if not pages:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Could not generate the share link")
+    return {
+        "pages": pages,
+        "total_pages": len(keys),
+        "format": "pdf" if kind == PDF_KIND else "image",
+        "expires_in": settings.JOB_CARD_SHARE_TTL_SECONDS,
+    }
 
 
 @router.get("/{source}/{entity_id}/url")

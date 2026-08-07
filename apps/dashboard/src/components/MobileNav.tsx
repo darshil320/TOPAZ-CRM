@@ -120,24 +120,42 @@ export default function MobileNav({ role, user }: { role: Role; user?: AccountMe
             role="dialog"
             aria-modal="true"
             aria-label="More navigation"
-            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-200 ease-out pb-[env(safe-area-inset-bottom)] flex flex-col max-h-[90dvh] ${
+            // `max-h-[90vh]` first as the floor for browsers without `dvh`
+            // (iOS Safari < 15.4): there, `90dvh` is an invalid declaration and gets
+            // dropped, leaving the sheet unbounded. `vh` is the large-viewport height
+            // so it can slightly overshoot while the URL bar is showing — hence the
+            // `dvh` override wherever it is understood, which is the accurate one.
+            className={`sm:hidden fixed bottom-0 inset-x-0 z-50 bg-sf rounded-t-2xl shadow-shp border-t border-ln transition-transform duration-200 ease-out pb-[env(safe-area-inset-bottom)] flex flex-col max-h-[90vh] supports-[max-height:90dvh]:max-h-[90dvh] ${
               sheetOpen ? "translate-y-0" : "translate-y-full"
             }`}
           >
-            {/* Handle and Close */}
-            <div className="relative flex justify-center pt-4 pb-2 mb-1 shrink-0">
-              <div className="w-12 h-1.5 rounded-full bg-ln mt-2" />
+            {/* Handle and Close.
+                A three-column grid, NOT an absolutely positioned button. The button
+                used to be `absolute right-4 top-3`, which took it out of flow: the row
+                was only 38px tall (pt-4 + a 6px handle + pb-2) while the button spans
+                12→44px, so its bottom 6px hung over the scroll container below and the
+                content scrolling past visually swallowed it. Measured as escaping its
+                header on every phone size and text scale tried (320→430 wide, 16/20/24px
+                root font). In a grid the row's height is driven by its tallest cell —
+                the button — so the target cannot leave the header at any size. */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 pt-3 pb-2 shrink-0">
+              <span aria-hidden="true" />
+              <div className="w-12 h-1.5 rounded-full bg-ln" />
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
-                className="absolute right-4 top-3 w-8 h-8 flex items-center justify-center rounded-full bg-sf2 border border-ln text-t2 hover:bg-sf3 hover:text-t1 transition-all shadow-sm"
+                className="justify-self-end w-8 h-8 flex items-center justify-center rounded-full bg-sf2 border border-ln text-t2 hover:bg-sf3 hover:text-t1 transition-all shadow-sm"
                 aria-label="Close menu"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
-            <div className="overflow-y-auto overscroll-contain flex-1">
+
+            {/* `min-h-0` is flex hygiene, not the bug fix: a flex item defaults to
+                `min-height: auto` and so refuses to shrink below its content. It is
+                belt-and-braces for the sheet's max-height here (measured working
+                without it too) and costs nothing. */}
+            <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
               {user && (
               <div className="mx-4 mt-2 mb-3 p-3 rounded-card bg-sf2 border border-ln">
                 <div className="flex items-center gap-2.5 pb-2.5 border-b border-ln2 mb-2">

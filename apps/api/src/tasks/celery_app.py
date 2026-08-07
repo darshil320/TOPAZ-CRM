@@ -47,9 +47,19 @@ def create_celery_app() -> Celery:
         timezone="Asia/Kolkata",
         enable_utc=True,
         beat_schedule={
+            # EVERY 5 MIN, not every 30. The welcome is scheduled 10 minutes after a
+            # kiosk enrollment (WELCOME_FOLLOWUP_DELAY_MINUTES) and a beat can only send
+            # a followup on a tick — at */30 a "10 minute" welcome actually landed
+            # anywhere from 10 to 40 minutes later, which is the wrong side of a customer
+            # walking out. */5 bounds that overshoot to 5 minutes.
+            #
+            # Cost of the tighter cadence is one indexed claim query per tick against an
+            # empty result set for most ticks (claim_due_followups is LIMIT-bounded and
+            # returns immediately when nothing is due), not 6x the sends — the batch is
+            # claimed exactly once either way.
             "send-due-followups": {
                 "task": "src.tasks.followup.send_due_followups",
-                "schedule": crontab(minute="*/30"),
+                "schedule": crontab(minute="*/5"),
             },
             "close-stale-followups": {
                 "task": "src.tasks.pipeline.close_stale_followups",
@@ -67,11 +77,15 @@ def create_celery_app() -> Celery:
                 "task": "src.tasks.transit_watchdog.scan_production_delays",
                 "schedule": crontab(hour=9, minute=0),
             },
-            # HOURLY, unlike the watchdog above: a stage deadline lands at 18:00 IST on
-            # a specific day, and a reminder that arrives the following morning is a
-            # report, not a reminder. Safe at this cadence because the single-fire claim
-            # is a column (`reminded_at`), not a per-day dedupe window — see
-            # tasks/stage_reminders.py.
+            # STILL HOURLY, even though the reminder itself is now once-per-day (0045).
+            # The two cadences do different jobs: the DAILY rule is the anti-nag limit,
+            # the HOURLY beat is the latency. A stage deadline lands at 18:00 IST on a
+            # specific day, and the first reminder should follow within the hour rather
+            # than waiting for a fixed morning slot — that first message is the one that
+            # can still save the day. Every subsequent tick that day claims nothing,
+            # because the claim's dedupe key is the IST calendar day
+            # (stage_plan_repo._IST_TODAY_START), so the repeat lands early the next
+            # morning and once more each day until the stage is marked done.
             "stage-reminders": {
                 "task": "src.tasks.stage_reminders.send_stage_reminders",
                 "schedule": crontab(minute=5),

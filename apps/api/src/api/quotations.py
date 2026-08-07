@@ -98,14 +98,16 @@ async def create_quotation(req: QuoteCreate, caller_uid: str = Depends(get_calle
         caller = await authz.resolve_caller(session, caller_uid)
         await authz.assert_can_write_customer(session, caller, str(req.customer_id))
         quote_no = await numbering.allocate(session, "QTN")
-        quotation_id = await repo.create_quotation(
+        # `_returning` rather than create-then-read: the record comes back from the
+        # two INSERTs' own RETURNING clauses, so this route is 4 round-trips + 1 per
+        # line item lighter than it was.
+        result = await repo.create_quotation_returning(
             session, quote_no=quote_no, customer_id=req.customer_id, totals=totals, items=items,
             place_of_supply=req.place_of_supply, valid_until=_default_valid_until(req.valid_until),
             terms=req.terms, notes=req.notes, created_by=UUID(caller.salesperson_id),
         )
-        result = await repo.get_quotation(session, quotation_id)
         await session.commit()
-    logger.info("Created quotation %s (%s)", quote_no, quotation_id)
+    logger.info("Created quotation %s (%s)", quote_no, result["id"])
     return result
 
 

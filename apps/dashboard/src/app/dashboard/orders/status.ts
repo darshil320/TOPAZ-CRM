@@ -23,14 +23,25 @@ export function orderStatusChip(status: string | null | undefined): StatusChip {
   return CHIPS[status] ?? { label: status, color: FALLBACK.color };
 }
 
-/** from-status -> ordered list of {to, label} the UI offers as action buttons. */
+/** from-status -> ordered list of {to, label} the UI offers as action buttons.
+ *
+ * Cancel is offered wherever the goods are still ours — confirmed, in_production and
+ * ready. It is deliberately absent from delivered/installed/closed: undoing a
+ * delivered sale is a return, not a status change (services/order_status.py says the
+ * same, and re-validates). */
 export const NEXT_TRANSITIONS: Record<string, { to: string; label: string }[]> = {
   confirmed: [
     { to: "in_production", label: "Start production" },
     { to: "cancelled", label: "Cancel order" },
   ],
-  in_production: [{ to: "ready", label: "Mark ready" }],
-  ready: [{ to: "delivered", label: "Mark delivered" }],
+  in_production: [
+    { to: "ready", label: "Mark ready" },
+    { to: "cancelled", label: "Cancel order" },
+  ],
+  ready: [
+    { to: "delivered", label: "Mark delivered" },
+    { to: "cancelled", label: "Cancel order" },
+  ],
   delivered: [{ to: "installed", label: "Mark installed" }],
   installed: [{ to: "closed", label: "Close order" }],
   closed: [],

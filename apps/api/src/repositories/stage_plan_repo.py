@@ -9,9 +9,9 @@ Two write shapes, both deliberate:
 
   * `replace_plan` — DELETE then INSERT inside the caller's transaction. The plan is
     never half-written, so the sum invariant holds at every commit.
-  * `claim_reminder` — `UPDATE … WHERE reminded_at IS NULL RETURNING id`. That is the
-    single-fire guarantee for the WhatsApp reminder: a Celery retry after a partial
-    failure claims nothing and sends nothing.
+  * `claim_reminder` — `UPDATE … WHERE reminded_at < today RETURNING id`. That is the
+    ONCE-PER-DAY guarantee for the WhatsApp reminder (0045): an hourly Celery tick, or a
+    retry after a partial failure, claims nothing for a row already nagged about today.
 """
 
 from datetime import datetime
@@ -22,7 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 _FIELDS = (
     "id", "order_item_id", "stage_code", "planned_days", "skipped", "remind",
-    "due_at", "reminded_at", "snoozed_until", "created_by", "created_at", "updated_at",
+    "due_at", "reminded_at", "reminder_count", "snoozed_until", "created_by",
+    "created_at", "updated_at",
 )
 
 
@@ -172,19 +173,40 @@ async def set_default_days(
 
 
 # ─── Reminder engine ─────────────────────────────────────────────────────────
-async def due_reminders(session: AsyncSession, *, limit: int = 100) -> list[dict]:
-    """Stage deadlines that have passed and have not been reminded about yet.
+# Start of TODAY in IST, as a UTC timestamptz. THE daily de-duplication boundary (0045).
+#
+# Why not `reminded_at < now() - interval '24 hours'`: a rolling 24h window drifts. Fire
+# at 09:05 today and the row is ineligible until 09:05 tomorrow, so with an hourly beat
+# the reminder walks later every day and eventually crosses midnight, skipping a calendar
+# day entirely. Anchoring to the IST calendar day makes "once a day" mean what the owner
+# means by it, and makes the FIRST tick after midnight the one that fires.
+_IST_TODAY_START = "(date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')"
 
-    Every predicate is covered by order_item_stage_plan_due_idx (0035), so the hourly
-    beat is an index probe.
+# Ceiling on repeats for one stage. MUST match order_item_stage_plan_due_idx's predicate
+# in migration 0045 — the index is partial on this value, so changing it here alone would
+# leave exhausted rows in the index and rows past the new cap outside it.
+MAX_REMINDERS = 14
+
+
+async def due_reminders(session: AsyncSession, *, limit: int = 100) -> list[dict]:
+    """Stage deadlines that have passed, not yet reminded about TODAY (0045).
+
+    Every predicate is covered by order_item_stage_plan_due_idx (rebuilt in 0045), so the
+    hourly beat stays an index probe.
 
     Excluded, and why:
       * `skipped` / `remind = false`     — the operator said no.
-      * `reminded_at IS NOT NULL`        — already sent (claim_reminder is the backstop).
+      * reminded already TODAY (IST)     — the daily repeat rule. Not `reminded_at IS
+        NULL` (0035's single-fire rule): a stage that is still unfinished must keep
+        asking, once per calendar day, which is the whole point of this change.
+      * `reminder_count >= MAX_REMINDERS` — a nag with no ceiling is how a shop floor
+        learns to mute WhatsApp. After two weeks the daily message has demonstrably
+        stopped working and the dashboard alert is the remaining record.
       * `snoozed_until > now()`          — the manager asked for four more hours.
       * `production_done_at IS NOT NULL` — the item is finished; the schedule is moot.
-      * a stage already marked done       — the work happened, deadline or not. THIS is
-        the check that stops the beat nagging about a stage the workshop cleared early.
+      * a stage already marked done       — "until he's past that stage". THIS is the
+        predicate that ends the daily repeat: the moment the workshop marks the stage
+        done, the row stops matching and the reminders stop.
 
     Blocked items are INCLUDED: a blocked item is exactly the one whose slipping deadline
     the owner needs to hear about (same call as route_repo.overdue_active_legs).
@@ -192,6 +214,7 @@ async def due_reminders(session: AsyncSession, *, limit: int = 100) -> list[dict
     result = await session.execute(
         text(
             "SELECT p.id, p.order_item_id, p.stage_code, p.due_at, p.planned_days,"
+            "       p.reminder_count,"
             "       sd.label_en AS stage_label_en, sd.label_gu AS stage_label_gu,"
             "       oi.description, oi.current_stage, oi.blocked, oi.workshop_id,"
             "       o.id AS order_id, o.order_no, o.customer_id,"
@@ -204,7 +227,9 @@ async def due_reminders(session: AsyncSession, *, limit: int = 100) -> list[dict
             " JOIN customers c ON c.id = o.customer_id"
             " LEFT JOIN workshops w ON w.id = oi.workshop_id"
             " WHERE p.skipped = false AND p.remind = true"
-            "   AND p.reminded_at IS NULL AND p.due_at IS NOT NULL AND p.due_at <= now()"
+            "   AND p.due_at IS NOT NULL AND p.due_at <= now()"
+            "   AND p.reminder_count < :max_reminders"
+            f"   AND (p.reminded_at IS NULL OR p.reminded_at < {_IST_TODAY_START})"
             "   AND (p.snoozed_until IS NULL OR p.snoozed_until <= now())"
             "   AND oi.production_done_at IS NULL"
             "   AND NOT EXISTS (SELECT 1 FROM production_events e"
@@ -212,26 +237,39 @@ async def due_reminders(session: AsyncSession, *, limit: int = 100) -> list[dict
             "                      AND e.stage_code = p.stage_code AND e.kind = 'done')"
             " ORDER BY p.due_at LIMIT :limit"
         ),
-        {"limit": limit},
+        {"limit": limit, "max_reminders": MAX_REMINDERS},
     )
     return [dict(m) for m in result.mappings().all()]
 
 
-async def claim_reminder(session: AsyncSession, plan_id: UUID | str) -> bool:
-    """Stamp `reminded_at` and report whether WE were the ones who stamped it.
+async def claim_reminder(session: AsyncSession, plan_id: UUID | str) -> int | None:
+    """Stamp `reminded_at`, bump the counter, and report OUR new count — or None.
 
-    THE single-fire guarantee. Called BEFORE the WhatsApp send: if the send then fails,
-    the row stays claimed and the owner gets one missing reminder — strictly better than a
-    Celery retry re-sending the same nag to a shop floor every hour.
+    THE once-per-day guarantee (0045). The `reminded_at < today` predicate is re-checked
+    inside the UPDATE, not just in due_reminders' SELECT: between the scan and the claim
+    another worker (or the hourly tick that overlapped a slow batch) may have already
+    nagged about this row today, and only an atomic conditional update can settle who
+    actually sends. `RETURNING reminder_count` hands the caller the post-increment value
+    so the message can say which day of nagging this is without a second read.
+
+    Called BEFORE the WhatsApp send: if the send then fails, the row stays claimed and
+    that day's reminder is lost. Under 0035's single-fire rule that meant losing the
+    reminder outright; now it costs one day and tomorrow's tick asks again, which is the
+    strictly better failure mode this change buys.
     """
     result = await session.execute(
         text(
-            "UPDATE order_item_stage_plan SET reminded_at = now()"
-            " WHERE id = :id AND reminded_at IS NULL RETURNING id"
+            "UPDATE order_item_stage_plan"
+            "   SET reminded_at = now(), reminder_count = reminder_count + 1"
+            " WHERE id = :id"
+            "   AND reminder_count < :max_reminders"
+            f"   AND (reminded_at IS NULL OR reminded_at < {_IST_TODAY_START})"
+            " RETURNING reminder_count"
         ),
-        {"id": str(plan_id)},
+        {"id": str(plan_id), "max_reminders": MAX_REMINDERS},
     )
-    return result.first() is not None
+    row = result.first()
+    return None if row is None else int(row[0])
 
 
 async def snooze(
@@ -240,7 +278,16 @@ async def snooze(
     """Push a stage's reminder out by `hours` and un-claim it so it can fire again.
 
     Clearing `reminded_at` is the point: without it the row would never be picked up
-    again and Snooze would be a mute button wearing a snooze label.
+    again and Snooze would be a mute button wearing a snooze label. Under the daily
+    repeat rule (0045) it does a second job — it lets the reminder fire again TODAY once
+    the snooze expires, instead of the manager's "four more hours" silently costing them
+    the rest of the day.
+
+    `reminder_count` is deliberately NOT reset. It counts how many times this deadline
+    has been raised, and snoozing is not the work getting done — resetting it would make
+    Snooze an unlimited mute (snooze, fire, snooze, fire, forever) and would erase the
+    escalation signal the count exists to carry. The cap therefore still bounds the
+    total nags per stage no matter how often the row is snoozed.
     """
     result = await session.execute(
         text(

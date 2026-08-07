@@ -372,6 +372,7 @@ export default async function OrderDetailPage({ params }: Props) {
             <JobCardActions
               source="order"
               entityId={order.id}
+              docLabel={order.order_no}
               canSendToWorkshop={(items ?? []).some((it) => it.workshop_id)}
             />
           </div>

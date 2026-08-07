@@ -189,7 +189,7 @@ export default async function QuoteDetailPage({ params }: Props) {
           No workshop send here: a quotation has no allocation yet. */}
       <Card className="space-y-3">
         <SectionHeader label="Job Card" />
-        <JobCardActions source="quotation" entityId={quote.id} />
+        <JobCardActions source="quotation" entityId={quote.id} docLabel={quote.quote_no} />
       </Card>
 
       {/* Totals */}

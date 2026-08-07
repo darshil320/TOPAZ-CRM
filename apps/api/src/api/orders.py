@@ -141,13 +141,81 @@ async def create_order(req: OrderCreate, caller_uid: str = Depends(get_caller_ui
     return result
 
 
+def _assert_cancellable(state: dict) -> None:
+    """Refuse a cancellation the physical world contradicts.
+
+    Both messages name the ACTION that unblocks it, not just the obstacle: the person
+    reading this is holding a phone and needs to know what to go and do.
+    """
+    in_transit = int(state.get("in_transit_items") or 0)
+    if in_transit:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{in_transit} item(s) are in transit between workshops — receive or "
+                "cancel those consignments first, then cancel the order."
+            ),
+        )
+    open_runs = int(state.get("open_delivery_items") or 0)
+    if open_runs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{open_runs} item(s) are loaded on a delivery that has not completed — "
+                "remove them from that run first, then cancel the order."
+            ),
+        )
+
+
+@router.get("/{order_id}/cancellation-preview")
+async def cancellation_preview(order_id: UUID,
+                               caller_uid: str = Depends(get_caller_uid)) -> dict:
+    """What cancelling this order would mean — for the confirm dialog.
+
+    Read-only. Exists so the operator sees the consequences BEFORE they type a reason:
+    money already taken (a refund the business now owes), pieces already delivered,
+    and whether anything blocks the cancellation at all. Discovering "₹2,50,000 was
+    paid on this" after cancelling is how a showroom loses trust in the tool.
+    """
+    async with get_api_session() as session:
+        await _authorize_order(session, caller_uid, order_id)
+        state = await repo.cancellation_state(session, order_id)
+    if not state:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    blockers: list[str] = []
+    try:
+        _assert_cancellable(state)
+    except HTTPException as exc:
+        blockers.append(str(exc.detail))
+
+    paid = Decimal(str(state.get("paid") or 0))
+    return {
+        "order_id": str(order_id),
+        "status": state["status"],
+        "cancellable": state["status"] in order_status.CANCELLABLE_FROM and not blockers,
+        # Distinct from `cancellable`: a delivered order is not blocked by anything
+        # physical, it is simply past the point where cancelling is the right verb.
+        "status_allows_cancel": state["status"] in order_status.CANCELLABLE_FROM,
+        "blockers": blockers,
+        "paid": str(paid),
+        "refund_due": str(paid) if paid > 0 else "0",
+        "delivered_items": int(state.get("delivered_items") or 0),
+        "total_items": int(state.get("total_items") or 0),
+    }
+
+
 @router.patch("/{order_id}/status")
 async def patch_status(order_id: UUID, req: StatusPatch,
                        caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with get_api_session() as session:
         await _authorize_order(session, caller_uid, order_id)
-        current = await repo.get_status(session, order_id)
-        if current is None:
+        cancelling = req.status == "cancelled"
+        # The cancel path needs the blocker state anyway, and it carries the status —
+        # so it replaces the get_status round-trip rather than adding to it.
+        state = await repo.cancellation_state(session, order_id) if cancelling else {}
+        current = state.get("status") if cancelling else await repo.get_status(session, order_id)
+        if current is None or (cancelling and not state):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         if not order_status.can_transition(current, req.status):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -155,6 +223,8 @@ async def patch_status(order_id: UUID, req: StatusPatch,
         if order_status.requires_reason(req.status) and not (req.reason and req.reason.strip()):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"A reason is required to set status '{req.status}'")
+        if cancelling:
+            _assert_cancellable(state)
         ok = await repo.set_status(
             session, order_id, from_status=current, to_status=req.status,
             reason=req.reason.strip() if req.reason else None,
@@ -162,7 +232,29 @@ async def patch_status(order_id: UUID, req: StatusPatch,
         if not ok:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                 detail="Order status changed concurrently — retry")
+        stood_down = {}
+        if cancelling:
+            # SAME TRANSACTION as the status flip. An order that is cancelled while its
+            # workshops are still queued for it — and still being sent stage reminders
+            # — is the failure this whole route exists to prevent.
+            stood_down = await repo.cancel_open_production(session, order_id)
         await session.commit()
+
+    if cancelling:
+        paid = Decimal(str(state.get("paid") or 0))
+        logger.info(
+            "Cancelled order %s from %s — %s; paid %s%s",
+            order_id, current, stood_down, paid,
+            " (REFUND OWED)" if paid > 0 else "",
+        )
+        return {
+            "order_id": str(order_id),
+            "status": req.status,
+            # Echoed back so the dashboard can tell the operator what was stood down
+            # and what the business now owes, instead of a bare success.
+            **stood_down,
+            "refund_due": str(paid) if paid > 0 else "0",
+        }
     return {"order_id": str(order_id), "status": req.status}
 
 
