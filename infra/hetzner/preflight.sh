@@ -37,8 +37,21 @@ fi
 
 sec "Required variables"
 if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+  # Read values by PARSING, not by sourcing. Compose's env_file takes the whole
+  # line after '=' as the value, but bash `source` re-tokenises it — so an
+  # unquoted value containing spaces (SHOWROOM_CONTACT_NUMBER=+91 63563 20206)
+  # makes bash try to run "63563" as a command and leaves the var empty. That
+  # made preflight fail a value the container reads perfectly well.
+  envget() {
+    sed -n "s/^$1=//p" "$ENV_FILE" | head -1
+  }
+  for _k in DATABASE_URL REDIS_URL EDGE_API_KEY DASHBOARD_API_KEY \
+            WA_PHONE_NUMBER_ID WA_TOKEN WA_WEBHOOK_VERIFY_TOKEN WA_APP_SECRET \
+            SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_JWT_SECRET \
+            SUPABASE_SEND_SMS_HOOK_SECRET DASHBOARD_URL SHOWROOM_CONTACT_NUMBER \
+            DB_DISABLE_PREPARED_STATEMENT_CACHE; do
+    printf -v "$_k" '%s' "$(envget "$_k")"
+  done
 
   for key in DATABASE_URL REDIS_URL EDGE_API_KEY DASHBOARD_API_KEY \
              WA_PHONE_NUMBER_ID WA_TOKEN WA_WEBHOOK_VERIFY_TOKEN WA_APP_SECRET \
