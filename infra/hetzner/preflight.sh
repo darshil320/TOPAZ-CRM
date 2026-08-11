@@ -14,9 +14,13 @@ ENV_FILE="$APP_DIR/apps/api/.env"
 COMPOSE_ENV="$APP_DIR/infra/hetzner/.env"
 
 pass=0; fail=0; warn=0
-ok()   { printf '  \033[1;32m[OK]\033[0m   %s\n' "$1"; ((pass++)); }
-bad()  { printf '  \033[1;31m[FAIL]\033[0m %s\n' "$1"; ((fail++)); }
-warn() { printf '  \033[1;33m[WARN]\033[0m %s\n' "$1"; ((warn++)); }
+# `|| true` is REQUIRED, not decorative: ((x++)) evaluates to x's PRE-increment
+# value, so the first call (x=0) exits non-zero. In `ok "..." || bad "..."` that
+# made a passing check ALSO print a failure — the exact false alarm this file
+# exists to prevent.
+ok()   { printf '  \033[1;32m[OK]\033[0m   %s\n' "$1"; ((pass++)) || true; }
+bad()  { printf '  \033[1;31m[FAIL]\033[0m %s\n' "$1"; ((fail++)) || true; }
+warn() { printf '  \033[1;33m[WARN]\033[0m %s\n' "$1"; ((warn++)) || true; }
 sec()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 sec "Files"

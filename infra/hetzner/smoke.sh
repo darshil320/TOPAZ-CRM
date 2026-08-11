@@ -13,8 +13,11 @@ APP_DIR="${APP_DIR:-/opt/topaz}"
 COMPOSE="docker compose --env-file $APP_DIR/infra/hetzner/.env -f $APP_DIR/infra/hetzner/docker-compose.prod.yml"
 
 pass=0; fail=0
-ok()  { printf '  \033[1;32m[OK]\033[0m   %s\n' "$1"; ((pass++)); }
-bad() { printf '  \033[1;31m[FAIL]\033[0m %s\n' "$1"; ((fail++)); }
+# `|| true` is REQUIRED: ((x++)) returns x's PRE-increment value as exit status,
+# so the first call (x=0) exits non-zero and an `ok ... || bad ...` chain reports
+# a false failure alongside the pass.
+ok()  { printf '  \033[1;32m[OK]\033[0m   %s\n' "$1"; ((pass++)) || true; }
+bad() { printf '  \033[1;31m[FAIL]\033[0m %s\n' "$1"; ((fail++)) || true; }
 sec() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 source "$APP_DIR/infra/hetzner/.env" 2>/dev/null || true
