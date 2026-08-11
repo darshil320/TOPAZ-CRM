@@ -1,0 +1,139 @@
+# Production Docker Compose — Hetzner CX22 (2 vCPU / 4GB RAM).
+#
+# Differences from ../docker-compose.yml (which is dev-only):
+#   - Redis is NOT port-published to the host. It listens only on the internal
+#     compose network. Publishing 6379 on a public VPS is a takeover vector:
+#     Redis has no auth by default and is a well-known mass-scan target.
+#   - Redis persists to a named volume with AOF. The dev file keeps the queue in
+#     RAM only, so a reboot silently drops every queued Celery task.
+#   - api is NOT port-published either. Caddy reverse-proxies to it over the
+#     internal network and terminates TLS. Nothing but 80/443 is reachable.
+#   - Memory limits are explicit. The image ships Playwright Chromium for quote/
+#     receipt PDF rendering, which spikes ~1GB per render; without a cap one
+#     runaway render OOM-kills the whole box instead of just its own container.
+#   - Log rotation is set on every service. Default json-file logging is
+#     unbounded and will fill a 40GB disk over months of `--loglevel=info`.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly: the broker holds not-yet-run Celery tasks (scheduled followups,
+    # queued PDF renders). Without AOF a restart loses them with no error anywhere.
+    # maxmemory-policy noeviction: a broker must never evict a pending task to
+    # free memory — it must refuse the write loudly so the caller sees the failure.
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 640M
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: topaz-api:latest
+    restart: unless-stopped
+    env_file:
+      - ../../apps/api/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging: *logging
+
+  # Shares the api image (same build context) so a deploy rebuilds once, not
+  # three times. `image:` above names it; worker/beat reuse that tag.
+  worker:
+    image: topaz-api:latest
+    restart: unless-stopped
+    # concurrency 2 matches the dev file. Do not raise it on this box: each
+    # Chromium PDF render is ~1GB, so concurrency 4 would exceed the 4GB VPS.
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ../../apps/api/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 1600M
+    logging: *logging
+
+  # Celery beat — fires the cadence engine (send_due_followups every 5 min,
+  # stage reminders hourly, payment reminders + transit watchdog + stale-followup
+  # close daily). Without this service no followup is ever sent.
+  #
+  # MUST stay a single replica. Two beats = every scheduled followup fires twice
+  # = duplicate WhatsApp messages to real customers.
+  beat:
+    image: topaz-api:latest
+    restart: unless-stopped
+    command: celery -A src.tasks.celery_app beat --loglevel=info
+    env_file:
+      - ../../apps/api/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # holds issued certs — losing this re-triggers ACME
+      - caddy-config:/config
+    environment:
+      # Set API_DOMAIN in infra/hetzner/.env (NOT apps/api/.env) before first up.
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in infra/hetzner/.env}
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging: *logging
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:

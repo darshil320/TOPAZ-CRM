@@ -1,0 +1,58 @@
+# Overlay for CPX12 (2 vCPU / 2GB RAM) — use when the CX line is unavailable.
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.cpx12.yml up -d
+#
+# The base file is sized for 4GB. On 2GB the binding constraint is the Playwright
+# Chromium render: services/pdf.py launches a browser per render and closes it in
+# a `finally`, so the ~700MB-1GB spike is transient, not resident. Steady state is
+# roughly Redis 100 + api 400 + worker 250 + beat 150 + Caddy 30 = ~930MB, which
+# leaves ~1GB for exactly ONE render at a time.
+#
+# Hence concurrency 1. With concurrency 2 two renders can overlap and the sum
+# exceeds RAM+swap, and Celery's acks_late re-queues the OOM-killed task — so it
+# retries, OOMs again, and loops. One worker makes renders queue instead.
+#
+# job_card.py:_render_pages loops over pages SEQUENTIALLY (one browser per page,
+# closed before the next), so a multi-page card is still only one browser at a
+# time. Page count does not change peak memory.
+
+services:
+  redis:
+    # 256mb ceiling instead of 512mb. The broker holds task messages, not data;
+    # a backlog of a few thousand queued renders is still only a few MB.
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+
+  api:
+    deploy:
+      resources:
+        limits:
+          memory: 640M
+
+  worker:
+    # THE key change on 2GB. Do not raise this without moving to a bigger box.
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=1
+    deploy:
+      resources:
+        limits:
+          # Must fit one Chromium spike (~1GB) plus the worker itself.
+          memory: 1200M
+
+  beat:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  caddy:
+    deploy:
+      resources:
+        limits:
+          memory: 192M

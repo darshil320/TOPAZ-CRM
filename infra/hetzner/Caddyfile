@@ -1,0 +1,29 @@
+# Caddy terminates TLS and reverse-proxies to the api container.
+# Certs are issued and renewed automatically via Let's Encrypt — the only
+# prerequisite is that API_DOMAIN's A record already points at this VPS.
+
+{$API_DOMAIN} {
+	encode gzip
+
+	# api is reachable by service name on the internal compose network; it is
+	# never published to the host, so this is the only path in.
+	reverse_proxy api:8000 {
+		health_uri /api/health
+		health_interval 30s
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+	}
+}

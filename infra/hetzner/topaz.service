@@ -1,0 +1,34 @@
+# systemd unit — brings the whole stack up on boot and restarts it if the
+# compose project dies. `restart: unless-stopped` in compose survives container
+# crashes; this unit survives a VPS reboot or a docker daemon restart.
+#
+# Install: see infra/hetzner/README.md (provision.sh does it for you).
+
+[Unit]
+Description=Topaz backend (api + worker + beat + redis + caddy)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/topaz/infra/hetzner
+
+# --env-file supplies API_DOMAIN to the compose file itself (Caddy's domain).
+# The app's own 33 env vars come from apps/api/.env via env_file: in compose.
+# COMPOSE_FILE (set in infra/hetzner/.env) selects the overlay. On a 2GB CPX12
+# it must be:
+#   COMPOSE_FILE=docker-compose.prod.yml:docker-compose.cpx12.yml
+# The overlay drops worker concurrency to 1 — without it two concurrent Chromium
+# renders exceed RAM, and acks_late re-queues the OOM-killed task into a retry loop.
+# Unset, compose defaults to docker-compose.prod.yml alone (the 4GB sizing).
+ExecStart=/usr/bin/docker compose --env-file .env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file .env down
+ExecReload=/usr/bin/docker compose --env-file .env up -d --build --remove-orphans
+
+# Chromium install + pip build on first boot is slow; do not kill it early.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,10 @@ venv/
 .env.local
 *.local
 
+# Railway / platform env exports — production secrets, never commit
+*.env.out
+*.env.out.*
+
 # Prototype runtime data (faces, captures, logs) — NEVER commit biometric data
 apps/prototype/data/gallery.json
 apps/prototype/data/captures/
