@@ -49,19 +49,26 @@ fi
 sec "Database"
 # Proves the app can actually reach Supabase with the configured DSN, rather
 # than just that DATABASE_URL is a well-formed string.
+# get_api_session is an @asynccontextmanager, so it needs `async with`, NOT
+# `async for` — the latter raises TypeError and made this report a DB outage
+# on a perfectly healthy connection.
 $COMPOSE exec -T api python -c "
-import asyncio, sys
+import asyncio
 from src.database import get_api_session
 from sqlalchemy import text
 async def main():
-    async for s in get_api_session():
-        await s.execute(text('select 1')); print('DBOK'); return
+    async with get_api_session() as s:
+        await s.execute(text('select 1')); print('DBOK')
 asyncio.run(main())
 " 2>/dev/null | grep -q DBOK && ok "API reached Postgres" || bad "API could NOT reach Postgres — check DATABASE_URL"
 
 sec "Celery"
-$COMPOSE exec -T worker celery -A src.tasks.celery_app inspect ping -t 10 2>/dev/null \
-  | grep -q pong && ok "worker responds to inspect ping" || bad "worker not answering — check its logs"
+# Match "node online" rather than "pong": celery prints the reply as
+# "-> celery@host: OK" / "pong" / "1 node online", and the 10s default timeout
+# was also too tight for a cold worker on a 2-vCPU box.
+$COMPOSE exec -T worker celery -A src.tasks.celery_app inspect ping -t 15 2>/dev/null \
+  | grep -qE 'node online|pong' && ok "worker responds to inspect ping" \
+  || bad "worker not answering — check its logs"
 
 # The five schedules from celery_app.py. If beat is silent, no followup ever sends.
 sched=$($COMPOSE logs beat 2>/dev/null | grep -cE 'send-due-followups|stage-reminders|payment-reminders|transit-watchdog|close-stale-followups')
