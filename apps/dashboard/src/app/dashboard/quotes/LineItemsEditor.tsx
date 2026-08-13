@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { computeLineTotal } from "@/lib/gst";
 import { formatINR } from "@/lib/format";
 import type { LineDraft, ProductOption } from "./types";
@@ -28,13 +27,10 @@ export default function LineItemsEditor({
   onRemove,
   onAdd,
 }: Props) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
   return (
     <div className="space-y-3">
       {lines.map((line, index) => {
         const lineTotal = computeLineTotal(Number(line.qty) || 0, Number(line.unit_price) || 0);
-        const isOpen = Boolean(expanded[line.key]);
         return (
           <div key={line.key} className="rounded-card border border-ln bg-sf2 p-3.5 space-y-3">
             <div className="flex items-center justify-between">
@@ -147,16 +143,7 @@ export default function LineItemsEditor({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setExpanded((prev) => ({ ...prev, [line.key]: !prev[line.key] }))}
-              className="text-caption font-semibold text-t1 hover:text-acc transition-colors"
-            >
-              {isOpen ? "Hide" : "Add"} furniture details
-            </button>
-
-            {isOpen && (
-              <div className="pt-2 border-t border-ln grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="pt-2 border-t border-ln grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(
                   [
                     ["dimensions", "Dimensions", "e.g. 84\" x 36\" x 32\""],
@@ -188,7 +175,6 @@ export default function LineItemsEditor({
                   />
                 </div>
               </div>
-            )}
           </div>
         );
       })}
