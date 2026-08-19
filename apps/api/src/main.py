@@ -39,6 +39,7 @@ from .api.public import router as public_router
 from .api.quotations import router as quotations_router
 from .api.recognition import router as recognition_router
 from .api.documents import router as documents_router
+from .api.leads import router as leads_router
 from .api.routing import router as routing_router
 from .api.stage_plan import router as stage_plan_router
 from .api.transfers import router as transfers_router
@@ -133,6 +134,7 @@ def create_app() -> FastAPI:
     app.include_router(stage_plan_router, prefix="/api")
     # Delivery challans (0037).
     app.include_router(documents_router, prefix="/api")
+    app.include_router(leads_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
 

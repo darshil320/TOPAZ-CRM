@@ -94,6 +94,9 @@ const TRANSIT_ROLES: readonly Role[] = ["delivery", "owner", "admin"];
 export const SALES_NAV: NavItem[] = [
   { href: "/dashboard", label: "My Customers", shortLabel: "Customers", icon: ICONS.customers, exact: true },
   { href: "/dashboard/walkins", label: "Walk-in Queue", shortLabel: "Walk-ins", icon: ICONS.walkin, exact: true },
+  // "Lead Capture", not "Leads": /dashboard/pipeline already occupies the "Leads"
+  // short label, and two nav items reading the same word is a support call.
+  { href: "/dashboard/leads", label: "Lead Capture", shortLabel: "Enquiries", icon: ICONS.pipeline },
   { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
   { href: "/dashboard/orders", label: "Orders", shortLabel: "Orders", icon: ICONS.orders },
   {
