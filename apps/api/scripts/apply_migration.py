@@ -52,15 +52,24 @@ async def main(raw_path: str) -> None:
             print(f"{version} already recorded as applied — nothing to do")
             return
 
-        await session.execute(text(sql))
-        await session.execute(
-            text(
-                "INSERT INTO supabase_migrations.schema_migrations (version, name)"
-                " VALUES (:v, :n) ON CONFLICT (version) DO NOTHING"
-            ),
-            {"v": version, "n": name},
+        # asyncpg PREPARES every statement it is handed, and a prepared statement may
+        # hold exactly one command — so a multi-statement migration file cannot go
+        # through session.execute(). The raw connection's execute() runs a script
+        # instead, which is the only path that accepts a whole file.
+        raw = await session.connection()
+        driver_conn = (await raw.get_raw_connection()).driver_connection
+
+        # BEGIN/COMMIT are written into the script itself rather than relying on the
+        # session's transaction: driver_conn.execute() bypasses SQLAlchemy's unit of
+        # work, so without this the ledger insert could commit while the schema change
+        # had failed — recording a migration that never ran.
+        await driver_conn.execute(
+            "BEGIN;\n"
+            + sql
+            + "\nINSERT INTO supabase_migrations.schema_migrations (version, name)"
+            f" VALUES ('{version}', '{name}') ON CONFLICT (version) DO NOTHING;"
+            "\nCOMMIT;"
         )
-        await session.commit()
         print(f"applied {version}_{name}")
 
 
