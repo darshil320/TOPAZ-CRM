@@ -54,3 +54,70 @@ def test_specs_joined_and_customer_defaulted():
     assert ctx["customer"]["name"] == "Customer"
     assert ctx["items"][0]["specs"] == "84in · Teak"
     assert ctx["items"][0]["line_total"] == "1,000.00"
+
+
+# ─── Line photos on the priced document (merged with the job card's picture) ──
+#
+# The quotation now shows the SAME photo per line that the job card shows. Only the
+# photograph is shared — the price columns stay out of the job card and the job card's
+# spec block stays out of the price table. These tests hold both halves of that.
+
+_PNG_URI = "data:image/png;base64,iVBORw0KGgo="
+
+
+def test_photo_data_uri_is_carried_onto_the_line():
+    quote = _quote()
+    quote["items"][0]["photo_data_uri"] = _PNG_URI
+
+    ctx = build_quote_context(quote, {"name": "Ravi"})
+
+    assert ctx["items"][0]["photo"] == _PNG_URI
+    assert ctx["has_photos"] is True
+
+
+def test_no_photos_means_no_column():
+    """A quotation for which nothing was photographed must look exactly as it always
+    did — not grow a page-width strip of empty cells."""
+    ctx = build_quote_context(_quote(), {"name": "Ravi"})
+
+    assert ctx["items"][0]["photo"] is None
+    assert ctx["has_photos"] is False
+
+
+def test_one_photo_among_many_still_renders_the_column():
+    """has_photos is ANY, not ALL: the photographed lines must show, and the rest print
+    "No photo" rather than being silently dropped from the document."""
+    quote = _quote()
+    quote["items"] = [
+        {**quote["items"][0], "description": "Sofa", "photo_data_uri": _PNG_URI},
+        {**quote["items"][0], "description": "Table"},
+    ]
+
+    ctx = build_quote_context(quote, {"name": "Ravi"})
+
+    assert ctx["has_photos"] is True
+    assert [it["photo"] for it in ctx["items"]] == [_PNG_URI, None]
+
+
+def test_context_builder_stays_pure_no_key_resolution_here():
+    """The builder must never see a storage KEY — resolving and fetching is the
+    caller's job (tasks/pdf.py). A key leaking through would mean Playwright being
+    handed a private-bucket path mid-render, which is the failure this split prevents."""
+    quote = _quote()
+    quote["items"][0]["photo_key"] = "media/abc/thumb.jpg"   # deliberately NOT inlined
+
+    ctx = build_quote_context(quote, {"name": "Ravi"})
+
+    assert ctx["items"][0]["photo"] is None
+    assert ctx["has_photos"] is False
+
+
+def test_money_is_still_on_the_quotation():
+    """Guards the merge from going too far the other way: adding photos must not have
+    turned the priced document into a job card."""
+    ctx = build_quote_context(_quote(), {"name": "Ravi"})
+
+    assert ctx["grand_total"] == _inr(Decimal("3780.00"))
+    assert ctx["items"][0]["unit_price"] == _inr(Decimal("1000.00"))
+    assert ctx["items"][0]["line_total"] == _inr(Decimal("1000.00"))
+    assert ctx["items"][0]["hsn"] == "9401"

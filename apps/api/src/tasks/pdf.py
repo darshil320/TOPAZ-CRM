@@ -13,9 +13,10 @@ from sqlalchemy import text
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import make_task_session
-from ..repositories import document_repo, quotation_repo as repo
+from ..repositories import document_repo, job_card_repo, quotation_repo as repo
 from ..services import pdf as pdf_engine
 from ..services import quote_html
+from ..services.line_photos import inline_photos
 from ..services.storage import upload_bytes
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,27 @@ async def _render_and_store(quotation_id: UUID) -> str | None:
             logger.error("Quotation %s not found — cannot render PDF", quotation_id)
             return None
         customer = await _load_customer(session, UUID(str(quote["customer_id"])))
+
+        # The SAME photo per line the job card shows (line photo → catalog photo →
+        # none), resolved and inlined by the same two helpers. The customer holding
+        # the quotation and the workshop holding the job card must be looking at the
+        # same picture of the same piece; sharing the resolution is what guarantees it
+        # rather than hoping two implementations stay in step.
+        #
+        # This does NOT move money into the job card or specs into the price table —
+        # the two documents keep their own templates and their own columns. Only the
+        # photograph is common.
+        quote = {
+            **quote,
+            # `inline_photos` is BLOCKING (sync httpx to Storage), so it goes to a
+            # thread rather than stalling this coroutine's event loop — the same rule
+            # render_html_to_pdf follows just below.
+            "items": await asyncio.to_thread(
+                inline_photos,
+                await job_card_repo.resolve_photo_keys(session, "quotation", quote["items"]),
+                document="Quotation",
+            ),
+        }
 
         html = quote_html.render_quote_html(quote, customer)
         # render_html_to_pdf uses Playwright's SYNC API, which refuses to run

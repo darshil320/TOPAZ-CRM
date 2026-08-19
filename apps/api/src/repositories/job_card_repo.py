@@ -78,11 +78,21 @@ async def item_count(session: AsyncSession, source: str, parent_id: UUID) -> int
     return int(result.scalar_one())
 
 
-async def _resolve_photo_keys(session: AsyncSession, source: str, items: list[dict]) -> list[dict]:
+async def resolve_photo_keys(session: AsyncSession, source: str, items: list[dict]) -> list[dict]:
     """Attach `photo_key` to each item. Returns NEW dicts — inputs are not mutated.
 
+    PUBLIC because the priced QUOTATION PDF now shows the same photos (tasks/pdf.py).
+    Both documents must agree about what a line looks like: a customer holding the
+    quotation and a workshop holding the job card are looking at the same piece of
+    furniture, so the resolution order — line photo, then catalog photo, then nothing
+    — lives here once rather than being re-implemented per document.
+
+    Note the money boundary is NOT weakened by sharing this: it resolves photo KEYS
+    only. `_product_photo_key`'s entity_type guard is what keeps a customer's private
+    'site' photo out of both documents, and it applies to both callers.
+
     N+1 by construction: 1 query per item, plus up to 2 more when it falls back to
-    the product. Deliberate for now — a job card is 1-10 lines and this runs once
+    the product. Deliberate for now — a quote or card is 1-10 lines and this runs once
     per render in a background worker, so a batched LATERAL join would trade real
     clarity for unmeasurable time. Revisit if a bulk "render all pending" ever ships.
     """
@@ -144,7 +154,7 @@ async def quotation_job_card(session: AsyncSession, quotation_id: UUID) -> dict 
             "dealt_with": row["dealt_with"],
             "status": row["status"],
         },
-        "items": await _resolve_photo_keys(session, "quotation", items),
+        "items": await resolve_photo_keys(session, "quotation", items),
     }
 
 
@@ -178,7 +188,7 @@ async def order_job_card(session: AsyncSession, order_id: UUID) -> dict | None:
             "dealt_with": row["dealt_with"],
             "status": row["status"],
         },
-        "items": await _resolve_photo_keys(session, "order", items),
+        "items": await resolve_photo_keys(session, "order", items),
     }
 
 

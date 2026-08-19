@@ -26,7 +26,6 @@ asked to fetch a private-bucket URL mid-render: it lacks the auth, and
 """
 
 import asyncio
-import base64
 import logging
 from uuid import UUID
 
@@ -44,13 +43,12 @@ from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import document_repo, job_card_repo, message_repo
 from ..services import job_card_html
+from ..services.line_photos import inline_photos
 from ..services import pdf as pdf_engine
 from ..services.storage import StorageError, download_bytes, upload_bytes
 from ..services.wa_window import within_service_window
 
 logger = logging.getLogger(__name__)
-
-_MIME_BY_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
 
 IMAGE_KIND = "job_card_image"
 PDF_KIND = "job_card_pdf"
@@ -58,45 +56,6 @@ PDF_KIND = "job_card_pdf"
 
 def _doc_kind(fmt: str) -> str:
     return IMAGE_KIND if fmt == "image" else PDF_KIND
-
-
-def _data_uri(key: str, raw: bytes) -> str:
-    ext = key.rsplit(".", 1)[-1].lower()
-    mime = _MIME_BY_EXT.get(ext, "image/jpeg")
-    return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
-
-
-def _inline_photos(items: list[dict]) -> list[dict]:
-    """Fetch each resolved photo and inline it. Returns NEW dicts.
-
-    A photo that cannot be fetched, or is too big to embed, is dropped to None
-    rather than raised: one bad image must not cost the workshop its entire job
-    card. The template prints "No photo" for that row and the reason is logged.
-
-    The size cap is not paranoia — the resolver prefers 400px thumbnails but falls
-    back to the full original whenever the thumbnail worker hasn't run yet, so
-    without it a few un-thumbnailed items can put tens of MB (plus ~33% base64)
-    into worker memory and produce a file WhatsApp will refuse.
-    """
-    settings = get_settings()
-    out = []
-    for it in items:
-        uri = None
-        key = it.get("photo_key")
-        if key:
-            try:
-                raw = download_bytes(settings.MEDIA_BUCKET, key)
-                if len(raw) > settings.JOB_CARD_MAX_INLINE_BYTES:
-                    logger.warning(
-                        "Job card photo %s is %d bytes (cap %d) — rendering without it",
-                        key, len(raw), settings.JOB_CARD_MAX_INLINE_BYTES,
-                    )
-                else:
-                    uri = _data_uri(key, raw)
-            except StorageError as exc:
-                logger.warning("Job card photo %s unreadable — rendering without it: %s", key, exc)
-        out.append({**it, "photo_data_uri": uri})
-    return out
 
 
 async def _load(session: AsyncSession, source: str, entity_id: UUID) -> dict | None:
@@ -153,7 +112,7 @@ async def _render_and_store(source: str, entity_id: UUID) -> list[str] | None:
                          source, entity_id)
             return None
 
-        items = _inline_photos(data["items"])
+        items = inline_photos(data["items"], document="Job card")
         header = data["header"]
         doc_no = header["doc_no"]
 

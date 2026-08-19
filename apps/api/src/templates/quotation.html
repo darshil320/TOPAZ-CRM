@@ -17,6 +17,18 @@
   .parties .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 4px; }
   .parties .val { font-size: 13px; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  /* Photo cell — same rules as templates/job_card.html so a line looks identical on
+     the priced quotation and the money-free job card. object-fit:contain because a
+     sofa photographed landscape must not be cropped to a square. */
+  .col-photo { width: 15%; }
+  .photo-cell { text-align: center; }
+  .photo-cell img { width: 100%; max-height: 96px; object-fit: contain; display: block; }
+  /* An item may genuinely have no photo yet; say so in words rather than leaving a
+     hole the customer reads as a broken document. */
+  .no-photo { font-size: 9px; color: #cbd5e1; text-align: center; padding: 14px 0;
+              border: 1px dashed #e2e8f0; }
+  /* A photo split from its own price across a page break is useless. */
+  tbody tr { page-break-inside: avoid; }
   th { background: #f8fafc; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; padding: 8px 6px; border-bottom: 2px solid #e2e8f0; }
   td { padding: 8px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
   td.num, th.num { text-align: right; }
@@ -69,6 +81,7 @@
     <thead>
       <tr>
         <th>#</th>
+        {% if has_photos %}<th class="col-photo">Photo</th>{% endif %}
         <th>Description</th>
         <th>HSN</th>
         <th class="num">Qty</th>
@@ -81,6 +94,15 @@
       {% for it in items %}
       <tr>
         <td>{{ it.sr }}</td>
+        {% if has_photos %}
+        <td class="photo-cell">
+          {% if it.photo %}
+            <img src="{{ it.photo }}" alt="" />
+          {% else %}
+            <div class="no-photo">No photo</div>
+          {% endif %}
+        </td>
+        {% endif %}
         <td>
           {{ it.description }}
           {% if it.specs %}<div class="specs">{{ it.specs }}</div>{% endif %}

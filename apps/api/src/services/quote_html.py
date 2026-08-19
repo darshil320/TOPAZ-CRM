@@ -74,6 +74,11 @@ def build_quote_context(quote: dict, customer: dict, seller: dict | None = None)
             "gst_rate": it["gst_rate"],
             "unit_price": _inr(it["unit_price"]),
             "line_total": _inr(it["line_total"]),
+            # Already-inlined data URI, or None. STILL PURE: the caller does the I/O
+            # (tasks/pdf.py resolves the key and inlines the bytes), exactly as the job
+            # card does — Playwright fetching a private-bucket URL mid-render is how
+            # this renderer broke once before (STATE.md 2026-07-26, commit 0a43348).
+            "photo": it.get("photo_data_uri"),
         }
         for i, it in enumerate(quote.get("items", []))
     ]
@@ -92,6 +97,10 @@ def build_quote_context(quote: dict, customer: dict, seller: dict | None = None)
             "phone": customer.get("phone") or "",
         },
         "items": items,
+        # Drives whether the Photo column is rendered at all. A quotation for which
+        # nothing has been photographed should look like it always did, not grow an
+        # empty column — the customer reads that as a document with missing pieces.
+        "has_photos": any(it["photo"] for it in items),
         "subtotal": _inr(quote["subtotal"]),
         "discount_amount": _inr(quote["discount_amount"]),
         "has_discount": Decimal(str(quote.get("discount_amount") or 0)) > 0,
