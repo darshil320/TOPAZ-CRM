@@ -150,6 +150,18 @@ class Settings(BaseSettings):
     # which also owns the mime→extension mapping the Storage key depends on. A second
     # list here would be a decision point that silently does nothing when widened.
 
+    # Supabase Storage bucket for lead call-note recordings (audio). PRIVATE — browser
+    # reads via short-lived signed URLs, uploads via service-role-signed upload URLs.
+    # Parallel to MEDIA_BUCKET, not inside it: media's mime/entity_type CHECKs exclude
+    # leads/audio (see 0048 migration header). Reuses MEDIA_UPLOAD_TTL_SECONDS /
+    # MEDIA_URL_TTL_SECONDS — a second TTL pair for the same concept would be a
+    # duplicate decision point.
+    LEAD_AUDIO_BUCKET: str = "lead-audio"
+    # Upload ceiling enforced at /leads/{id}/recordings/{id}/complete, against the
+    # ACTUAL Storage object size, never the client's claim. ~15MB covers a long
+    # phone-call note at typical voice bitrates.
+    LEAD_AUDIO_MAX_BYTES: int = 15_000_000
+
     # Ceiling on a single photo inlined into a job card PDF. Distinct from
     # MEDIA_MAX_BYTES: the renderer prefers 400px thumbnails, but falls back to the
     # full original whenever the thumbnail worker hasn't run, so without this a

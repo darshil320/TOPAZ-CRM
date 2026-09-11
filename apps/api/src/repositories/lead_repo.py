@@ -5,12 +5,13 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..services.lead_status import phone_match_key
+from ..services.lead_status import DEFAULT_FOLLOW_UPS, phone_match_key
 
 _COLUMNS = (
     "id, name, phone, society, address, requirement, comments, source, source_detail,"
     " status, lost_reason, assigned_to, linked_customer_id, converted_customer_id,"
-    " converted_at, created_by, created_at, updated_at"
+    " converted_at, created_by, created_at, updated_at,"
+    " follow_ups_remaining, last_contacted_at"
 )
 
 
@@ -154,15 +155,47 @@ async def update_lead(session: AsyncSession, lead_id: UUID, **fields) -> dict | 
 
 
 async def set_status(
-    session: AsyncSession, lead_id: UUID, *, status: str, lost_reason: str | None = None
+    session: AsyncSession, lead_id: UUID, *, status: str, lost_reason: str | None = None,
+    reset_follow_ups: bool = False,
 ) -> dict | None:
+    """`reset_follow_ups`, when true, also sets follow_ups_remaining = DEFAULT_FOLLOW_UPS
+    in the SAME statement — one UPDATE, not two, so a status change and its counter
+    reset are atomic. Callers decide WHETHER to reset via
+    services/lead_status.should_reset_follow_ups; this function stays SQL-only."""
+    follow_up_set = ", follow_ups_remaining = :default_fu" if reset_follow_ups else ""
     row = (
         await session.execute(
             text(
-                "UPDATE leads SET status = :status, lost_reason = :reason, updated_at = now()"
+                "UPDATE leads SET status = :status, lost_reason = :reason,"
+                f" updated_at = now(){follow_up_set}"
                 f" WHERE id = :id RETURNING {_COLUMNS}"
             ),
-            {"id": str(lead_id), "status": status, "reason": lost_reason},
+            {
+                "id": str(lead_id), "status": status, "reason": lost_reason,
+                "default_fu": DEFAULT_FOLLOW_UPS,
+            },
+        )
+    ).mappings().first()
+    return None if row is None else dict(row)
+
+
+async def log_follow_up(session: AsyncSession, lead_id: UUID) -> dict | None:
+    """Decrement follow_ups_remaining by 1 and set last_contacted_at = now().
+
+    WHERE clause includes follow_ups_remaining > 0 so a race (two salespeople
+    logging a follow-up on the same lead at once) cannot drive the counter
+    negative even before the CHECK constraint would catch it — the UPDATE simply
+    matches zero rows for the loser, and the route turns "no row updated" into a
+    409 (the same one a pre-check would give the more common case)."""
+    row = (
+        await session.execute(
+            text(
+                "UPDATE leads SET follow_ups_remaining = follow_ups_remaining - 1,"
+                " last_contacted_at = now(), updated_at = now()"
+                " WHERE id = :id AND follow_ups_remaining > 0"
+                f" RETURNING {_COLUMNS}"
+            ),
+            {"id": str(lead_id)},
         )
     ).mappings().first()
     return None if row is None else dict(row)

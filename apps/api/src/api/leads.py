@@ -33,7 +33,8 @@ from pydantic import BaseModel, Field, field_validator
 from ..database import get_api_session
 from ..repositories import enrollment_repo, lead_repo as repo
 from ..services import lead_status
-from .deps import require_dashboard_key
+from . import authz
+from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/leads", dependencies=[Depends(require_dashboard_key)])
@@ -110,9 +111,14 @@ class StatusChange(BaseModel):
 
 
 @router.post("", status_code=http_status.HTTP_201_CREATED)
-async def create_lead(body: LeadCreate):
+async def create_lead(body: LeadCreate, auth_uid: str = Depends(get_caller_uid)):
     async with get_api_session() as session:
-        lead = await repo.create_lead(session, created_by=None, **body.model_dump())
+        # created_by comes from the verified token, never from the body: it is what makes
+        # creator-scoped edit enforceable at all (see authz.assert_can_edit_lead).
+        caller = await authz.resolve_caller(session, auth_uid)
+        lead = await repo.create_lead(
+            session, created_by=caller.salesperson_id, **body.model_dump()
+        )
         await session.commit()
     logger.info("Lead %s created (source=%s)", lead["id"], lead["source"])
     return lead
@@ -148,10 +154,19 @@ async def get_lead(lead_id: UUID):
 
 
 @router.patch("/{lead_id}")
-async def update_lead(lead_id: UUID, body: LeadUpdate):
+async def update_lead(
+    lead_id: UUID, body: LeadUpdate, auth_uid: str = Depends(get_caller_uid)
+):
+    """Correct a captured lead's fields. Creator (or owner) only — see authz."""
     async with get_api_session() as session:
-        if await repo.get_lead(session, lead_id) is None:
+        caller = await authz.resolve_caller(session, auth_uid)
+        lead = await repo.get_lead(session, lead_id)
+        # 404 before 403: answering 403 for an id that does not exist would confirm a
+        # lead is there. leads_select is open to every salesperson, so a lead the caller
+        # can see but not edit is a plain 403.
+        if lead is None:
             raise HTTPException(status_code=404, detail="lead not found")
+        authz.assert_can_edit_lead(caller, lead)
         fields = dict(body.model_dump(exclude_unset=True))
         lead = await repo.update_lead(session, lead_id, **fields)
         await session.commit()
@@ -159,8 +174,15 @@ async def update_lead(lead_id: UUID, body: LeadUpdate):
 
 
 @router.post("/{lead_id}/status")
-async def change_status(lead_id: UUID, body: StatusChange):
+async def change_status(
+    lead_id: UUID, body: StatusChange, auth_uid: str = Depends(get_caller_uid)
+):
+    """Progress a lead. Deliberately NOT creator-gated: 0046's own header notes that
+    "the person who picks up the phone is rarely the one who took the original enquiry",
+    and a lead only its author can progress dies when its author is off. The caller is
+    still resolved so the actor is identified and the inactive-staff gate applies."""
     async with get_api_session() as session:
+        await authz.resolve_caller(session, auth_uid)
         lead = await repo.get_lead(session, lead_id)
         if lead is None:
             raise HTTPException(status_code=404, detail="lead not found")
@@ -182,17 +204,54 @@ async def change_status(lead_id: UUID, body: StatusChange):
                 status_code=409, detail="use POST /leads/{id}/convert to convert a lead"
             )
 
+        # Follow-ups budgeted the moment active contact work starts (see
+        # lead_status.should_reset_follow_ups — fires at most once, on new->contacted).
+        reset_follow_ups = lead_status.should_reset_follow_ups(lead["status"], body.status)
         updated = await repo.set_status(
-            session, lead_id, status=body.status, lost_reason=body.lost_reason
+            session, lead_id, status=body.status, lost_reason=body.lost_reason,
+            reset_follow_ups=reset_follow_ups,
         )
         await session.commit()
     return updated
 
 
-@router.post("/{lead_id}/convert")
-async def convert_lead(lead_id: UUID):
-    """Create (or reuse) the customer for a qualified lead. See module docstring on consent."""
+@router.post("/{lead_id}/follow-up")
+async def log_follow_up(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)):
+    """Record a follow-up call. Deliberately NOT creator-gated — same reasoning as
+    /status and /convert: whoever calls today logs it, and a call the lead's
+    original captor cannot log because they're off is a lost follow-up.
+
+    A follow-up can happen without any status change (e.g. re-calling a
+    'qualified' lead who hasn't decided yet), so this is its own route rather
+    than folded into /status.
+    """
     async with get_api_session() as session:
+        await authz.resolve_caller(session, auth_uid)
+        lead = await repo.get_lead(session, lead_id)
+        if lead is None:
+            raise HTTPException(status_code=404, detail="lead not found")
+        if lead["follow_ups_remaining"] <= 0:
+            raise HTTPException(
+                status_code=409,
+                detail="No follow-ups remaining on this lead — mark it lost or move it forward.",
+            )
+        updated = await repo.log_follow_up(session, lead_id)
+        if updated is None:
+            # Lost the race described in log_follow_up's docstring — another caller
+            # just consumed the last follow-up between the check above and the UPDATE.
+            raise HTTPException(status_code=409, detail="No follow-ups remaining on this lead.")
+        await session.commit()
+    return updated
+
+
+@router.post("/{lead_id}/convert")
+async def convert_lead(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)):
+    """Create (or reuse) the customer for a qualified lead. See module docstring on consent.
+
+    Not creator-gated, for the same reason as /status: whoever closes the lead converts it.
+    """
+    async with get_api_session() as session:
+        await authz.resolve_caller(session, auth_uid)
         lead = await repo.get_lead(session, lead_id)
         if lead is None:
             raise HTTPException(status_code=404, detail="lead not found")

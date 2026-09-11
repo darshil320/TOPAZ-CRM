@@ -75,6 +75,24 @@ class TestPhoneNormalisation:
         assert ls.normalise_phone_digits(raw) == expected
 
 
+class TestFollowUpReset:
+    def test_new_to_contacted_resets(self):
+        assert ls.should_reset_follow_ups("new", "contacted") is True
+
+    def test_every_other_legal_transition_does_not_reset(self):
+        # Iterate the real transition map rather than hand-listing pairs, so a
+        # future edit to ALLOWED_TRANSITIONS cannot silently create a second reset
+        # edge without this test noticing.
+        for frm, tos in ls.ALLOWED_TRANSITIONS.items():
+            for to in tos:
+                if (frm, to) == ("new", "contacted"):
+                    continue
+                assert ls.should_reset_follow_ups(frm, to) is False, (frm, to)
+
+    def test_default_follow_ups_is_three(self):
+        assert ls.DEFAULT_FOLLOW_UPS == 3
+
+
 class TestPhoneMatchKey:
     def test_country_code_variants_match(self):
         # The case the dedupe exists for: same person, three ways of typing it.

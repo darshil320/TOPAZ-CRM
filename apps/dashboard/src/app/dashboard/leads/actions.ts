@@ -74,7 +74,10 @@ export async function updateLead(id: string, input: Partial<LeadInput>): Promise
       body: JSON.stringify(compact({ ...input })),
     });
     if (!resp.ok) return { error: await readError(resp) };
+    // The detail route is a separate cache entry: revalidating the list alone leaves the
+    // page the user just saved on showing the old values.
     revalidatePath("/dashboard/leads");
+    revalidatePath(`/dashboard/leads/${id}`);
     return { error: null, id };
   } catch {
     return { error: "Could not reach the leads service. Check your connection and try again." };
@@ -96,6 +99,24 @@ export async function setLeadStatus(
     });
     if (!resp.ok) return { error: await readError(resp) };
     revalidatePath("/dashboard/leads");
+    revalidatePath(`/dashboard/leads/${id}`);
+    return { error: null, id };
+  } catch {
+    return { error: "Could not reach the leads service. Check your connection and try again." };
+  }
+}
+
+export async function logFollowUp(id: string): Promise<LeadResult> {
+  if (!DASHBOARD_API_KEY) return notConfigured();
+  try {
+    const resp = await fetch(`${LEADS_API}/${id}/follow-up`, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(),
+    });
+    if (!resp.ok) return { error: await readError(resp) };
+    revalidatePath("/dashboard/leads");
+    revalidatePath(`/dashboard/leads/${id}`);
     return { error: null, id };
   } catch {
     return { error: "Could not reach the leads service. Check your connection and try again." };
@@ -113,6 +134,7 @@ export async function convertLead(id: string): Promise<LeadResult & { customerId
     if (!resp.ok) return { error: await readError(resp) };
     const body = await resp.json();
     revalidatePath("/dashboard/leads");
+    revalidatePath(`/dashboard/leads/${id}`);
     revalidatePath("/dashboard/customers");
     return { error: null, id, customerId: body.customer_id as string };
   } catch {

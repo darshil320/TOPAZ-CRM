@@ -80,6 +80,28 @@ def assert_role(caller: Caller, roles: set[str], *, action: str) -> None:
                             detail=f"Only {allowed} may {action}")
 
 
+def assert_can_edit_lead(caller: Caller, lead: dict, *, action: str = "edit this lead") -> None:
+    """Only the salesperson who captured the lead, or the owner, may edit its fields.
+
+    Mirrors the leads_update policy in 0047. RLS does not run on the service-role
+    connection the API uses, so this is the enforcing copy.
+
+    Deliberately `role == "owner"`, NOT `caller.is_admin`: is_admin covers
+    {"owner", "admin"} and the product decision here is owner-only. A lead whose
+    created_by is NULL (captured before the API recorded a creator, and with no
+    assignee for 0047 to backfill from) is owner-editable only — the safe default.
+    """
+    if caller.role == "owner":
+        return
+    created_by = lead.get("created_by")
+    if created_by is not None and str(created_by) == caller.salesperson_id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Only the person who captured this lead, or the owner, may {action}",
+    )
+
+
 async def capabilities_at_workshop(
     session: AsyncSession, caller: Caller, workshop_id: str | None
 ) -> frozenset[str]:

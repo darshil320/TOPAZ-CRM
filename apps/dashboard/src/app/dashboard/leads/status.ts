@@ -1,4 +1,5 @@
 import type { PillTone } from "@/components/ui/Pill";
+import { formatDate } from "@/lib/format";
 
 export const LEAD_STATUSES = ["new", "contacted", "qualified", "converted", "lost"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
@@ -52,4 +53,18 @@ const TRANSITIONS: Record<string, readonly string[]> = {
 
 export function nextStatuses(current: string): readonly string[] {
   return TRANSITIONS[current] ?? [];
+}
+
+/**
+ * Human copy for the follow-up counter. Never implies automation — this is a
+ * manual tally a salesperson updates by tapping "Log follow-up"
+ * (LeadStatusActions), not a scheduled reminder. Mirrors
+ * services/lead_status.py's DEFAULT_FOLLOW_UPS=3 only in that both read the SAME
+ * persisted follow_ups_remaining column; this function does no defaulting itself.
+ */
+export function followUpLabel(remaining: number, lastContactedAt: string | null): string {
+  const contactPart = lastContactedAt ? ` · last contacted ${formatDate(lastContactedAt)}` : "";
+  if (remaining <= 0) return `No follow-ups remaining — decide next step${contactPart}`;
+  if (remaining === 1) return `1 follow-up remaining${contactPart}`;
+  return `${remaining} follow-ups remaining${contactPart}`;
 }

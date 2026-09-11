@@ -6,7 +6,7 @@ import { describeReadError } from "@/lib/readError";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
-import LeadForm from "./LeadForm";
+import AddLeadPanel from "./AddLeadPanel";
 import LeadRow, { type LeadRowData } from "./LeadRow";
 import { LEAD_STATUSES, statusLabel } from "./status";
 
@@ -40,7 +40,8 @@ export default async function LeadsPage({ searchParams }: Props) {
     .from("leads")
     .select(
       "id, name, phone, society, address, requirement, comments, source, source_detail," +
-        " status, lost_reason, linked_customer_id, converted_customer_id, created_at, assigned_to",
+        " status, lost_reason, linked_customer_id, converted_customer_id, created_at, assigned_to," +
+      " created_by, follow_ups_remaining, last_contacted_at",
     )
     .order("created_at", { ascending: false })
     .limit(PAGE_SIZE);
@@ -79,10 +80,7 @@ export default async function LeadsPage({ searchParams }: Props) {
     <div className="space-y-6">
       <PageHeader title="Leads" subtitle="Capture an enquiry and track it to a sale" />
 
-      <section className="space-y-3">
-        <SectionHeader label="Add a lead" />
-        <LeadForm salespersons={salespersons} />
-      </section>
+      <AddLeadPanel salespersons={salespersons} />
 
       <section className="space-y-3">
         <SectionHeader label={`All leads${active ? ` · ${statusLabel(active)}` : ""}`} total={leads.length} />
@@ -120,15 +118,17 @@ export default async function LeadsPage({ searchParams }: Props) {
         ) : leads.length === 0 ? (
           <Card>
             <p className="text-body text-t2">
-              {term || active ? "No leads match this filter." : "No leads yet — add the first one above."}
+              {term || active
+                ? "No leads match this filter."
+                : "No leads yet — use New Lead to capture the first one."}
             </p>
           </Card>
         ) : (
-          <Card>
+          <div className="space-y-2.5">
             {leads.map((lead) => (
               <LeadRow key={lead.id} lead={lead} />
             ))}
-          </Card>
+          </div>
         )}
       </section>
     </div>

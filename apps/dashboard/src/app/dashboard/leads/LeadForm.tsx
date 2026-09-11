@@ -6,12 +6,18 @@ import { Card } from "@/components/ui/Card";
 import { createLead } from "./actions";
 import { LEAD_SOURCES, sourceLabel } from "./status";
 
-const FIELD =
+// Exported so the edit form on the detail page reuses the exact same strings rather
+// than a near-copy that drifts.
+export const FIELD =
   "w-full rounded-input border border-ln bg-sf px-3 py-2 text-body text-t1 " +
   "placeholder:text-t3 focus:outline-none focus:ring-2 focus:ring-acc/40";
-const LABEL = "block text-caption font-semibold text-t2 mb-1";
+export const LABEL = "block text-caption font-semibold text-t2 mb-1";
 
-type Props = { salespersons: { id: string; label: string }[] };
+type Props = {
+  salespersons: { id: string; label: string }[];
+  /** Called after a successful save. Absent = today's behaviour, form stays open. */
+  onSaved?: () => void;
+};
 
 const EMPTY = {
   name: "",
@@ -25,7 +31,7 @@ const EMPTY = {
   assigned_to: "",
 };
 
-export default function LeadForm({ salespersons }: Props) {
+export default function LeadForm({ salespersons, onSaved }: Props) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -55,6 +61,7 @@ export default function LeadForm({ salespersons }: Props) {
       }
       setForm(EMPTY);
       setSaved(true);
+      onSaved?.();
     });
   }
 

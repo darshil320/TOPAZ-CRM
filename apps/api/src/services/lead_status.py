@@ -38,6 +38,26 @@ def can_transition(from_status: str, to_status: str) -> bool:
     return to_status in ALLOWED_TRANSITIONS.get(from_status, frozenset())
 
 
+# Follow-ups budgeted the moment a lead moves from a cold enquiry to actively
+# worked. Not configurable per-lead in this feature — a fixed floor number, revisit
+# only if the business asks for a per-source or per-assignee default.
+DEFAULT_FOLLOW_UPS = 3
+
+
+def should_reset_follow_ups(from_status: str, to_status: str) -> bool:
+    """True exactly on the one-time new -> contacted edge.
+
+    ALLOWED_TRANSITIONS makes 'contacted' reachable from 'new' only, and 'contacted'
+    never re-enters 'new' — so this edge fires at most once per lead's lifetime.
+    No "only if not already set" guard is needed as a result.
+
+    A lead can also move 'new' -> 'qualified' directly (skipping 'contacted') —
+    that transition does NOT reset the counter, since the counter's meaning is
+    specifically "follow-ups budgeted once active contact work started".
+    """
+    return from_status == "new" and to_status == "contacted"
+
+
 def requires_reason(to_status: str) -> bool:
     return to_status in _REASON_REQUIRED
 
