@@ -12,8 +12,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from ..config import get_settings
 from ..database import get_api_session
-from ..repositories import quotation_repo as repo
+from ..repositories import job_card_repo, quotation_repo as repo
+from ..services import storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/public")
@@ -38,13 +40,46 @@ def _client_ip(request: Request) -> str | None:
 
 @router.get("/quotes/{token}")
 async def public_quote(token: UUID) -> dict:
-    """Customer-facing quote summary. Marks the quote 'viewed' on first open."""
+    """Customer-facing quote summary. Marks the quote 'viewed' on first open.
+
+    Line photos: resolved with the SAME precedence the job card and priced PDF
+    already use (job_card_repo.resolve_photo_keys is explicitly PUBLIC for this
+    reason — a customer holding this page and a workshop holding the job card
+    must agree about what a line looks like). Unlike those two, this is a live
+    JSON response re-fetched on every visit rather than a rendered document, so
+    photos are handed back as short-lived SIGNED URLS (mirrors the job-card
+    /share pattern) instead of inlined base64 bytes.
+    """
     async with get_api_session() as session:
         summary = await repo.get_public_summary(session, token)
         if summary is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
+        summary["items"] = await job_card_repo.resolve_photo_keys(
+            session, "quotation", summary["items"]
+        )
         await repo.mark_viewed(session, token)
         await session.commit()
+
+    # Signing is a Storage HTTP call — kept outside the DB session/transaction.
+    settings = get_settings()
+    keys = [it["photo_key"] for it in summary["items"] if it.get("photo_key")]
+    signed: dict[str, str] = {}
+    if keys:
+        try:
+            signed = await storage.signed_urls_async(
+                settings.MEDIA_BUCKET, keys, settings.MEDIA_URL_TTL_SECONDS
+            )
+        except storage.StorageError as exc:
+            # Fails soft: a Storage hiccup must not blank the whole quote or
+            # block approve/reject. Every item just gets photo_url=None.
+            logger.warning("Could not sign quote photo URLs for token %s: %s", token, exc)
+
+    for it in summary["items"]:
+        it["photo_url"] = signed.get(it.get("photo_key"))
+        it.pop("photo_key", None)
+        it.pop("id", None)
+        it.pop("product_id", None)
+
     # Never leak internal ids/tokens to the browser beyond what's needed.
     summary.pop("id", None)
     summary.pop("customer_id", None)

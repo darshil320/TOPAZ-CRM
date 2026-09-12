@@ -375,10 +375,14 @@ async def get_public_summary(session: AsyncSession, token: UUID) -> dict | None:
     row = header.mappings().first()
     if row is None:
         return None
+    # id/product_id are needed to resolve each line's photo (job_card_repo
+    # .resolve_photo_keys, called by api/public.py::public_quote) and are
+    # stripped back out before the response leaves the API — same discipline
+    # as the header's id/customer_id/pdf_key below.
     items = await session.execute(
         text(
-            "SELECT description, dimensions, material, fabric, polish, customization,"
-            "       qty, unit, unit_price, hsn, gst_rate, line_total"
+            "SELECT id, product_id, description, dimensions, material, fabric, polish,"
+            "       customization, qty, unit, unit_price, hsn, gst_rate, line_total"
             " FROM quotation_items WHERE quotation_id = :id ORDER BY sort, id"
         ),
         {"id": str(row["id"])},

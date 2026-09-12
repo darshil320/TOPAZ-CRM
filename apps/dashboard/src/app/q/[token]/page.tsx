@@ -21,6 +21,7 @@ interface PublicItem {
   hsn: string;
   gst_rate: number;
   line_total: number;
+  photo_url: string | null;
 }
 
 interface PublicQuote {
@@ -96,16 +97,27 @@ export default async function PublicQuotePage({ params }: Props) {
             const specs = [it.dimensions, it.material, it.fabric, it.polish, it.customization].filter(Boolean);
             return (
               <div key={i} className="border-b border-slate-50 p-4 last:border-0">
-                <div className="flex justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">{it.description}</p>
-                    {specs.length > 0 && <p className="mt-0.5 text-xs text-slate-400">{specs.join(" · ")}</p>}
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {it.qty}
-                      {it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)}
-                    </p>
+                <div className="flex gap-3">
+                  {it.photo_url && (
+                    // eslint-disable-next-line @next/next/no-img-element -- signed
+                    // URL, short-lived, never worth Next/Image's build-time domain config
+                    <img
+                      src={it.photo_url}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg border border-slate-100 object-cover"
+                    />
+                  )}
+                  <div className="flex flex-1 justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">{it.description}</p>
+                      {specs.length > 0 && <p className="mt-0.5 text-xs text-slate-400">{specs.join(" · ")}</p>}
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {it.qty}
+                        {it.unit ? ` ${it.unit}` : ""} × {formatINR(it.unit_price)}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-medium text-slate-800">{formatINR(it.line_total)}</p>
                   </div>
-                  <p className="shrink-0 text-sm font-medium text-slate-800">{formatINR(it.line_total)}</p>
                 </div>
               </div>
             );
