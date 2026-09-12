@@ -1,5 +1,6 @@
 import { formatINR, formatDate } from "@/lib/format";
 import ApproveActions from "./ApproveActions";
+import ItemPhoto from "./ItemPhoto";
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -98,15 +99,7 @@ export default async function PublicQuotePage({ params }: Props) {
             return (
               <div key={i} className="border-b border-slate-50 p-4 last:border-0">
                 <div className="flex gap-3">
-                  {it.photo_url && (
-                    // eslint-disable-next-line @next/next/no-img-element -- signed
-                    // URL, short-lived, never worth Next/Image's build-time domain config
-                    <img
-                      src={it.photo_url}
-                      alt=""
-                      className="h-14 w-14 shrink-0 rounded-lg border border-slate-100 object-cover"
-                    />
-                  )}
+                  {it.photo_url && <ItemPhoto url={it.photo_url} alt={it.description} />}
                   <div className="flex flex-1 justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800">{it.description}</p>
