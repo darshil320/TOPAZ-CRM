@@ -19,7 +19,7 @@
  * losslessly shrunk here, so a 422 just states the limit.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/format";
@@ -79,6 +79,7 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
   const [listError, setListError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [entry, setEntry] = useState<QueueEntry | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     const res = await listLeadRecordings(leadId);
@@ -143,16 +144,27 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
     <Card>
       {canEdit && (
         <div className="flex flex-wrap items-center gap-2 pb-3 mb-3 border-b border-ln">
-          <label className="rounded-input border border-ln bg-sf px-3 py-1.5 text-caption font-semibold text-t1 hover:border-accL cursor-pointer transition-colors">
+          {/* A <button onClick={ref.click()}> rather than a <label>-wraps-hidden-
+              <input>: on a number of Android WebViews/Chrome builds a tap on a
+              <label> is not reliably forwarded to a visually-hidden (sr-only)
+              file input, especially inside a flex-wrap row — the picker never
+              opens. Same fix, and the same pattern already proven working here,
+              as components/media/MediaUpload.tsx's camera/library buttons. */}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => fileRef.current?.click()}
+            disabled={entry?.phase === "uploading" || entry?.phase === "finalising"}
+          >
             Add a recording
-            <input
-              type="file"
-              accept="audio/*"
-              className="sr-only"
-              onChange={onPick}
-              disabled={entry?.phase === "uploading" || entry?.phase === "finalising"}
-            />
-          </label>
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="audio/*"
+            className="sr-only"
+            onChange={onPick}
+          />
           <input
             type="text"
             value={note}
