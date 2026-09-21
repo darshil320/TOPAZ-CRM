@@ -15,8 +15,24 @@ import { LEAD_STATUSES, statusLabel } from "./status";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ status?: string; q?: string; page?: string; limit?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    page?: string;
+    limit?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }>;
 };
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A validated YYYY-MM-DD from a query-string value, or null. Same shape as
+ * lib/search.ts's other query-param validators — reject silently rather than
+ * pass a malformed string into a Postgres timestamp comparison. */
+function dateParam(raw: string | undefined): string | null {
+  return raw && ISO_DATE_RE.test(raw) ? raw : null;
+}
 
 export default async function LeadsPage({ searchParams }: Props) {
   const salesperson = await getCurrentSalesperson();
@@ -76,6 +92,23 @@ export default async function LeadsPage({ searchParams }: Props) {
     }
   }
 
+  // Date filter on created_at — a single date (dateFrom only) means "that whole
+  // day"; a range is inclusive of both ends. The "day" is the SHOWROOM's calendar
+  // day (IST, +05:30), not UTC — an explicit offset on the boundary timestamps,
+  // not a bare "T00:00:00" (which Postgres/PostgREST would read as UTC and cut
+  // off the first 5.5 hours of the actual local day). The upper bound is the
+  // START of the NEXT local day (< dateTo+1) rather than <= dateTo, which would
+  // silently exclude every lead captured later that same day.
+  const dateFrom = dateParam(params.dateFrom);
+  const dateToParam = dateParam(params.dateTo);
+  const dateTo = dateToParam ?? (dateFrom && !dateToParam ? dateFrom : null);
+  if (dateFrom) query = query.gte("created_at", `${dateFrom}T00:00:00+05:30`);
+  if (dateTo) {
+    const next = new Date(`${dateTo}T00:00:00+05:30`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    query = query.lt("created_at", `${next.toISOString().slice(0, 10)}T00:00:00+05:30`);
+  }
+
   const [result, salespersons] = await Promise.all([
     query.order("created_at", { ascending: false }).range(from, to) as Promise<{
       data: LeadRowData[] | null;
@@ -124,12 +157,43 @@ export default async function LeadsPage({ searchParams }: Props) {
               <option key={s} value={s}>{statusLabel(s)}</option>
             ))}
           </select>
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="dateFrom" className="sr-only">From date</label>
+            <input
+              id="dateFrom"
+              type="date"
+              name="dateFrom"
+              defaultValue={dateFrom ?? ""}
+              max={dateToParam ?? undefined}
+              aria-label="From date"
+              className="rounded-input border border-ln bg-sf px-3 py-2 text-body text-t1"
+            />
+            <span className="text-caption text-t3">to</span>
+            <label htmlFor="dateTo" className="sr-only">To date</label>
+            <input
+              id="dateTo"
+              type="date"
+              name="dateTo"
+              defaultValue={dateToParam ?? ""}
+              min={dateFrom ?? undefined}
+              aria-label="To date"
+              className="rounded-input border border-ln bg-sf px-3 py-2 text-body text-t1"
+            />
+          </div>
           <button
             type="submit"
             className="rounded-input border border-ln px-4 py-2 text-body font-semibold text-t1 hover:text-acc transition-colors"
           >
             Filter
           </button>
+          {(dateFrom || dateToParam || term || active) && (
+            <a
+              href="/dashboard/leads"
+              className="rounded-input px-4 py-2 text-body font-medium text-t3 hover:text-t1 transition-colors"
+            >
+              Clear
+            </a>
+          )}
         </form>
 
         {readFailure ? (
@@ -137,7 +201,7 @@ export default async function LeadsPage({ searchParams }: Props) {
         ) : leads.length === 0 ? (
           <Card>
             <p className="text-body text-t2">
-              {term || active
+              {term || active || dateFrom || dateToParam
                 ? "No leads match this filter."
                 : "No leads yet — use New Lead to capture the first one."}
             </p>
