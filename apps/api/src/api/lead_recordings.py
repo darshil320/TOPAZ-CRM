@@ -120,7 +120,11 @@ async def complete_upload(
         authz.assert_can_edit_lead(caller, lead, action="add a recording to this lead")
 
         row = await repo.get_recording(session, recording_id)
-        if row is None or row["lead_id"] != str(lead_id):
+        # str() both sides: asyncpg returns lead_id as its own UUID type, not a
+        # plain str, so `row["lead_id"] != str(lead_id)` was ALWAYS true — every
+        # completion 404'd unconditionally, regardless of whether the ids actually
+        # matched. This is why every recording stayed 'pending' forever.
+        if row is None or str(row["lead_id"]) != str(lead_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recording not found")
         if row["status"] == "failed":
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,

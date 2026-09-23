@@ -9,7 +9,7 @@ or complete); listing is open to any active salesperson, matching leads_select.
 """
 import asyncio
 from contextlib import asynccontextmanager
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -53,7 +53,11 @@ def wired(monkeypatch):
     async def _create_pending(session, **kwargs):
         state["create_calls"].append(kwargs)
         row = {
-            "id": str(kwargs["recording_id"]), "lead_id": str(kwargs["lead_id"]),
+            # lead_id as a real UUID object, NOT str — this is what asyncpg actually
+            # returns for a uuid column, and comparing it to a plain str with `!=`
+            # is always True even for matching ids (the exact bug this regression
+            # test exists to catch: every /complete call 404'd unconditionally).
+            "id": str(kwargs["recording_id"]), "lead_id": UUID(str(kwargs["lead_id"])),
             "storage_key": kwargs["storage_key"], "mime": kwargs["mime"],
             "bytes": None, "duration_seconds": None, "note": kwargs.get("note"),
             "status": "pending", "created_by": kwargs.get("created_by"),
