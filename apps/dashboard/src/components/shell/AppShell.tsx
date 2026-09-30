@@ -18,7 +18,19 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   if (!salesperson) redirect("/login");
 
   const role: Role = parseRole(salesperson.role);
+  const isOwner = role === "owner";
   const supabase = await createServerSupabaseClient();
+  // lead_followup_notifications (0050) is absent from the generated Database types
+  // until they're regenerated — same widening cast the leads pages already use.
+  const db = supabase as unknown as { from: (table: string) => any };
+
+  let notifQuery = db
+    .from("lead_followup_notifications")
+    .select("id", { count: "exact", head: true })
+    .is("cleared_at", null);
+  // "My leads only": owner sees every unread notification, everyone else only
+  // their own — matches lead_followup_notifications_select RLS (0050).
+  if (!isOwner) notifQuery = notifQuery.eq("salesperson_id", salesperson.id);
 
   const [{ data: presence }, { count: unreadCount }, user] = await Promise.all([
     supabase
@@ -27,11 +39,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
       .eq("active", true)
       .eq("available", true)
       .order("name"),
-    supabase
-      .from("alerts")
-      .select("id", { count: "exact", head: true })
-      .eq("salesperson_id", salesperson.id)
-      .is("seen_at", null),
+    notifQuery as Promise<{ count: number | null }>,
     getSessionUser(),
   ]);
 

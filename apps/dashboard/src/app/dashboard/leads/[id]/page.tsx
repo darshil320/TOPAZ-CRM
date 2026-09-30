@@ -6,8 +6,8 @@ import { listSalespersonOptions } from "@/lib/salespersonOptions";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
-import { formatDate } from "@/lib/format";
-import { followUpLabel, sourceLabel, statusLabel, statusTone } from "../status";
+import { daysBetween, formatDate, todayISO } from "@/lib/format";
+import { sourceLabel, statusLabel, statusTone } from "../status";
 import LeadEditForm from "./LeadEditForm";
 import LeadStatusActions from "./LeadStatusActions";
 import LeadAudioRecordings from "./LeadAudioRecordings";
@@ -36,15 +36,29 @@ type LeadDetail = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  follow_ups_remaining: number;
-  last_contacted_at: string | null;
+  followup_due_on: string | null;
+  followup_notified_at: string | null;
 };
 
 const SELECT =
   "id, name, phone, society, address, requirement, comments, source, source_detail," +
   " status, lost_reason, linked_customer_id, converted_customer_id, converted_at," +
   " assigned_to, created_by, created_at, updated_at," +
-  " follow_ups_remaining, last_contacted_at";
+  " followup_due_on, followup_notified_at";
+
+/** Fuller, detail-page phrasing for a lead's follow-up due date — see status.ts's
+ * sibling LeadRow chip for the terser list-row version of the same underlying date. */
+function followUpDetail(dueOn: string | null): { text: string; tone: "warn" | "plain" } {
+  if (!dueOn) return { text: "No follow-up scheduled", tone: "plain" };
+  const days = daysBetween(todayISO(), dueOn);
+  const date = formatDate(dueOn);
+  if (days < 0) {
+    const n = -days;
+    return { text: `Follow-up overdue by ${n} day${n === 1 ? "" : "s"} · was due ${date}`, tone: "warn" };
+  }
+  if (days === 0) return { text: "Follow-up due today", tone: "warn" };
+  return { text: `Follow-up due in ${days} day${days === 1 ? "" : "s"} · ${date}`, tone: "plain" };
+}
 
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
@@ -121,16 +135,20 @@ export default async function LeadPage({ params }: Props) {
               {formatDate(lead.created_at)}
               {capturedName ? ` by ${capturedName}` : ""}
             </p>
-            <p className="text-caption text-t3 mt-0.5">
-              {followUpLabel(lead.follow_ups_remaining, lead.last_contacted_at)}
-            </p>
+            {(() => {
+              const followUp = followUpDetail(lead.followup_due_on);
+              return (
+                <p className={`text-caption mt-0.5 ${followUp.tone === "warn" ? "text-warn" : "text-t3"}`}>
+                  {followUp.text}
+                </p>
+              );
+            })()}
           </div>
 
           <LeadStatusActions
             leadId={lead.id}
             status={lead.status}
             convertedCustomerId={lead.converted_customer_id}
-            followUpsRemaining={lead.follow_ups_remaining}
           />
         </div>
       </div>

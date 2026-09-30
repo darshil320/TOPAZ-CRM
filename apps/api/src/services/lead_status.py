@@ -6,6 +6,7 @@ rather than written twice.
 """
 
 import re
+from datetime import date
 
 # from-status -> allowed next statuses.
 #
@@ -38,24 +39,20 @@ def can_transition(from_status: str, to_status: str) -> bool:
     return to_status in ALLOWED_TRANSITIONS.get(from_status, frozenset())
 
 
-# Follow-ups budgeted the moment a lead moves from a cold enquiry to actively
-# worked. Not configurable per-lead in this feature — a fixed floor number, revisit
-# only if the business asks for a per-source or per-assignee default.
-DEFAULT_FOLLOW_UPS = 3
+# Follow-up due-date math. A due date is a reminder field usable on any status
+# (not a pipeline stage) — see supabase/migrations/0050. Both functions accept an
+# explicit `today` so callers (and tests) never depend on the wall clock; the
+# default resolves to the real date.today() for production call sites.
 
 
-def should_reset_follow_ups(from_status: str, to_status: str) -> bool:
-    """True exactly on the one-time new -> contacted edge.
+def days_until(due_on: date, *, today: date | None = None) -> int:
+    """Positive = future, 0 = today, negative = overdue."""
+    return (due_on - (today or date.today())).days
 
-    ALLOWED_TRANSITIONS makes 'contacted' reachable from 'new' only, and 'contacted'
-    never re-enters 'new' — so this edge fires at most once per lead's lifetime.
-    No "only if not already set" guard is needed as a result.
 
-    A lead can also move 'new' -> 'qualified' directly (skipping 'contacted') —
-    that transition does NOT reset the counter, since the counter's meaning is
-    specifically "follow-ups budgeted once active contact work started".
-    """
-    return from_status == "new" and to_status == "contacted"
+def is_followup_overdue(due_on: date, *, today: date | None = None) -> bool:
+    """Strictly past due — 'due today' is its own state, not overdue yet."""
+    return days_until(due_on, today=today) < 0
 
 
 def requires_reason(to_status: str) -> bool:

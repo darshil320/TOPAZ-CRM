@@ -102,6 +102,24 @@ def assert_can_edit_lead(caller: Caller, lead: dict, *, action: str = "edit this
     )
 
 
+def assert_can_clear_notification(
+    caller: Caller, notification: dict, *, action: str = "clear this notification"
+) -> None:
+    """A follow-up notification belongs to the salesperson it was created for; the
+    owner may clear any. Same shape as assert_can_edit_lead, but scoped to the
+    notification row's own salesperson_id (fixed at creation time) rather than a
+    lead's created_by, since a notification's "owner" and a lead's creator are
+    different concepts that happen to often be the same person."""
+    if caller.role == "owner":
+        return
+    if str(notification.get("salesperson_id")) == caller.salesperson_id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Only the salesperson this notification belongs to, or the owner, may {action}",
+    )
+
+
 async def capabilities_at_workshop(
     session: AsyncSession, caller: Caller, workshop_id: str | None
 ) -> frozenset[str]:

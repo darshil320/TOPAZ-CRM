@@ -4,6 +4,7 @@ import { getCurrentSalesperson } from "@/lib/auth";
 import { listSalespersonOptions } from "@/lib/salespersonOptions";
 import { describeReadError } from "@/lib/readError";
 import { digitsOnly, ilikePattern, MIN_PHONE_DIGITS, normalizeSearchTerm, orFilter } from "@/lib/search";
+import { addDaysISO, todayISO } from "@/lib/format";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
@@ -22,7 +23,18 @@ type Props = {
     limit?: string;
     dateFrom?: string;
     dateTo?: string;
+    followUp?: string;
   }>;
+};
+
+const FOLLOW_UP_FILTERS = ["overdue", "today", "week", "none"] as const;
+type FollowUpFilter = (typeof FOLLOW_UP_FILTERS)[number];
+
+const FOLLOW_UP_LABELS: Record<FollowUpFilter, string> = {
+  overdue: "Overdue",
+  today: "Due today",
+  week: "Due this week",
+  none: "No follow-up set",
 };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,7 +74,7 @@ export default async function LeadsPage({ searchParams }: Props) {
     .select(
       "id, name, phone, society, address, requirement, comments, source, source_detail," +
         " status, lost_reason, linked_customer_id, converted_customer_id, created_at, assigned_to," +
-      " created_by, follow_ups_remaining, last_contacted_at",
+      " created_by, followup_due_on",
       { count: "exact" },
     );
 
@@ -107,6 +119,25 @@ export default async function LeadsPage({ searchParams }: Props) {
     const next = new Date(`${dateTo}T00:00:00+05:30`);
     next.setUTCDate(next.getUTCDate() + 1);
     query = query.lt("created_at", `${next.toISOString().slice(0, 10)}T00:00:00+05:30`);
+  }
+
+  // Follow-up filter — same IST-aware todayISO() this page's date-range filter
+  // already uses (not a bare `new Date()`, which would misread the showroom's
+  // calendar day — see the comment above). followup_due_on is a plain `date`
+  // column (not timestamptz), so simple string comparison against todayISO() is
+  // exact, no time-of-day boundary math needed the way created_at required above.
+  const followUpFilter: FollowUpFilter | null =
+    (FOLLOW_UP_FILTERS as readonly string[]).includes(params.followUp ?? "")
+      ? (params.followUp as FollowUpFilter)
+      : null;
+  if (followUpFilter === "overdue") {
+    query = query.lt("followup_due_on", todayISO());
+  } else if (followUpFilter === "today") {
+    query = query.eq("followup_due_on", todayISO());
+  } else if (followUpFilter === "week") {
+    query = query.gte("followup_due_on", todayISO()).lte("followup_due_on", addDaysISO(todayISO(), 6));
+  } else if (followUpFilter === "none") {
+    query = query.is("followup_due_on", null).neq("status", "converted").neq("status", "lost");
   }
 
   const [result, salespersons] = await Promise.all([
@@ -157,6 +188,17 @@ export default async function LeadsPage({ searchParams }: Props) {
               <option key={s} value={s}>{statusLabel(s)}</option>
             ))}
           </select>
+          <select
+            name="followUp"
+            defaultValue={followUpFilter ?? ""}
+            aria-label="Filter by follow-up status"
+            className="rounded-input border border-ln bg-sf px-3 py-2 text-body text-t1"
+          >
+            <option value="">Any follow-up</option>
+            {FOLLOW_UP_FILTERS.map((f) => (
+              <option key={f} value={f}>{FOLLOW_UP_LABELS[f]}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-1.5">
             <label htmlFor="dateFrom" className="sr-only">From date</label>
             <input
@@ -186,7 +228,7 @@ export default async function LeadsPage({ searchParams }: Props) {
           >
             Filter
           </button>
-          {(dateFrom || dateToParam || term || active) && (
+          {(dateFrom || dateToParam || term || active || followUpFilter) && (
             <a
               href="/dashboard/leads"
               className="rounded-input px-4 py-2 text-body font-medium text-t3 hover:text-t1 transition-colors"
@@ -201,7 +243,7 @@ export default async function LeadsPage({ searchParams }: Props) {
         ) : leads.length === 0 ? (
           <Card>
             <p className="text-body text-t2">
-              {term || active || dateFrom || dateToParam
+              {term || active || dateFrom || dateToParam || followUpFilter
                 ? "No leads match this filter."
                 : "No leads yet — use New Lead to capture the first one."}
             </p>

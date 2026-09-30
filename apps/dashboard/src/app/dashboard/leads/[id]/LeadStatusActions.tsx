@@ -4,13 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { nextStatuses, statusLabel } from "../status";
-import { convertLead, logFollowUp, setLeadStatus } from "../actions";
+import { convertLead, setLeadStatus } from "../actions";
 
 type Props = {
   leadId: string;
   status: string;
   convertedCustomerId: string | null;
-  followUpsRemaining: number;
 };
 
 /**
@@ -18,23 +17,12 @@ type Props = {
  * (see apps/api/src/api/leads.py::change_status): whoever picks up the phone moves the
  * lead, which is rarely whoever took the original enquiry.
  */
-export default function LeadStatusActions({
-  leadId, status, convertedCustomerId, followUpsRemaining,
-}: Props) {
+export default function LeadStatusActions({ leadId, status, convertedCustomerId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
 
   const targets = nextStatuses(status);
-  const isClosed = status === "converted" || status === "lost";
-
-  function logFollowUpClick() {
-    setError(null);
-    start(async () => {
-      const res = await logFollowUp(leadId);
-      if (res.error) setError(res.error);
-    });
-  }
 
   function move(to: string) {
     setError(null);
@@ -91,20 +79,6 @@ export default function LeadStatusActions({
         <span className="text-caption text-t3">
           {convertedCustomerId ? "Converted — nothing left to move." : "Closed."}
         </span>
-      )}
-      {/* Not pre-gated on followUpsRemaining > 0: clicking at 0 surfaces the API's
-          409 inline below, same pattern as letting the lost-reason prompt rely on
-          the API's own 422 rather than duplicating validation client-side. */}
-      {!isClosed && (
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={pending}
-          onClick={logFollowUpClick}
-          title={`${followUpsRemaining} follow-up(s) remaining`}
-        >
-          Log follow-up
-        </Button>
       )}
       {error && <p className="text-caption text-neg">{error}</p>}
     </div>

@@ -36,14 +36,31 @@ export type LeadInput = {
   source?: string;
   source_detail?: string;
   assigned_to?: string | null;
+  // A reminder date, usable on any status — not part of the pipeline. Unlike
+  // every other field here, an explicit null is a MEANINGFUL value (clear the
+  // due date), not "not supplied" — compact() below carves this one field out
+  // of its blanket empty-drop rule for exactly that reason.
+  followup_due_on?: string | null;
 };
 
 // Empty strings from an untouched form field are dropped rather than sent: the API
 // treats "" as a supplied value and would store blanks over real data on a PATCH.
+//
+// followup_due_on is the one exception: LeadEditForm's date input has no native way
+// to represent "leave unchanged" vs "clear" other than an empty string standing in
+// for "clear" (see save()'s `|| null` translation there), so a present key for this
+// field is preserved through to the wire as an explicit null rather than dropped —
+// every other field's blanket "drop empty = leave unchanged" behavior is unaffected.
 function compact(input: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(input).filter(([, v]) => v !== undefined && v !== null && v !== ""),
+  const rest = Object.fromEntries(
+    Object.entries(input).filter(
+      ([k, v]) => k !== "followup_due_on" && v !== undefined && v !== null && v !== "",
+    ),
   );
+  if ("followup_due_on" in input) {
+    rest.followup_due_on = input.followup_due_on ?? null;
+  }
+  return rest;
 }
 
 export async function createLead(input: LeadInput): Promise<LeadResult> {
@@ -96,23 +113,6 @@ export async function setLeadStatus(
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { ...(await apiHeaders()), "Content-Type": "application/json" },
       body: JSON.stringify({ status, lost_reason: lostReason ?? null }),
-    });
-    if (!resp.ok) return { error: await readError(resp) };
-    revalidatePath("/dashboard/leads");
-    revalidatePath(`/dashboard/leads/${id}`);
-    return { error: null, id };
-  } catch {
-    return { error: "Could not reach the leads service. Check your connection and try again." };
-  }
-}
-
-export async function logFollowUp(id: string): Promise<LeadResult> {
-  if (!DASHBOARD_API_KEY) return notConfigured();
-  try {
-    const resp = await fetch(`${LEADS_API}/${id}/follow-up`, {
-      method: "POST",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: await apiHeaders(),
     });
     if (!resp.ok) return { error: await readError(resp) };
     revalidatePath("/dashboard/leads");

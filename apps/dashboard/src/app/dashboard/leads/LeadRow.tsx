@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Pill from "@/components/ui/Pill";
+import { daysUntilLabel } from "@/lib/format";
 import { sourceLabel, statusLabel, statusTone } from "./status";
 
 export type LeadRowData = {
@@ -19,8 +20,7 @@ export type LeadRowData = {
   created_at: string;
   assigned_to: string | null;
   created_by: string | null;
-  follow_ups_remaining: number;
-  last_contacted_at: string | null;
+  followup_due_on: string | null;
   /** Resolved server-side from assigned_to; the row itself only stores the id. */
   assigned_name?: string | null;
 };
@@ -55,14 +55,20 @@ export default function LeadRow({ lead }: { lead: LeadRowData }) {
         {lead.linked_customer_id && (
           <span className="text-caption text-acc">existing customer</span>
         )}
-        {/* Terser than status.ts's followUpLabel (no "last contacted" clause) — a
-            scan-friendly chip, not the spacious detail-page hero line. Hidden once
-            closed: the counter is not meaningful for a converted/lost lead. */}
-        {lead.status !== "converted" && lead.status !== "lost" && (
-          <span className="text-caption text-t3">
-            · {lead.follow_ups_remaining} follow-up{lead.follow_ups_remaining === 1 ? "" : "s"} left
-          </span>
-        )}
+        {/* Renders nothing when there is no due date at all — not even a "not set"
+            chip, since that would be noise on every open lead without one. The
+            leads-list "No follow-up set" filter is the deliberate way to surface
+            that case. Hidden once closed: a reminder is not meaningful for a
+            converted/lost lead (both auto-clear followup_due_on server-side). */}
+        {lead.status !== "converted" && lead.status !== "lost" && lead.followup_due_on && (() => {
+          const followUp = daysUntilLabel(lead.followup_due_on);
+          if (!followUp) return null;
+          return (
+            <span className={`text-caption ${followUp.tone === "warn" ? "text-warn" : "text-t3"}`}>
+              · {followUp.text}
+            </span>
+          );
+        })()}
       </div>
 
       {lead.requirement && (

@@ -34,6 +34,7 @@ def create_celery_app() -> Celery:
             "src.tasks.transit_watchdog",
             "src.tasks.stage_reminders",
             "src.tasks.challan",
+            "src.tasks.lead_followup_notify",
         ],
     )
 
@@ -89,6 +90,17 @@ def create_celery_app() -> Celery:
             "stage-reminders": {
                 "task": "src.tasks.stage_reminders.send_stage_reminders",
                 "schedule": crontab(minute=5),
+            },
+            # 08:30 IST, ahead of transit-watchdog (09:00) and payment-reminders
+            # (10:00) — every follow-up due today is already sitting in a
+            # salesperson's notification bell before the shop opens. Once daily,
+            # not hourly: the ask is date-granularity ("after N days have passed"),
+            # not an SLA in hours, and the claim (leads.followup_notified_at) fires
+            # a lead's notification exactly once ever, so there is no "how fast
+            # does the FIRST one land" latency question the way stage-reminders has.
+            "lead-followup-due": {
+                "task": "src.tasks.lead_followup_notify.scan_due_followups",
+                "schedule": crontab(hour=8, minute=30),
             },
         },
     )

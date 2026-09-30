@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { PanelLeft, Bell, Plus, Moon, Sun, LogOut } from "lucide-react";
+import { PanelLeft, Plus, Moon, Sun, LogOut } from "lucide-react";
 import { currentNavLabel, type Role } from "@/components/nav-config";
 import { IconButton, buttonVariants } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
 import type { ShellUser } from "./ShellChrome";
 import StatusPill from "./StatusPill";
+import NotificationBell from "./NotificationBell";
 
 const ANCESTOR_LABEL: Record<Role, string> = {
   owner: "Owner Control",
@@ -90,12 +91,7 @@ export default function TopBar({
       <div className="flex items-center gap-2.5 ml-auto">
         <StatusPill salespersonId={user.salespersonId} initialAvailable={user.available} />
 
-        <IconButton title="Notifications" className="relative">
-          <Bell className="w-4 h-4" strokeWidth={1.7} />
-          {unreadCount > 0 && (
-            <span className="absolute top-[6px] right-[7px] w-[5px] h-[5px] rounded-full bg-warn" />
-          )}
-        </IconButton>
+        <NotificationBell initialUnreadCount={unreadCount} />
 
         {/* Mobile User Profile Avatar & Menu Popover */}
         <div ref={mobileMenuRef} className="relative sm:hidden">

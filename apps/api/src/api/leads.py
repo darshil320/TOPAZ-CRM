@@ -25,6 +25,7 @@ Until then the converted customer simply has no face record, which is correct.
 """
 
 import logging
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
@@ -91,6 +92,12 @@ class LeadUpdate(BaseModel):
     source: str | None = None
     source_detail: str | None = Field(default=None, max_length=200)
     assigned_to: UUID | None = None
+    # Reminder field, usable regardless of status — not a pipeline stage. None is a
+    # MEANINGFUL explicit value here (clear the due date), unlike every other
+    # optional field above where None means "not supplied": model_dump(exclude_unset
+    # =True) already distinguishes "key omitted" from "key sent as null" correctly,
+    # so no special handling is needed beyond documenting the distinction here.
+    followup_due_on: date | None = None
 
     @field_validator("phone")
     @classmethod
@@ -204,42 +211,16 @@ async def change_status(
                 status_code=409, detail="use POST /leads/{id}/convert to convert a lead"
             )
 
-        # Follow-ups budgeted the moment active contact work starts (see
-        # lead_status.should_reset_follow_ups — fires at most once, on new->contacted).
-        reset_follow_ups = lead_status.should_reset_follow_ups(lead["status"], body.status)
+        # A reminder on a lead that just became terminal (lost) is noise — clear it
+        # in the same statement that closes the lead. 'converted' never reaches here
+        # (rejected two lines above, routed through /convert instead, which clears
+        # unconditionally in mark_converted) — written as a set comparison anyway so
+        # the intent reads correctly even though only 'lost' is live at this point.
+        clear_followup = body.status in {"converted", "lost"}
         updated = await repo.set_status(
             session, lead_id, status=body.status, lost_reason=body.lost_reason,
-            reset_follow_ups=reset_follow_ups,
+            clear_followup=clear_followup,
         )
-        await session.commit()
-    return updated
-
-
-@router.post("/{lead_id}/follow-up")
-async def log_follow_up(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)):
-    """Record a follow-up call. Deliberately NOT creator-gated — same reasoning as
-    /status and /convert: whoever calls today logs it, and a call the lead's
-    original captor cannot log because they're off is a lost follow-up.
-
-    A follow-up can happen without any status change (e.g. re-calling a
-    'qualified' lead who hasn't decided yet), so this is its own route rather
-    than folded into /status.
-    """
-    async with get_api_session() as session:
-        await authz.resolve_caller(session, auth_uid)
-        lead = await repo.get_lead(session, lead_id)
-        if lead is None:
-            raise HTTPException(status_code=404, detail="lead not found")
-        if lead["follow_ups_remaining"] <= 0:
-            raise HTTPException(
-                status_code=409,
-                detail="No follow-ups remaining on this lead — mark it lost or move it forward.",
-            )
-        updated = await repo.log_follow_up(session, lead_id)
-        if updated is None:
-            # Lost the race described in log_follow_up's docstring — another caller
-            # just consumed the last follow-up between the check above and the UPDATE.
-            raise HTTPException(status_code=409, detail="No follow-ups remaining on this lead.")
         await session.commit()
     return updated
 

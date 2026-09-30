@@ -49,3 +49,43 @@ export function formatDate(value: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
+
+/**
+ * Whole days between two YYYY-MM-DD calendar dates (to - from). Uses Date.UTC on
+ * the parsed y/m/d parts rather than `new Date(iso)` arithmetic — both inputs are
+ * already plain calendar dates (not instants), so this avoids any DST/local-
+ * timezone drift a bare millisecond subtraction could introduce.
+ */
+export function daysBetween(fromISO: string, toISO: string): number {
+  const [fy, fm, fd] = fromISO.split("-").map(Number);
+  const [ty, tm, td] = toISO.split("-").map(Number);
+  const from = Date.UTC(fy, fm - 1, fd);
+  const to = Date.UTC(ty, tm - 1, td);
+  return Math.round((to - from) / 86_400_000);
+}
+
+/** todayISO() shifted by `days` (may be negative), as YYYY-MM-DD. */
+export function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Human copy + tone for a lead's follow-up due date. Never implies automation —
+ * this reflects a date a salesperson set, checked against today; the daily scan
+ * (tasks/lead_followup_notify.py) that turns an overdue date into a notification
+ * is a separate concern this function knows nothing about.
+ */
+export function daysUntilLabel(
+  dueOn: string | null,
+): { text: string; tone: "warn" | "plain" } | null {
+  if (!dueOn) return null;
+  const days = daysBetween(todayISO(), dueOn);
+  if (days < 0) {
+    const n = -days;
+    return { text: `Overdue by ${n} day${n === 1 ? "" : "s"}`, tone: "warn" };
+  }
+  if (days === 0) return { text: "Due today", tone: "warn" };
+  return { text: `Due in ${days} day${days === 1 ? "" : "s"}`, tone: "plain" };
+}

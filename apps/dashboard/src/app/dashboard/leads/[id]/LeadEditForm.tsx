@@ -18,6 +18,7 @@ type EditableLead = {
   source: string;
   source_detail: string | null;
   assigned_to: string | null;
+  followup_due_on: string | null;
 };
 
 type Props = {
@@ -37,6 +38,7 @@ function formFor(lead: EditableLead) {
     source: lead.source,
     source_detail: lead.source_detail ?? "",
     assigned_to: lead.assigned_to ?? "",
+    followup_due_on: lead.followup_due_on ?? "",
   };
 }
 
@@ -80,7 +82,11 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
     }
 
     start(async () => {
-      const res = await updateLead(lead.id, { ...form });
+      // The date input's own "cleared" state is an empty string; the wire contract
+      // (LeadUpdate.followup_due_on) needs an explicit null for "clear the due
+      // date" rather than a value compact() would otherwise drop as "unchanged" —
+      // see actions.ts::compact's carve-out for this one field.
+      const res = await updateLead(lead.id, { ...form, followup_due_on: form.followup_due_on || null });
       if (res.error) {
         setError(res.error);
         return;
@@ -163,6 +169,27 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
                 <option key={sp.id} value={sp.id}>{sp.label}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className={LABEL} htmlFor="edit-followup-due">Follow-up due</label>
+            <div className="flex items-center gap-2">
+              <input
+                id="edit-followup-due"
+                type="date"
+                className={FIELD}
+                value={form.followup_due_on}
+                onChange={set("followup_due_on")}
+              />
+              {form.followup_due_on && (
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, followup_due_on: "" }))}
+                  className="text-caption text-t3 hover:text-t1 whitespace-nowrap"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
           <div className="sm:col-span-2">
             <label className={LABEL} htmlFor="edit-requirement">Requirement</label>

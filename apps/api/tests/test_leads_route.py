@@ -13,6 +13,9 @@ that predicate, pinned:
   * owner passes; `admin` does NOT (the product decision is owner-only, and `is_admin`
     covers {"owner", "admin"} — a refactor to it would silently widen the API)
   * status/convert stay open to any salesperson, deliberately
+  * a follow-up due date is a plain editable field (creator+owner gated, same as any
+    other field), and moving a lead to a terminal status (lost/converted) clears it —
+    see 0050
 
 Collaborators stubbed — no DB, no network, no JWT.
 """
@@ -25,7 +28,6 @@ from fastapi import HTTPException
 
 from src.api import authz, leads
 from src.repositories import enrollment_repo, lead_repo
-from src.services import lead_status
 
 CREATOR = str(uuid4())
 OTHER = str(uuid4())
@@ -43,15 +45,14 @@ def wired(monkeypatch):
             "phone": "+919426529230",
             "name": "Hemant",
             "requirement": "7-seater sofa",
-            "follow_ups_remaining": 2,
-            "last_contacted_at": None,
+            "followup_due_on": None,
+            "followup_notified_at": None,
         },
         "caller": authz.Caller(salesperson_id=CREATOR, role="salesperson"),
         "create_calls": [],
         "update_calls": [],
         "set_status_calls": [],
         "convert_calls": [],
-        "log_follow_up_calls": [],
         "committed": False,
     }
 
@@ -77,34 +78,24 @@ def wired(monkeypatch):
         state["update_calls"].append({"id": str(lead_id), **fields})
         return {**state["lead"], **fields}
 
-    async def _set_status(session, lead_id, *, status, lost_reason=None, reset_follow_ups=False):
+    async def _set_status(session, lead_id, *, status, lost_reason=None, clear_followup=False):
         state["set_status_calls"].append(
-            {"status": status, "lost_reason": lost_reason, "reset_follow_ups": reset_follow_ups}
+            {"status": status, "lost_reason": lost_reason, "clear_followup": clear_followup}
         )
-        follow_ups = (
-            lead_status.DEFAULT_FOLLOW_UPS
-            if reset_follow_ups
-            else state["lead"]["follow_ups_remaining"]
+        extra = (
+            {"followup_due_on": None, "followup_notified_at": None} if clear_followup else {}
         )
-        return {**state["lead"], "status": status, "lost_reason": lost_reason,
-                "follow_ups_remaining": follow_ups}
-
-    async def _log_follow_up(session, lead_id):
-        state["log_follow_up_calls"].append(str(lead_id))
-        current = state["lead"]["follow_ups_remaining"]
-        if current <= 0:
-            return None
-        updated = {**state["lead"], "follow_ups_remaining": current - 1,
-                   "last_contacted_at": "2026-01-01T00:00:00Z"}
-        state["lead"] = updated
-        return updated
+        return {**state["lead"], "status": status, "lost_reason": lost_reason, **extra}
 
     async def _find_customer_by_phone(session, phone):
         return None
 
     async def _mark_converted(session, lead_id, *, customer_id):
         state["convert_calls"].append({"customer_id": str(customer_id)})
-        return {**state["lead"], "status": "converted", "converted_customer_id": str(customer_id)}
+        return {
+            **state["lead"], "status": "converted", "converted_customer_id": str(customer_id),
+            "followup_due_on": None, "followup_notified_at": None,
+        }
 
     async def _enroll_customer(session, **kwargs):
         return (None, uuid4())
@@ -117,7 +108,6 @@ def wired(monkeypatch):
     monkeypatch.setattr(lead_repo, "set_status", _set_status)
     monkeypatch.setattr(lead_repo, "find_customer_by_phone", _find_customer_by_phone)
     monkeypatch.setattr(lead_repo, "mark_converted", _mark_converted)
-    monkeypatch.setattr(lead_repo, "log_follow_up", _log_follow_up)
     monkeypatch.setattr(enrollment_repo, "enroll_customer", _enroll_customer)
     return state
 
@@ -144,10 +134,6 @@ def _status(to="contacted", reason=None):
 
 def _convert():
     return asyncio.run(leads.convert_lead(uuid4(), auth_uid="uid"))
-
-
-def _follow_up(lead_id=None):
-    return asyncio.run(leads.log_follow_up(lead_id or uuid4(), auth_uid="uid"))
 
 
 # ─── create records the creator ──────────────────────────────────────────────
@@ -273,7 +259,7 @@ def test_status_is_not_creator_gated(wired):
 
     assert out["status"] == "contacted"
     assert wired["set_status_calls"] == [
-        {"status": "contacted", "lost_reason": None, "reset_follow_ups": True}
+        {"status": "contacted", "lost_reason": None, "clear_followup": False}
     ]
 
 
@@ -286,60 +272,66 @@ def test_convert_is_not_creator_gated(wired):
     assert len(wired["convert_calls"]) == 1
 
 
-# ─── follow-up counter ────────────────────────────────────────────────────────
+# ─── follow-up due date ───────────────────────────────────────────────────────
 
-def test_status_new_to_contacted_resets_follow_ups(wired):
-    wired["lead"] = {**wired["lead"], "status": "new"}
-    _as(wired, salesperson_id=OTHER)
+def test_creator_may_set_followup_due_on(wired):
+    from datetime import date
 
-    out = _status("contacted")
+    _as(wired, salesperson_id=CREATOR)
 
-    assert wired["set_status_calls"][0]["reset_follow_ups"] is True
-    assert out["follow_ups_remaining"] == lead_status.DEFAULT_FOLLOW_UPS
+    out = _patch(followup_due_on="2026-10-05")
 
-
-def test_status_other_transitions_do_not_reset_follow_ups(wired):
-    wired["lead"] = {**wired["lead"], "status": "contacted"}
-    _as(wired, salesperson_id=OTHER)
-
-    _status("qualified")
-
-    assert wired["set_status_calls"][0]["reset_follow_ups"] is False
+    # LeadUpdate parses the ISO string into a real date — a Pydantic guarantee,
+    # not something this route or repo mock needs to special-case.
+    assert wired["update_calls"][0]["followup_due_on"] == date(2026, 10, 5)
+    assert out["followup_due_on"] == date(2026, 10, 5)
 
 
-def test_log_follow_up_decrements_and_stamps_last_contacted(wired):
-    _as(wired, salesperson_id=OTHER)
+def test_creator_may_clear_followup_due_on(wired):
+    _as(wired, salesperson_id=CREATOR)
 
-    out = _follow_up()
+    _patch(followup_due_on=None)
 
-    assert wired["log_follow_up_calls"] == [out["id"]] or len(wired["log_follow_up_calls"]) == 1
-    assert out["follow_ups_remaining"] == 1
-    assert out["last_contacted_at"] is not None
-
-
-def test_log_follow_up_is_not_creator_gated(wired):
-    """Same floor reasoning as /status and /convert — whoever calls today logs it."""
-    _as(wired, salesperson_id=OTHER)
-    assert wired["lead"]["created_by"] == CREATOR
-
-    out = _follow_up()
-
-    assert out["follow_ups_remaining"] == 1
+    # exclude_unset means an explicit null still reaches update_lead as a key.
+    assert "followup_due_on" in wired["update_calls"][0]
+    assert wired["update_calls"][0]["followup_due_on"] is None
 
 
-def test_log_follow_up_refuses_at_zero(wired):
-    wired["lead"] = {**wired["lead"], "follow_ups_remaining": 0}
+def test_non_creator_cannot_set_followup_due_on(wired):
+    """No new bypass: setting a due date is gated exactly like any other field."""
     _as(wired, salesperson_id=OTHER)
 
     with pytest.raises(HTTPException) as exc:
-        _follow_up()
-    assert exc.value.status_code == 409
-    assert wired["log_follow_up_calls"] == [], "a refused follow-up must not reach the repository"
+        _patch(followup_due_on="2026-10-05")
+    assert exc.value.status_code == 403
+    assert wired["update_calls"] == []
 
 
-def test_log_follow_up_missing_lead_is_404(wired):
-    wired["lead"] = None
+def test_marking_a_lead_lost_clears_the_followup(wired):
+    wired["lead"] = {**wired["lead"], "status": "new", "followup_due_on": "2026-10-01"}
+    _as(wired, salesperson_id=OTHER)
 
-    with pytest.raises(HTTPException) as exc:
-        _follow_up()
-    assert exc.value.status_code == 404
+    out = _status("lost", reason="Went with a competitor")
+
+    assert wired["set_status_calls"][0]["clear_followup"] is True
+    assert out["followup_due_on"] is None
+    assert out["followup_notified_at"] is None
+
+
+def test_other_status_transitions_do_not_clear_the_followup(wired):
+    wired["lead"] = {**wired["lead"], "status": "new", "followup_due_on": "2026-10-01"}
+    _as(wired, salesperson_id=OTHER)
+
+    _status("contacted")
+
+    assert wired["set_status_calls"][0]["clear_followup"] is False
+
+
+def test_convert_clears_the_followup(wired):
+    wired["lead"] = {**wired["lead"], "followup_due_on": "2026-10-01"}
+    _as(wired, salesperson_id=OTHER)
+
+    out = _convert()
+
+    assert out["lead"]["followup_due_on"] is None
+    assert out["lead"]["followup_notified_at"] is None
