@@ -84,7 +84,19 @@ export default function NotificationBell({ initialUnreadCount }: Props) {
       </IconButton>
 
       {open && (
-        <PopoverPanel className="absolute right-0 top-9 w-[340px] max-h-[420px] flex flex-col">
+        // right-0 with a fixed 340px width overflowed off the LEFT edge on
+        // narrow screens — TopBar's header sits right up against the bell, so
+        // there's no room to its left for a fixed width. Stays `absolute`
+        // (not `fixed`: the header has backdrop-blur, which creates a new
+        // containing block for fixed descendants in every major browser, so a
+        // viewport-anchored fixed panel would actually still be positioned
+        // relative to the header, not the screen). Instead the width itself
+        // is clamped to the viewport via calc(100vw - ...): right-0 keeps the
+        // panel's right edge at the bell regardless of screen size, and the
+        // clamped width stops the left edge running off-screen.
+        <PopoverPanel
+          className="absolute right-0 top-9 w-[min(340px,calc(100vw-2rem))] max-h-[420px] flex flex-col"
+        >
           <div className="flex items-center justify-between px-2.5 pt-1.5 pb-2.5 border-b border-ln2 mb-1">
             <span className="text-ui font-semibold text-t1">
               Notifications{unreadCount > 0 ? ` (${unreadCount})` : ""}
