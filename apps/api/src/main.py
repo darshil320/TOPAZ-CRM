@@ -136,8 +136,13 @@ def create_app() -> FastAPI:
     app.include_router(stage_plan_router, prefix="/api")
     # Delivery challans (0037).
     app.include_router(documents_router, prefix="/api")
-    app.include_router(leads_router, prefix="/api")
+    # Mounted BEFORE leads_router, deliberately: leads.py has GET/PATCH
+    # "/{lead_id}" on the same "/leads" prefix, and Starlette matches routes in
+    # registration order across routers — "/leads/notifications" would otherwise
+    # be swallowed by "/leads/{lead_id}" (lead_id="notifications", a 422 from
+    # failed UUID parsing rather than reaching this router at all).
     app.include_router(lead_followup_notifications_router, prefix="/api")
+    app.include_router(leads_router, prefix="/api")
     app.include_router(lead_recordings_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
