@@ -115,3 +115,22 @@ export async function listLeadRecordings(
     return { error: "Could not reach the leads service. Check your connection and try again." };
   }
 }
+
+/** Remove one recording (file + row). Also the second half of "replace". */
+export async function deleteLeadRecording(
+  leadId: string,
+  recordingId: string,
+): Promise<{ error: string | null }> {
+  if (!DASHBOARD_API_KEY) return { error: NOT_CONFIGURED };
+  try {
+    const resp = await fetch(recordingsUrl(leadId, `/${recordingId}`), {
+      method: "DELETE",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(),
+    });
+    if (!resp.ok) return { error: await readError(resp) };
+    return { error: null };
+  } catch {
+    return { error: "Could not reach the leads service. Check your connection and try again." };
+  }
+}

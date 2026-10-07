@@ -154,6 +154,16 @@ async def update_lead(session: AsyncSession, lead_id: UUID, **fields) -> dict | 
     return None if row is None else dict(row)
 
 
+async def delete_lead(session: AsyncSession, lead_id: UUID) -> bool:
+    """Hard-delete a lead. lead_recordings and lead_followup_notifications rows go with
+    it (ON DELETE CASCADE, 0048/0050) — their Storage objects do NOT, so the route
+    removes those first. True when a row was deleted."""
+    result = await session.execute(
+        text("DELETE FROM leads WHERE id = :id"), {"id": str(lead_id)}
+    )
+    return (result.rowcount or 0) > 0
+
+
 async def set_status(
     session: AsyncSession, lead_id: UUID, *, status: str, lost_reason: str | None = None,
     clear_followup: bool = False,

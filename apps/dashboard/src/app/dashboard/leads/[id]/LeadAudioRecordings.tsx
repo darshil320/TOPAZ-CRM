@@ -8,6 +8,10 @@
  * MediaRecorder capture — no recording precedent exists in this repo, and live
  * capture is a materially bigger feature than what was asked.
  *
+ * Each recording can be deleted, or replaced. Replace uploads the new file FIRST
+ * and deletes the old one only once the new one is ready — a failed upload never
+ * costs the existing recording.
+ *
  * Fetches its own list on mount and after a successful upload — no
  * router.refresh(), same rationale as LeadEditForm: there is nothing to
  * revalidate via Supabase RLS here (recordings are read through the API, not the
@@ -25,6 +29,7 @@ import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/format";
 import {
   completeLeadAudioUpload,
+  deleteLeadRecording,
   listLeadRecordings,
   signLeadAudioUpload,
   type LeadAudioMime,
@@ -80,6 +85,13 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
   const [note, setNote] = useState("");
   const [entry, setEntry] = useState<QueueEntry | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The recording a picked file will replace; null = a plain "Add".
+  const [replacing, setReplacing] = useState<LeadRecording | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const uploading =
+    entry?.phase === "queued" || entry?.phase === "uploading" || entry?.phase === "finalising";
 
   async function refresh() {
     const res = await listLeadRecordings(leadId);
@@ -96,7 +108,7 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File, replace: LeadRecording | null) {
     const mime = mimeFor(file);
     const key = `${file.name}-${file.size}-${file.lastModified}`;
     if (!mime) {
@@ -109,7 +121,8 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
 
     setEntry({ key, name: file.name, phase: "queued", error: null });
 
-    const signed = await signLeadAudioUpload(leadId, mime, note);
+    // A replacement keeps the old note unless a new one was typed.
+    const signed = await signLeadAudioUpload(leadId, mime, note.trim() || replace?.note || undefined);
     if (signed.error || !signed.data) {
       setEntry({ key, name: file.name, phase: "error", error: signed.error ?? "Could not start the upload." });
       return;
@@ -129,15 +142,48 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
       return;
     }
 
+    if (replace) {
+      const removed = await deleteLeadRecording(leadId, replace.id);
+      if (removed.error) {
+        setEntry({
+          key, name: file.name, phase: "error",
+          error: `New recording added, but the old one could not be removed: ${removed.error}`,
+        });
+        await refresh();
+        return;
+      }
+    }
+
     setEntry({ key, name: file.name, phase: "done", error: null });
     setNote("");
+    await refresh();
+  }
+
+  function startReplace(rec: LeadRecording) {
+    setReplacing(rec);
+    fileRef.current?.click();
+  }
+
+  async function remove(rec: LeadRecording) {
+    const label = rec.note ? `"${rec.note}"` : `from ${formatDate(rec.created_at)}`;
+    if (!window.confirm(`Delete the recording ${label}? This cannot be undone.`)) return;
+    setRowError(null);
+    setBusyId(rec.id);
+    const res = await deleteLeadRecording(leadId, rec.id);
+    setBusyId(null);
+    if (res.error) {
+      setRowError(res.error);
+      return;
+    }
     await refresh();
   }
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow picking the same file again
-    if (file) handleFile(file);
+    const target = replacing;
+    setReplacing(null);
+    if (file) handleFile(file, target);
   }
 
   return (
@@ -153,8 +199,11 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => fileRef.current?.click()}
-            disabled={entry?.phase === "uploading" || entry?.phase === "finalising"}
+            onClick={() => {
+              setReplacing(null);
+              fileRef.current?.click();
+            }}
+            disabled={uploading}
           >
             Add a recording
           </Button>
@@ -185,6 +234,8 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
         </div>
       )}
 
+      {rowError && <p className="pb-3 text-caption text-neg">{rowError}</p>}
+
       {listError ? (
         <p className="text-caption text-neg">{listError}</p>
       ) : recordings === null ? (
@@ -196,11 +247,33 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
           {recordings.map((rec) => (
             <li key={rec.id} className="space-y-1">
               <audio controls src={rec.url} className="w-full h-9" />
-              <p className="text-caption text-t3">
-                <span className="font-mono tabular-nums">{formatDate(rec.created_at)}</span>
-                {rec.uploaded_by_name ? ` · ${rec.uploaded_by_name}` : ""}
-                {rec.note ? ` · ${rec.note}` : ""}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-caption text-t3 flex-1 min-w-0">
+                  <span className="font-mono tabular-nums">{formatDate(rec.created_at)}</span>
+                  {rec.uploaded_by_name ? ` · ${rec.uploaded_by_name}` : ""}
+                  {rec.note ? ` · ${rec.note}` : ""}
+                </p>
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => startReplace(rec)}
+                      disabled={uploading || busyId === rec.id}
+                    >
+                      Replace
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => remove(rec)}
+                      disabled={uploading || busyId === rec.id}
+                    >
+                      {busyId === rec.id ? "Deleting…" : "Delete"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </li>
           ))}
         </ul>

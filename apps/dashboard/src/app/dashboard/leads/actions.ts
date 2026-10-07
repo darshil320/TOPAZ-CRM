@@ -101,6 +101,24 @@ export async function updateLead(id: string, input: Partial<LeadInput>): Promise
   }
 }
 
+// Hard delete, for an enquiry captured against the wrong number. The API removes the
+// lead's call recordings from Storage first and refuses converted leads (409).
+export async function deleteLead(id: string): Promise<LeadResult> {
+  if (!DASHBOARD_API_KEY) return notConfigured();
+  try {
+    const resp = await fetch(`${LEADS_API}/${id}`, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: await apiHeaders(),
+    });
+    if (!resp.ok) return { error: await readError(resp) };
+    revalidatePath("/dashboard/leads");
+    return { error: null, id };
+  } catch {
+    return { error: "Could not reach the leads service. Check your connection and try again." };
+  }
+}
+
 export async function setLeadStatus(
   id: string,
   status: string,

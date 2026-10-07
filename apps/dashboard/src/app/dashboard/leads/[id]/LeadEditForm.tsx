@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FIELD, LABEL } from "../LeadForm";
 import { LEAD_SOURCES, sourceLabel } from "../status";
-import { updateLead } from "../actions";
+import { deleteLead, updateLead } from "../actions";
 
 type EditableLead = {
   id: string;
+  status: string;
   name: string | null;
   phone: string;
   society: string | null;
@@ -57,6 +59,9 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
+  const router = useRouter();
+  // A converted lead backs a customer row; the API refuses (409), so don't offer it.
+  const canDelete = lead.status !== "converted";
 
   const set = (key: keyof ReturnType<typeof formFor>) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -93,6 +98,22 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
       }
       setSaved(true);
       setOpen(false);
+    });
+  }
+
+  function remove() {
+    const label = lead.name ? `${lead.name} (${lead.phone})` : lead.phone;
+    if (!window.confirm(`Delete the enquiry for ${label}? Its call recordings are deleted too. This cannot be undone.`)) {
+      return;
+    }
+    setError(null);
+    start(async () => {
+      const res = await deleteLead(lead.id);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      router.push("/dashboard/leads");
     });
   }
 
@@ -228,6 +249,17 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
           <Button type="button" variant="secondary" onClick={toggle} disabled={pending}>
             Cancel
           </Button>
+          {canDelete && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={remove}
+              disabled={pending}
+              className="ml-auto"
+            >
+              Delete lead
+            </Button>
+          )}
         </div>
       </form>
     </Card>

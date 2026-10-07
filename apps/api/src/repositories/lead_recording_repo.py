@@ -99,3 +99,12 @@ async def list_for_lead(
         {"lead_id": str(lead_id), "ready_only": ready_only},
     )
     return [dict(r) for r in result.mappings().all()]
+
+
+async def delete_recording(session: AsyncSession, recording_id: UUID) -> bool:
+    """Hard-delete one recording row. The route removes its Storage object first —
+    this row is the only record of the key. True when a row was deleted."""
+    result = await session.execute(
+        text("DELETE FROM lead_recordings WHERE id = :id"), {"id": str(recording_id)}
+    )
+    return (result.rowcount or 0) > 0

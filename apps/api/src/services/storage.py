@@ -313,3 +313,26 @@ async def signed_upload_url_async(bucket: str, key: str, expires_in: int = 900) 
     if not signed:
         raise StorageError(f"Sign upload {bucket}/{key} returned no URL")
     return _absolute(str(signed))
+
+
+async def remove_objects_async(bucket: str, keys: list[str]) -> None:
+    """Delete many objects in one request. Raises StorageError on any failure.
+
+    Raising (not logging) is the contract: callers delete the DB row that holds
+    these keys only after this returns, because once that row is gone nothing
+    records where the objects were. Keys that are already absent are not an error —
+    Storage answers 200 and simply omits them.
+    """
+    unique = list(dict.fromkeys(k for k in keys if k))
+    if not unique:
+        return
+    base, headers = _base_and_headers()
+    client = await _client()
+    try:
+        resp = await client.request(
+            "DELETE", f"{base}/object/{bucket}", json={"prefixes": unique}, headers=headers
+        )
+    except httpx.HTTPError as exc:
+        raise StorageError(f"Remove from {bucket} failed: {exc}") from exc
+    if resp.status_code >= 400:
+        raise StorageError(f"Remove from {bucket} failed: HTTP {resp.status_code}")

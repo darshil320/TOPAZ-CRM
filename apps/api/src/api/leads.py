@@ -31,9 +31,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from pydantic import BaseModel, Field, field_validator
 
+from ..config import get_settings
 from ..database import get_api_session
-from ..repositories import enrollment_repo, lead_repo as repo
-from ..services import lead_status
+from ..repositories import enrollment_repo, lead_recording_repo, lead_repo as repo
+from ..services import lead_status, storage
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
 
@@ -178,6 +179,48 @@ async def update_lead(
         lead = await repo.update_lead(session, lead_id, **fields)
         await session.commit()
     return lead
+
+
+@router.delete("/{lead_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+async def delete_lead(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)) -> None:
+    """Remove an enquiry captured by mistake (typically: the wrong number).
+
+    Creator or owner only, same as edit. A converted lead is refused — it is the
+    history behind a customer row; mark it lost instead.
+
+    Recordings first: the lead_recordings cascade drops the only record of their
+    Storage keys, so the objects are removed BEFORE the row and a Storage failure
+    aborts the whole delete rather than orphaning call audio of someone who may not
+    even be the intended customer.
+    """
+    settings = get_settings()
+    async with get_api_session() as session:
+        caller = await authz.resolve_caller(session, auth_uid)
+        lead = await repo.get_lead(session, lead_id)
+        if lead is None:
+            raise HTTPException(status_code=404, detail="lead not found")
+        authz.assert_can_edit_lead(caller, lead, action="delete this lead")
+        if lead["status"] == "converted":
+            raise HTTPException(
+                status_code=409,
+                detail="a converted lead cannot be deleted — it is linked to a customer",
+            )
+
+        recordings = await lead_recording_repo.list_for_lead(session, lead_id, ready_only=False)
+        keys = [r["storage_key"] for r in recordings if r.get("storage_key")]
+        if keys:
+            try:
+                await storage.remove_objects_async(settings.LEAD_AUDIO_BUCKET, keys)
+            except storage.StorageError as exc:
+                logger.error("Lead %s delete aborted, recording purge failed: %s", lead_id, exc)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not remove this lead's call recordings. Nothing was deleted — try again.",
+                ) from exc
+
+        await repo.delete_lead(session, lead_id)
+        await session.commit()
+    logger.info("Lead %s deleted (%d recordings purged)", lead_id, len(keys))
 
 
 @router.post("/{lead_id}/status")

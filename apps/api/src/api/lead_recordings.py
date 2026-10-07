@@ -13,8 +13,10 @@ GATING, restated from the plan:
   * list                    -> open to any active salesperson, matching leads_select
     ("the person who picks up the phone is rarely the one who took the original
     enquiry" applies identically to hearing a prior call).
-No DELETE route: mirrors 0046's "no delete policy ever" — a recording is evidence
-of what was actually said on a call.
+  * delete                  -> creator + owner, same as adding one. Product call
+    (2026-10): staff must be able to remove a wrong/accidental recording, and
+    "replace" is upload-new-then-delete-old from the dashboard. This supersedes the
+    earlier "no DELETE route, a recording is evidence" stance.
 """
 
 import logging
@@ -193,3 +195,39 @@ async def list_recordings(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)
         for r in rows if r["storage_key"] in signed
     ]
     return {"recordings": recordings}
+
+
+@router.delete(
+    "/{lead_id}/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_recording(
+    lead_id: UUID, recording_id: UUID, auth_uid: str = Depends(get_caller_uid)
+) -> None:
+    """Remove one recording — its Storage object first, then the row.
+
+    The row is the only record of the object's key, so a Storage failure aborts
+    (502) rather than deleting the row and leaving the audio unpurgeable.
+    """
+    settings = get_settings()
+    async with get_api_session() as session:
+        caller = await authz.resolve_caller(session, auth_uid)
+        lead = await _load_lead_or_404(session, lead_id)
+        authz.assert_can_edit_lead(caller, lead, action="delete a recording on this lead")
+
+        row = await repo.get_recording(session, recording_id)
+        # str() both sides — asyncpg returns UUID objects (see complete_upload).
+        if row is None or str(row["lead_id"]) != str(lead_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recording not found")
+
+        try:
+            await storage.remove_objects_async(settings.LEAD_AUDIO_BUCKET, [row["storage_key"]])
+        except storage.StorageError as exc:
+            logger.error("Remove lead audio %s failed: %s", row["storage_key"], exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not delete the recording file. Nothing was removed — try again.",
+            ) from exc
+
+        await repo.delete_recording(session, recording_id)
+        await session.commit()
+    logger.info("Lead %s recording %s deleted", lead_id, recording_id)
