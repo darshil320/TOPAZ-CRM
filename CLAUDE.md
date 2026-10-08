@@ -34,17 +34,33 @@ the sibling prospecting repo (`dmc-orchestrator/prospects/`):
 ## Monorepo layout & phase mapping
 
 Status here is a coarse snapshot — **`docs/DEPLOYMENT.md` is the authoritative,
-currently-maintained status doc** (checkpoints, Railway/Vercel state, what's live vs
+currently-maintained status doc** (checkpoints, Hetzner/Vercel state, what's live vs
 placeholder). Update both when a track completes.
 
 | Folder | Phase | Status |
 |---|---|---|
 | `apps/prototype` | Pre-sales deal-closer | **Active** |
 | `apps/edge` | 1A · M1 (entrance camera → ArcFace, USB/RTSP, no Jetson) | Built — code complete, no autostart service yet |
-| `apps/api` | 1A M2/M6A · 1B M3/M4/M5 (FastAPI) | Built — deployed on Railway |
+| `apps/api` | 1A M2/M6A · 1B M3/M4/M5 (FastAPI) | Built — deployed on Hetzner (see below) |
 | `apps/dashboard` | 1A M6A · 1B M6B (Next.js) | Built — deployed on Vercel |
 | `packages/shared` | shared contracts | Built |
-| `infra` | Docker/deploy/Jetson provisioning | Partial — local Docker Compose only, no on-prem provisioning scripts |
+| `infra` | Docker/deploy/Jetson provisioning | Partial — `infra/hetzner/` prod stack; no Jetson/on-prem provisioning scripts |
+
+### Where things run (production)
+
+- **Backend (api + Celery worker + beat + Redis) → our own Hetzner VPS** (CX22,
+  Docker Compose behind Caddy TLS). Railway (`cooperative-wisdom`,
+  `api-production-c6189.up.railway.app`) is **retired** — any doc still naming it
+  is stale. Tooling + runbook: [`infra/hetzner/README.md`](infra/hetzner/README.md).
+- **Dashboard → Vercel**, auto-deploys on push to `main` (project `topaz-crm`).
+  Its `TOPAZ_API_URL` env must point at the Hetzner API domain.
+- **Postgres + Auth + Storage → Supabase** (not migrated).
+- **Deploying backend code:** push to `main`, then on the VPS
+  `cd /opt/topaz && git pull && systemctl reload topaz` (rebuild + recreate,
+  a few seconds of 502), then `bash infra/hetzner/smoke.sh`. Pushing alone does
+  NOT deploy the API.
+- New migrations in `supabase/migrations/` are applied separately
+  (`supabase db push`) — never promote `migrations_pending/` without its README.
 
 See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse map.
 
