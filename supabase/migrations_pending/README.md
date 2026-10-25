@@ -23,9 +23,12 @@ deliberate backward-compatibility bridges (`deliveries.order_id` still derived,
 
 ## Current contents
 
+`0041` was promoted on 2026-10-25 (its gate — the dashboard calling
+`schedule_delivery(jsonb)` — had been live since the 0040 rollout) and applied to prod.
+0042's soak clock starts there: hold it for at least one more release.
+
 | File | Gate — do not promote until |
 |---|---|
-| `0041_deliveries_single_order_write_path_retire.sql` | The dashboard build calling `schedule_delivery(jsonb)` is **live**. Promoting early breaks scheduling with *function schedule_delivery(p_order_id => uuid, …) does not exist*. |
 | `0042_drop_deliveries_order_id.sql` | 0041 has soaked for a release **and** `rg -n 'deliveries\.order_id' apps/` is clean. Irreversible: drops `deliveries.order_id` and the four challan columns that moved to `delivery_consignments` in 0040. |
 
 Both belong to the 0040 multi-order-delivery rollout; see that migration's header for the

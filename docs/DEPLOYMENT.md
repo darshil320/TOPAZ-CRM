@@ -171,6 +171,16 @@ insert into doc_series (series, fiscal_year, last_no) values ('CHL', 'ALL', 66)
 on conflict (series, fiscal_year) do update set last_no = excluded.last_no;
 ```
 
+### Prod catch-up + `0041` promoted (2026-10-25)
+
+Prod was found behind the repo: `0040` applied but unrecorded, `0043`/`0044`/`0045` never
+applied (deployed code already read `0045`'s `reminder_count`, so stage reminders were
+failing). All were applied (`psql -1`, then `supabase migration repair`), followed by
+`0051`, `0052` and the promoted `0041` (old per-order `schedule_delivery` signature, the
+`deliveries_insert`/`delivery_items_insert` policies and the browser INSERT grants are
+gone; `test_deliveries_0041.py`). Prod head: 0052 with 0041 recorded out of order.
+**`0042` is still held** — irreversible; give 0041 at least one release to soak.
+
 ### Telecaller role (`0051`) — migration first, then API + dashboard
 
 `0051_telecaller_role.sql` only adds `telecaller` to `salespersons_role_check`. A
