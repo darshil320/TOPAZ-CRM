@@ -24,6 +24,13 @@ export interface QuoteBuilderInitial {
   lines: LineDraft[];
 }
 
+/** Create mode, dispatcher only (0052): whose quotation this is. */
+export interface PreparedForOptions {
+  salespersons: { id: string; name: string }[];
+  /** The front desk never owns a quotation itself, so it must pick. */
+  required: boolean;
+}
+
 interface Props {
   mode: "create" | "edit";
   /** Present in edit mode; the quotation being updated. */
@@ -31,6 +38,7 @@ interface Props {
   customers: CustomerOption[];
   products: ProductOption[];
   initial: QuoteBuilderInitial;
+  preparedFor?: PreparedForOptions;
 }
 
 /** A blank line with placeholder-friendly defaults */
@@ -78,11 +86,13 @@ export default function QuoteBuilder({
   customers,
   products,
   initial,
+  preparedFor,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [customerId, setCustomerId] = useState<string>(initial.customerId);
+  const [forSalesperson, setForSalesperson] = useState<string>("");
   const [discount, setDiscount] = useState<string>(initial.discount);
   const [placeOfSupply, setPlaceOfSupply] = useState<string>(
     initial.placeOfSupply || HOME_STATE,
@@ -141,6 +151,10 @@ export default function QuoteBuilder({
       setError("Please select a customer.");
       return;
     }
+    if (preparedFor?.required && !forSalesperson) {
+      setError("Choose the salesperson this quotation is for.");
+      return;
+    }
     const cleanLines = lines
       .filter((l) => l.description.trim().length > 0)
       .map(toItemPayload);
@@ -158,6 +172,7 @@ export default function QuoteBuilder({
       terms: terms.trim() || null,
       notes: notes.trim() || null,
       items: cleanLines,
+      salesperson_id: forSalesperson || null,
     };
 
     startTransition(async () => {
@@ -183,6 +198,25 @@ export default function QuoteBuilder({
     <div className="space-y-4">
       <Card className="space-y-3">
         <SectionHeader label="Customer" />
+        {preparedFor && mode === "create" && (
+          <div>
+            <label className={labelCls} htmlFor="quote-prepared-for">Prepared for salesperson</label>
+            <select
+              id="quote-prepared-for"
+              className={inputCls}
+              value={forSalesperson}
+              onChange={(e) => setForSalesperson(e.target.value)}
+            >
+              <option value="">{preparedFor.required ? "Choose…" : "Myself"}</option>
+              {preparedFor.salespersons.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-caption text-t3">
+              The quotation is theirs; they are added to the customer if they are not on it yet.
+            </p>
+          </div>
+        )}
         <CustomerPicker
           customers={customers}
           value={customerId}

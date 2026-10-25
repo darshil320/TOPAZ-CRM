@@ -2,7 +2,8 @@
 
 /**
  * Call recordings on a lead — playback list (always visible) + upload control
- * (creator/owner only).
+ * (creator/owner/telecaller) + replace/delete (creator/owner — never a telecaller,
+ * since replace ends in a delete).
  *
  * File upload (`<input type="file" accept="audio/*">`), not in-browser
  * MediaRecorder capture — no recording precedent exists in this repo, and live
@@ -36,7 +37,7 @@ import {
   type LeadRecording,
 } from "@/lib/leadAudio/actions";
 
-type Props = { leadId: string; canEdit: boolean };
+type Props = { leadId: string; canEdit: boolean; canDelete: boolean };
 
 type Phase = "queued" | "uploading" | "finalising" | "done" | "error";
 
@@ -79,7 +80,7 @@ function putToStorage(url: string, file: File): Promise<{ error: string | null }
   });
 }
 
-export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
+export default function LeadAudioRecordings({ leadId, canEdit, canDelete }: Props) {
   const [recordings, setRecordings] = useState<LeadRecording[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -253,7 +254,7 @@ export default function LeadAudioRecordings({ leadId, canEdit }: Props) {
                   {rec.uploaded_by_name ? ` · ${rec.uploaded_by_name}` : ""}
                   {rec.note ? ` · ${rec.note}` : ""}
                 </p>
-                {canEdit && (
+                {canDelete && (
                   <div className="flex gap-2">
                     <Button
                       type="button"

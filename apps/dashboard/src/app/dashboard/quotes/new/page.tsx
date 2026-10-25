@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import { isDispatcher, isFrontDesk } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
 import QuoteBuilder, { type QuoteBuilderInitial } from "../QuoteBuilder";
 import type { CustomerOption, ProductOption } from "../types";
@@ -53,7 +54,8 @@ export default async function NewQuotePage({ searchParams }: Props) {
   const { customer } = await searchParams;
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: customers }, { data: products }, { data: settings }] = await Promise.all([
+  const dispatcher = isDispatcher(sp.role);
+  const [{ data: customers }, { data: products }, { data: settings }, { data: sellers }] = await Promise.all([
     supabase.from("customers").select("id, name, phone").order("name", { ascending: true }).limit(500),
     supabase
       .from("products")
@@ -61,6 +63,10 @@ export default async function NewQuotePage({ searchParams }: Props) {
       .eq("active", true)
       .order("name", { ascending: true }),
     supabase.from("app_settings").select("key, value").in("key", ["quote_terms", "quote_validity_days"]),
+    // Dispatchers (0052) may prepare a quotation on a salesperson's behalf.
+    dispatcher
+      ? supabase.from("salespersons").select("id, name").eq("role", "salesperson").eq("active", true).order("name")
+      : Promise.resolve({ data: null }),
   ]);
 
   const settingsMap = new Map((settings ?? []).map((r) => [r.key, r.value]));
@@ -92,6 +98,11 @@ export default async function NewQuotePage({ searchParams }: Props) {
         customers={(customers ?? []) as CustomerOption[]}
         products={(products ?? []) as ProductOption[]}
         initial={blankInitial(preselect, defaultValidUntil(validityDays), terms)}
+        preparedFor={
+          dispatcher
+            ? { salespersons: sellers ?? [], required: isFrontDesk(sp.role) }
+            : undefined
+        }
       />
     </div>
   );

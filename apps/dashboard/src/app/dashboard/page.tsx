@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 import CustomerListClient, { type MyCustomer } from "./CustomerListClient";
-import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
 
 export default async function DashboardPage() {
@@ -10,7 +11,8 @@ export default async function DashboardPage() {
   if (!sp) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const isOwner = isOwnerRole(sp);
+  // "Owner" here = sees every customer: owner-level and admin (0052).
+  const isOwner = canViewAll(sp?.role);
 
   let customers: MyCustomer[] = [];
 

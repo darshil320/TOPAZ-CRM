@@ -26,8 +26,8 @@ router = APIRouter(prefix="/leads/notifications", dependencies=[Depends(require_
 
 
 def _scope(caller: authz.Caller) -> str | None:
-    """None means owner — every notification, no salesperson filter."""
-    return None if caller.role == "owner" else caller.salesperson_id
+    """None means owner-level — every notification, no salesperson filter."""
+    return None if caller.is_owner else caller.salesperson_id
 
 
 @router.get("")

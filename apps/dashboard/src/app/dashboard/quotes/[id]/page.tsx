@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import { canRemove, isFrontDesk } from "@/lib/roles";
 import { formatINR, formatDate } from "@/lib/format";
 import { stateName } from "../states";
 import { statusChip } from "../status";
@@ -35,7 +36,11 @@ export default async function QuoteDetailPage({ params }: Props) {
   const [{ data: quote }, { data: items }, { data: children }] = await Promise.all([
     supabase
       .from("quotations")
-      .select("*, customers(name, phone), salespersons(name)")
+      // FK hints: quotations reaches salespersons twice since 0052 — whose quotation
+      // it is (created_by) and who prepared it on their behalf (prepared_by).
+      .select(
+        "*, customers(name, phone), salespersons!quotations_created_by_fkey(name), preparer:salespersons!quotations_prepared_by_fkey(name)",
+      )
       .eq("id", id)
       .single(),
     supabase
@@ -65,6 +70,7 @@ export default async function QuoteDetailPage({ params }: Props) {
 
   const customer = one(quote.customers as { name: string | null; phone: string | null } | null);
   const creator = one(quote.salespersons as { name: string | null } | null);
+  const preparer = one(quote.preparer as { name: string | null } | null);
   const parent = parentResult.data as { id: string; quote_no: string; revision_no: number } | null;
   const chip = statusChip(quote.status);
   const intra = quote.place_of_supply === HOME_STATE;
@@ -101,7 +107,8 @@ export default async function QuoteDetailPage({ params }: Props) {
             </p>
             <p className="mt-0.5 text-caption text-t3 font-mono">
               Created {formatDate(quote.created_at)}
-              {creator?.name && ` by ${creator.name}`} · Valid until {formatDate(quote.valid_until)}
+              {creator?.name && ` by ${creator.name}`}
+              {preparer?.name && ` · prepared by ${preparer.name}`} · Valid until {formatDate(quote.valid_until)}
             </p>
           </div>
           <Pill tone={quote.status === "approved" ? "pos" : quote.status === "rejected" ? "warn" : "neutral"} dot={false}>
@@ -112,7 +119,13 @@ export default async function QuoteDetailPage({ params }: Props) {
 
       {/* Actions */}
       <Card>
-        <QuoteActions quoteId={quote.id} status={quote.status} />
+        <QuoteActions
+          quoteId={quote.id}
+          quoteNo={quote.quote_no}
+          status={quote.status}
+          canDelete={canRemove(sp.role)}
+          canCreateOrder={!isFrontDesk(sp.role)}
+        />
       </Card>
 
       {/* Revision chain */}

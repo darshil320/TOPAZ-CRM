@@ -17,6 +17,7 @@ import {
   Truck,
   Route,
 } from "lucide-react";
+import { canViewAll } from "@/lib/roles";
 
 /**
  * The staff roles the DB allows (`salespersons.role`, migration 0011). The shell
@@ -30,7 +31,10 @@ export type Role =
   | "admin"
   | "accounts"
   | "workshop_manager"
-  | "delivery";
+  | "delivery"
+  | "telecaller"
+  | "super_admin"
+  | "front_desk";
 
 const ROLES: readonly Role[] = [
   "salesperson",
@@ -39,6 +43,9 @@ const ROLES: readonly Role[] = [
   "accounts",
   "workshop_manager",
   "delivery",
+  "telecaller",
+  "super_admin",
+  "front_desk",
 ];
 
 /** Narrow a raw `salespersons.role` string; anything unknown is a plain salesperson. */
@@ -80,7 +87,7 @@ export const ICONS = {
 } as const;
 
 /** Roles the production allocate route accepts — mirrors api/production.py. */
-const ALLOCATING_ROLES: readonly Role[] = ["owner", "admin", "salesperson"];
+const ALLOCATING_ROLES: readonly Role[] = ["super_admin", "owner", "admin", "salesperson"];
 
 /**
  * Roles that can open the inter-workshop transit app (module 14). `delivery` is the
@@ -89,7 +96,7 @@ const ALLOCATING_ROLES: readonly Role[] = ["owner", "admin", "salesperson"];
  * A `workshop_manager` is deliberately absent: they act on consignments from their own
  * queue's Incoming section, not from a driver's run list.
  */
-const TRANSIT_ROLES: readonly Role[] = ["delivery", "owner", "admin"];
+const TRANSIT_ROLES: readonly Role[] = ["delivery", "super_admin", "owner", "admin"];
 
 export const SALES_NAV: NavItem[] = [
   { href: "/dashboard", label: "My Customers", shortLabel: "Customers", icon: ICONS.customers, exact: true },
@@ -149,6 +156,8 @@ export const OWNER_NAV: NavItem[] = [
     exact: true,
   },
   { href: "/owner/analytics", label: "Analytics", shortLabel: "Analytics", icon: ICONS.analytics, exact: true },
+  // Owner-level and admin dispatch walk-ins too (0052) — same screen as the front desk.
+  { href: "/frontdesk", label: "Front Desk", shortLabel: "Desk", icon: ICONS.walkin, exact: true },
   { href: "/dashboard/payments", label: "Payments", shortLabel: "Payments", icon: ICONS.payments, exact: true },
   { href: "/owner/salespersons", label: "Salespersons", shortLabel: "Team", icon: ICONS.people, exact: true },
   { href: "/owner/admin", label: "Admin", shortLabel: "Admin", icon: ICONS.admin, exact: true },
@@ -164,10 +173,31 @@ export function visibleTo(items: NavItem[], role: Role): NavItem[] {
   return items.filter((item) => !item.roles || item.roles.includes(role));
 }
 
-/** Flat nav list for a role — owner sees owner nav + the sales view too. */
+/**
+ * The front desk (0052) dispatches walk-ins and prepares quotations; it does not sell,
+ * so it gets its own short nav rather than the sales engine.
+ */
+export const FRONT_DESK_NAV: NavItem[] = [
+  { href: "/frontdesk", label: "Front Desk", shortLabel: "Desk", icon: ICONS.walkin, exact: true },
+  { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
+];
+
+export interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+/** The sidebar's groups for a role. Owner-level and admin see the management group too. */
+export function navSectionsForRole(role: Role): NavSection[] {
+  if (role === "front_desk") return [{ label: "Front Desk", items: FRONT_DESK_NAV }];
+  const sales = { label: "Sales Engine", items: visibleTo(SALES_NAV, role) };
+  if (!canViewAll(role)) return [sales];
+  return [{ label: "Management Overview", items: visibleTo(OWNER_NAV, role) }, sales];
+}
+
+/** Flat nav list for a role (mobile bar, breadcrumb). */
 export function navForRole(role: Role): NavItem[] {
-  const base = role === "owner" ? [...OWNER_NAV, ...SALES_NAV] : SALES_NAV;
-  return visibleTo(base, role);
+  return navSectionsForRole(role).flatMap((section) => section.items);
 }
 
 /** Label of the active nav item for the given pathname, for the breadcrumb. Longest-href match wins. */

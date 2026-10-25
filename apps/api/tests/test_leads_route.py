@@ -109,6 +109,7 @@ def wired(monkeypatch):
     monkeypatch.setattr(lead_repo, "find_customer_by_phone", _find_customer_by_phone)
     monkeypatch.setattr(lead_repo, "mark_converted", _mark_converted)
     monkeypatch.setattr(enrollment_repo, "enroll_customer", _enroll_customer)
+
     return state
 
 
@@ -203,15 +204,45 @@ def test_assignee_who_is_not_the_creator_is_refused(wired):
     assert wired["update_calls"] == []
 
 
-def test_admin_is_not_an_owner_for_lead_edits(wired):
-    """Caller.is_admin covers {"owner", "admin"}; this gate is owner-only. A later
-    "cleanup" to is_admin must break this test rather than widen the API past RLS."""
-    _as(wired, role="admin", salesperson_id=OTHER)
+@pytest.mark.parametrize("role", ["admin", "super_admin"])
+def test_admin_and_super_admin_may_edit_anyones_lead(wired, role):
+    """0052: admin sees and edits everything (deletes nothing); super_admin is
+    owner-level. Both edit any lead, API-only — leads_update RLS is not widened."""
+    _as(wired, role=role, salesperson_id=OTHER)
+
+    _patch(name="Corrected")
+
+    assert len(wired["update_calls"]) == 1
+
+
+@pytest.mark.parametrize("role", ["accounts", "front_desk", "workshop_manager"])
+def test_other_non_creators_are_still_refused(wired, role):
+    _as(wired, role=role, salesperson_id=OTHER)
 
     with pytest.raises(HTTPException) as exc:
         _patch(name="Nope")
     assert exc.value.status_code == 403
     assert wired["update_calls"] == []
+
+
+def test_telecaller_may_edit_anyones_lead(wired):
+    """0051: a telecaller works the whole enquiry list by phone, so edit is not
+    creator-scoped for them — same reach as the owner, minus delete."""
+    _as(wired, role="telecaller", salesperson_id=OTHER)
+
+    _patch(name="Corrected on call")
+
+    assert len(wired["update_calls"]) == 1
+    assert wired["committed"]
+
+
+def test_telecaller_may_edit_a_lead_with_no_recorded_creator(wired):
+    wired["lead"] = {**wired["lead"], "created_by": None}
+    _as(wired, role="telecaller", salesperson_id=OTHER)
+
+    _patch(name="Fine")
+
+    assert len(wired["update_calls"]) == 1
 
 
 def test_a_lead_with_no_recorded_creator_is_owner_only(wired):

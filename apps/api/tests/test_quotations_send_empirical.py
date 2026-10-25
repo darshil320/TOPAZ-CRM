@@ -64,7 +64,7 @@ def test_send_is_draft_only_and_idempotent():
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as s:
                 qid, _ = await _new_quote(s)
-                await repo.set_pdf_key(s, qid, "quotes/x-r1.pdf")
+                await repo.set_pdf_key(s, qid, "quotes/x-r1.pdf", rendered_from=None)
                 assert await repo.mark_sent(s, qid) is True     # draft -> sent
                 assert await repo.mark_sent(s, qid) is False    # already sent
                 q = await repo.get_quotation(s, qid)

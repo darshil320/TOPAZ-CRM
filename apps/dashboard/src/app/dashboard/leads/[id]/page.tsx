@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { canRemove, canViewAll } from "@/lib/roles";
 import { listSalespersonOptions } from "@/lib/salespersonOptions";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -101,9 +102,14 @@ export default async function LeadPage({ params }: Props) {
   const assignedName = lead.assigned_to ? nameById.get(lead.assigned_to) ?? null : null;
   const capturedName = lead.created_by ? nameById.get(lead.created_by) ?? null : null;
 
-  // Presentation only — apps/api/src/api/authz.py:assert_can_edit_lead is what enforces
-  // this, because RLS does not run on the API's service-role connection.
-  const canEdit = isOwner || lead.created_by === salesperson.id;
+  // Presentation only — apps/api/src/api/authz.py:assert_can_edit_lead / assert_can_delete_lead
+  // enforce this, because RLS does not run on the API's service-role connection. A
+  // telecaller edits any lead but deletes none, not even their own (0051).
+  const isTelecaller = salesperson.role === "telecaller";
+  const isCreator = lead.created_by === salesperson.id;
+  // Admin edits any lead and deletes nothing (0052).
+  const canEdit = canViewAll(salesperson.role) || isTelecaller || isCreator;
+  const canDelete = !isTelecaller && canRemove(salesperson.role) && (isOwner || isCreator);
   const customerId = lead.converted_customer_id ?? lead.linked_customer_id;
 
   return (
@@ -194,22 +200,22 @@ export default async function LeadPage({ params }: Props) {
         {/* Playback is open to any viewer (matches leads_select); the upload
             control renders only for canEdit — enforced server-side by the same
             authz.assert_can_edit_lead gate as the edit form above. */}
-        <LeadAudioRecordings leadId={lead.id} canEdit={canEdit} />
+        <LeadAudioRecordings leadId={lead.id} canEdit={canEdit} canDelete={canDelete} />
       </section>
 
       {canEdit ? (
         <section className="space-y-3">
           <SectionHeader label="Correct this lead" />
-          <LeadEditForm lead={lead} salespersons={salespersons} />
+          <LeadEditForm lead={lead} salespersons={salespersons} canDelete={canDelete} />
         </section>
       ) : (
         <section className="space-y-3">
           <SectionHeader label="Correct this lead" />
           <Card>
             <p className="text-caption text-t2">
-              Only {capturedName ? capturedName : "the person who captured this lead"}, or
-              the owner, can change these details. You can still move its status and
-              convert it.
+              Only {capturedName ? capturedName : "the person who captured this lead"}, the
+              owner, or a telecaller can change these details. You can still move its
+              status and convert it.
             </p>
           </Card>
         </section>

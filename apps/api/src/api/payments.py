@@ -24,7 +24,7 @@ from ..config import get_settings
 from ..database import get_api_session
 from ..repositories import document_repo
 from ..repositories import payment_repo as repo
-from ..services import numbering, storage
+from ..services import numbering, roles, storage
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
 
@@ -35,9 +35,9 @@ router = APIRouter(prefix="/payments", dependencies=[Depends(require_dashboard_k
 # boundary here — the service-role DB connection bypasses RLS, so the RLS
 # pay_insert policy (accounts/owner/admin) must be re-enforced in code
 # (security-review CRITICAL-1).
-_PAYMENT_ROLES = {"owner", "admin", "accounts"}
+_PAYMENT_ROLES = roles.VIEW_ALL | {"accounts"}
 # Roles allowed to refund + to override the over-payment guard.
-_ELEVATED_ROLES = {"owner", "admin"}
+_ELEVATED_ROLES = roles.VIEW_ALL
 
 
 class PaymentCreate(BaseModel):

@@ -14,7 +14,7 @@ import type { StageDef } from "@/lib/production/types";
 
 // Mirrors the API's own gate (api/production.py): a workshop manager must never
 // self-allocate, and accounts/delivery have no production role at all.
-const ALLOCATING_ROLES = new Set(["owner", "admin", "salesperson"]);
+const ALLOCATING_ROLES = new Set(["super_admin", "owner", "admin", "salesperson"]);
 
 // Same ceiling as production_repo.unallocated_items so the two views agree.
 const QUEUE_LIMIT = 200;

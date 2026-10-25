@@ -114,6 +114,11 @@ class Settings(BaseSettings):
     # Supabase Storage bucket for generated PDFs (quotes, receipts). Private;
     # customer-facing links are short-lived signed URLs, never public.
     DOCUMENTS_BUCKET: str = "documents"
+    # Lifetime of the signed quotation-PDF link the dashboard's Share button hands
+    # out. The share sheet normally attaches the FILE itself; the link is the
+    # fallback (desktop/old browsers) and is forwarded to people outside the shop,
+    # so it has to outlive a WhatsApp conversation, not a page view. 7 days.
+    QUOTE_SHARE_URL_TTL_S: int = 7 * 24 * 3600
     # Feature flag: send the quote PDF to the CUSTOMER over WhatsApp. Held false
     # until WA-MEDIA-SPIKE + Meta Business Verification clear (STATE.md). When
     # false, /send still advances status + notifies staff, but skips the

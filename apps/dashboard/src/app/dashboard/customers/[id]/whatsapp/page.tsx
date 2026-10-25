@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import WhatsAppFullView from "./WhatsAppFullView";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export default async function WhatsAppPage({ params }: Props) {
 
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  const isOwner = isOwnerRole(sp);
+  // Owner-level and admin read every thread (0052 msg_select).
+  const isOwner = canViewAll(sp?.role);
 
   const supabase = await createServerSupabaseClient();
   const { data: assignment } = await supabase

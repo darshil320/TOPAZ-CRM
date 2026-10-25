@@ -45,7 +45,8 @@ export default async function QuotesPage({ searchParams }: Props) {
   let quotesQuery = supabase
     .from("quotations")
     .select(
-      "id, quote_no, status, revision_no, grand_total, created_at, customers(name, phone), salespersons(name)",
+      // FK hint: quotations reaches salespersons twice since 0052 (created_by, prepared_by).
+      "id, quote_no, status, revision_no, grand_total, created_at, customers(name, phone), salespersons!quotations_created_by_fkey(name)",
       { count: "exact" },
     );
 

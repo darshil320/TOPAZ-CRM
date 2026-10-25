@@ -17,9 +17,18 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "accounts", label: "Accounts" },
   { value: "workshop_manager", label: "Workshop Manager (lead/sub-manager)" },
   { value: "delivery", label: "Delivery (transit driver)" },
+  { value: "telecaller", label: "Telecaller (edits any lead, cannot delete)" },
+  { value: "front_desk", label: "Front Desk Manager (adds walk-ins, quotes for salespersons)" },
 ];
 
-export default function AddSalespersonForm() {
+// Offered only to a super admin — the API and the 0052 trigger refuse it for anyone else.
+const SUPER_ADMIN_OPTION: { value: StaffRole; label: string } = {
+  value: "super_admin",
+  label: "Super Admin (above owner)",
+};
+
+export default function AddSalespersonForm({ allowSuperAdmin }: { allowSuperAdmin: boolean }) {
+  const roleOptions = allowSuperAdmin ? [SUPER_ADMIN_OPTION, ...ROLE_OPTIONS] : ROLE_OPTIONS;
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [role, setRole] = useState<StaffRole>("salesperson");
@@ -70,7 +79,7 @@ export default function AddSalespersonForm() {
             onChange={(e) => setRole(e.target.value as StaffRole)}
             className="border border-ln rounded-md px-3 py-1.5 text-ui bg-sf2 text-t1 font-medium focus:outline-none focus:border-acc transition-all"
           >
-            {ROLE_OPTIONS.map((opt) => (
+            {roleOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>

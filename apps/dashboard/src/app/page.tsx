@@ -1,3 +1,4 @@
+import { canViewAll, isFrontDesk } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
@@ -85,6 +86,7 @@ VALUES (
     );
   }
 
-  if (sp.role === "owner") redirect("/owner");
+  if (canViewAll(sp.role)) redirect("/owner");
+  if (isFrontDesk(sp.role)) redirect("/frontdesk");
   redirect("/dashboard");
 }

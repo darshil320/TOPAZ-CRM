@@ -7,7 +7,7 @@ date objects, uuids as strings (PLAN.md decisions 1–3).
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -122,6 +122,7 @@ async def _create(
     terms: str | None = None,
     notes: str | None = None,
     created_by: UUID | None = None,
+    prepared_by: UUID | None = None,
     revision_of: UUID | None = None,
     revision_no: int = 1,
 ) -> tuple[dict, list[dict]]:
@@ -134,10 +135,10 @@ async def _create(
         text(
             "INSERT INTO quotations (quote_no, customer_id, status, revision_of, revision_no,"
             " valid_until, place_of_supply, subtotal, discount_amount, taxable_value, cgst, sgst,"
-            " igst, grand_total, terms, notes, created_by)"
+            " igst, grand_total, terms, notes, created_by, prepared_by)"
             " VALUES (:quote_no, :customer_id, 'draft', :revision_of, :revision_no, :valid_until,"
             " :place_of_supply, :subtotal, :discount, :taxable, :cgst, :sgst, :igst, :grand,"
-            " :terms, :notes, :created_by)"
+            " :terms, :notes, :created_by, :prepared_by)"
             # The whole row, not just the id: the caller returns the created quotation
             # to the dashboard, and re-SELECTing what we just wrote is another
             # round-trip for data Postgres already has in hand.
@@ -160,6 +161,7 @@ async def _create(
             "terms": terms,
             "notes": notes,
             "created_by": str(created_by) if created_by else None,
+            "prepared_by": str(prepared_by) if prepared_by else None,
         },
     )
     header = dict(row.mappings().one())
@@ -214,13 +216,16 @@ async def update_draft(
     notes: str | None = None,
 ) -> bool:
     """Update a DRAFT quotation's header + replace its items. Returns False (no-op)
-    if the quotation is not in draft status — the router turns that into a 409."""
+    if the quotation is not in draft status — the router turns that into a 409.
+
+    Clears pdf_key: the rendered PDF no longer matches, so the next Share/Send
+    re-renders rather than serving the pre-edit document."""
     updated = await session.execute(
         text(
             "UPDATE quotations SET place_of_supply = :place_of_supply, valid_until = :valid_until,"
             " subtotal = :subtotal, discount_amount = :discount, taxable_value = :taxable,"
             " cgst = :cgst, sgst = :sgst, igst = :igst, grand_total = :grand, terms = :terms,"
-            " notes = :notes"
+            " notes = :notes, pdf_key = NULL"
             " WHERE id = :id AND status = 'draft'"
             " RETURNING id"
         ),
@@ -258,11 +263,16 @@ async def soft_delete_draft(session: AsyncSession, quotation_id: UUID) -> bool:
 
 
 async def clone_for_revision(
-    session: AsyncSession, quotation_id: UUID, *, new_quote_no: str
+    session: AsyncSession, quotation_id: UUID, *, new_quote_no: str,
+    revised_by: UUID | None = None,
 ) -> UUID | None:
     """Clone a quotation into a NEW draft row (revision_of set, revision_no+1) with a
     fresh number and its own approval_token. The source row is untouched. None if the
-    source doesn't exist."""
+    source doesn't exist.
+
+    created_by carries over (still that salesperson's quotation); prepared_by becomes
+    `revised_by` when someone other than that salesperson revised it (0052), else NULL.
+    """
     source = await get_quotation(session, quotation_id)
     if source is None:
         return None
@@ -270,10 +280,10 @@ async def clone_for_revision(
         text(
             "INSERT INTO quotations (quote_no, customer_id, status, revision_of, revision_no,"
             " valid_until, place_of_supply, subtotal, discount_amount, taxable_value, cgst, sgst,"
-            " igst, grand_total, terms, notes, created_by)"
+            " igst, grand_total, terms, notes, created_by, prepared_by)"
             " VALUES (:quote_no, :customer_id, 'draft', :revision_of, :revision_no, :valid_until,"
             " :place_of_supply, :subtotal, :discount, :taxable, :cgst, :sgst, :igst, :grand,"
-            " :terms, :notes, :created_by)"
+            " :terms, :notes, :created_by, :prepared_by)"
             " RETURNING id"
         ),
         {
@@ -293,6 +303,11 @@ async def clone_for_revision(
             "terms": source["terms"],
             "notes": source["notes"],
             "created_by": str(source["created_by"]) if source["created_by"] else None,
+            "prepared_by": (
+                str(revised_by)
+                if revised_by and str(revised_by) != str(source["created_by"])
+                else None
+            ),
         },
     )
     new_id = row.scalar_one()
@@ -308,6 +323,16 @@ async def clone_for_revision(
     ]
     await _insert_items(session, new_id, items)
     return new_id
+
+
+async def get_write_context(session: AsyncSession, quotation_id: UUID) -> dict | None:
+    """{customer_id, prepared_by} — what quotation write authz needs. None if missing."""
+    result = await session.execute(
+        text("SELECT customer_id, prepared_by FROM quotations WHERE id = :id"),
+        {"id": str(quotation_id)},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 async def quotation_customer_id(session: AsyncSession, quotation_id: UUID) -> str | None:
@@ -343,11 +368,40 @@ async def get_send_context(session: AsyncSession, quotation_id: UUID) -> dict | 
     return dict(row) if row else None
 
 
-async def set_pdf_key(session: AsyncSession, quotation_id: UUID, pdf_key: str) -> None:
-    await session.execute(
-        text("UPDATE quotations SET pdf_key = :k WHERE id = :id"),
-        {"k": pdf_key, "id": str(quotation_id)},
+async def set_pdf_key(
+    session: AsyncSession,
+    quotation_id: UUID,
+    pdf_key: str,
+    *,
+    rendered_from: datetime | None,
+) -> bool:
+    """File `pdf_key` as the quotation's current PDF. True if it was filed.
+
+    `rendered_from` is the `updated_at` the render read; the key is only filed if the
+    row is unchanged since — a render that an edit overtook must not become "current",
+    or Share/Send would hand out the pre-edit prices. Required on purpose: None (file
+    unconditionally) has to be an explicit choice, never a forgotten argument.
+    """
+    result = await session.execute(
+        text(
+            "UPDATE quotations SET pdf_key = :k WHERE id = :id"
+            " AND (CAST(:seen AS timestamptz) IS NULL OR updated_at = :seen)"
+            " RETURNING id"
+        ),
+        {"k": pdf_key, "id": str(quotation_id), "seen": rendered_from},
     )
+    return result.first() is not None
+
+
+async def get_pdf_info(session: AsyncSession, quotation_id: UUID) -> dict | None:
+    """What the Share route needs: owner customer, number, status, and CURRENT pdf_key
+    (null when never rendered or edited since). None if the quotation does not exist."""
+    result = await session.execute(
+        text("SELECT customer_id, quote_no, status, pdf_key FROM quotations WHERE id = :id"),
+        {"id": str(quotation_id)},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 async def mark_sent(session: AsyncSession, quotation_id: UUID) -> bool:

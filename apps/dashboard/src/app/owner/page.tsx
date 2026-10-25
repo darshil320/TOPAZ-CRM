@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import OwnerPipelineClient, { type OwnerCustomer } from "./OwnerPipelineClient";
@@ -14,7 +15,8 @@ function ageInDays(iso: string | null): number {
 export default async function OwnerPage() {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (!isOwnerRole(sp)) redirect("/dashboard");
+  // Owner-level and admin (0052: admin views everything).
+  if (!canViewAll(sp?.role)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
   

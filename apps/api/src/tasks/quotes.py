@@ -34,6 +34,7 @@ from .whatsapp import (
 from ..config import get_settings
 from ..database import make_task_session
 from ..repositories import message_repo, quotation_repo as repo
+from ..services import roles
 from ..services.storage import signed_url
 from ..services.wa_window import within_service_window
 
@@ -60,7 +61,7 @@ async def _salesperson_wa(session, customer_id: str) -> str | None:
     if row and row[0]:
         return row[0]
     owner = await session.execute(
-        text("SELECT whatsapp FROM salespersons WHERE role = 'owner' AND active = true LIMIT 1")
+        text("SELECT whatsapp FROM salespersons WHERE " + roles.OWNER_FALLBACK_ORDER_SQL + " LIMIT 1")
     )
     r = owner.first()
     return r[0] if r else None

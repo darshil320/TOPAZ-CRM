@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
+import { canRemove } from "@/lib/roles";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, StatCard, StatCardGrid } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -23,7 +24,7 @@ import { listRouteTemplates } from "@/lib/production/reads";
 import type { StageDef } from "@/lib/production/types";
 
 // Mirrors api/production.py's own gate: only these roles may plan production.
-const ROUTABLE_ROLES = new Set(["owner", "admin", "salesperson"]);
+const ROUTABLE_ROLES = new Set(["super_admin", "owner", "admin", "salesperson"]);
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -255,7 +256,7 @@ export default async function OrderDetailPage({ params }: Props) {
       {/* Order Status & Transition Actions */}
       <Card className="space-y-3">
         <SectionHeader label="Order Status Actions" />
-        <OrderStatusActions orderId={order.id} status={order.status} />
+        <OrderStatusActions orderId={order.id} status={order.status} canCancel={canRemove(sp.role)} />
       </Card>
 
       {/* Financial Metrics Summary (StatCardGrid) */}

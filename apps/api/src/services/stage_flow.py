@@ -18,6 +18,8 @@ Two families live here:
 
 from dataclasses import dataclass
 
+from . import roles
+
 # ─── Capabilities ────────────────────────────────────────────────────────────
 # STATUS  — advance a stage, block/unblock, upload a stage photo.  ("sub" and up)
 # CUSTODY — hand an item to the next workshop, receive an incoming consignment.
@@ -51,11 +53,12 @@ _ROLE_CAPS = {
 
 # Roles whose capabilities never depend on a `workshop_staff` row, so the API can skip
 # the roster query entirely (api/authz.capabilities_at_workshop reads this set):
-#   owner/admin — already have everything, everywhere;
+#   owner-level/admin — already have everything, everywhere;
 #   delivery    — a courier crosses workshops without belonging to either roster;
 #   accounts    — the money role is kept out of production state on purpose, even if
 #                 somebody puts them on a roster by mistake.
-ROSTER_IRRELEVANT_ROLES = frozenset({"owner", "admin", "delivery", "accounts"})
+#   front_desk  — dispatches walk-ins and quotes; never runs production, even if rostered.
+ROSTER_IRRELEVANT_ROLES = roles.VIEW_ALL | {"delivery", "accounts", "front_desk"}
 
 
 def capabilities_for(*, role: str, staff_role: str | None) -> frozenset[str]:
@@ -75,7 +78,7 @@ def capabilities_for(*, role: str, staff_role: str | None) -> frozenset[str]:
     Owner/admin get everything everywhere — they are the escape hatch when a manager
     is unreachable, and every one of their actions is audited.
     """
-    if role in ("owner", "admin"):
+    if role in roles.VIEW_ALL:
         return _ADMIN_CAPS
     caps = set(_ROLE_CAPS.get(role, frozenset()))
     if staff_role and role not in ROSTER_IRRELEVANT_ROLES:

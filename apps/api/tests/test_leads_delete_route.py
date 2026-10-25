@@ -1,7 +1,8 @@
 """DELETE /leads/{id} — removing an enquiry captured against the wrong number.
 
 Pinned here:
-  * same gate as edit: creator or owner only (admin is NOT owner)
+  * creator or owner only (admin is NOT owner); a telecaller edits any lead but
+    deletes none, not even their own (0051)
   * 404 before 403, so an id's existence is never confirmed to a non-creator
   * a converted lead cannot be deleted — it is the history behind a customer row
   * recordings in the lead-audio bucket are removed BEFORE the row: the
@@ -109,6 +110,39 @@ def test_non_creator_is_refused_and_nothing_is_touched(wired, role):
     with pytest.raises(HTTPException) as exc:
         _delete()
     assert exc.value.status_code == 403
+    assert wired["events"] == [], "a refused delete must not list, remove, delete or commit"
+
+
+def test_super_admin_may_delete_anyones_lead(wired):
+    _as(wired, role="super_admin", salesperson_id=OTHER)
+
+    _delete()
+
+    assert len(_deletes(wired)) == 1
+
+
+@pytest.mark.parametrize("salesperson_id", [OTHER, CREATOR])
+def test_admin_may_never_delete_a_lead(wired, salesperson_id):
+    """0052: an admin removes nothing — not even a lead they captured themselves."""
+    _as(wired, role="admin", salesperson_id=salesperson_id)
+
+    with pytest.raises(HTTPException) as exc:
+        _delete()
+    assert exc.value.status_code == 403
+    assert "admin" in exc.value.detail.lower()
+    assert wired["events"] == []
+
+
+@pytest.mark.parametrize("salesperson_id", [OTHER, CREATOR])
+def test_telecaller_may_never_delete_a_lead(wired, salesperson_id):
+    """0051: a telecaller edits any lead but deletes none — not even one they
+    captured themselves. Deleting destroys the enquiry the conversion rate counts."""
+    _as(wired, role="telecaller", salesperson_id=salesperson_id)
+
+    with pytest.raises(HTTPException) as exc:
+        _delete()
+    assert exc.value.status_code == 403
+    assert "telecaller" in exc.value.detail.lower()
     assert wired["events"] == [], "a refused delete must not list, remove, delete or commit"
 
 

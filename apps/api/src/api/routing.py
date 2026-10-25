@@ -429,6 +429,7 @@ async def deactivate_template(template_id: UUID,
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage route templates")
+        authz.assert_may_remove(caller, action="retire a route template")
         row = await route_repo.deactivate_template(session, template_id)
         if row is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

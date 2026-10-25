@@ -52,7 +52,8 @@ export async function createQuote(payload: QuotePayload): Promise<QuoteResult> {
   if (invalid) return { error: invalid };
 
   try {
-    // created_by is derived server-side from the forwarded token (not sent here).
+    // created_by is derived server-side from the forwarded token — or, for a dispatcher
+    // preparing it on someone's behalf, from salesperson_id, which the API re-checks.
     const resp = await fetch(QUOTES_API, {
       method: "POST",
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -65,6 +66,7 @@ export async function createQuote(payload: QuotePayload): Promise<QuoteResult> {
         valid_until: payload.valid_until,
         terms: payload.terms,
         notes: payload.notes,
+        salesperson_id: payload.salesperson_id ?? null,
       }),
     });
     if (!resp.ok) return { error: await readError(resp) };

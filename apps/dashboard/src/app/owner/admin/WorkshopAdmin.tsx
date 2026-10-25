@@ -183,6 +183,7 @@ export default function WorkshopAdmin({
   onAdd,
   onUpdate,
   onDeactivate,
+  canRemove,
 }: {
   workshops: AdminWorkshop[];
   managers: ManagerOption[];
@@ -190,6 +191,8 @@ export default function WorkshopAdmin({
   onAdd: (values: WorkshopFormValues) => Promise<{ error: string | null }>;
   onUpdate: (id: string, values: WorkshopFormValues) => Promise<{ error: string | null }>;
   onDeactivate: (id: string) => Promise<{ error: string | null }>;
+  /** False for admin (0052): may edit but never deactivate/remove. The API refuses it too. */
+  canRemove: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -378,7 +381,7 @@ export default function WorkshopAdmin({
                             <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
                             <span>{editingId === w.id ? "Close" : "Edit"}</span>
                           </Button>
-                          {w.active && (
+                          {w.active && canRemove && (
                             <Button
                               type="button"
                               variant="secondary"

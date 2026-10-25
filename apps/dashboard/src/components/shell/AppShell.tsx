@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSalesperson, getSessionUser } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { parseRole, type Role } from "@/components/nav-config";
+import { isOwnerLevel } from "@/lib/roles";
 import MobileBrand from "@/components/MobileBrand";
 import MobileNav from "@/components/MobileNav";
 import VisitAlertBanner from "@/components/VisitAlertBanner";
@@ -18,7 +19,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   if (!salesperson) redirect("/login");
 
   const role: Role = parseRole(salesperson.role);
-  const isOwner = role === "owner";
+  const isOwner = isOwnerLevel(role);
   const supabase = await createServerSupabaseClient();
   // lead_followup_notifications (0050) is absent from the generated Database types
   // until they're regenerated — same widening cast the leads pages already use.

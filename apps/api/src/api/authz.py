@@ -12,12 +12,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..services import roles
+
 # Roles that may write any customer's quotes/orders (no assignment needed).
-_QUOTE_ORDER_ADMIN = {"owner", "admin"}
+_QUOTE_ORDER_ADMIN = roles.VIEW_ALL
 
 # Roles that may read any customer's financial documents (receipts/payments),
 # regardless of assignment — accounts handle collections across all customers.
-_FINANCE_READ_ANY = {"owner", "admin", "accounts"}
+_FINANCE_READ_ANY = roles.VIEW_ALL | {"accounts"}
+
+# Roles that may read the documents of customers ASSIGNED to them. A telecaller sees
+# everything a salesperson sees (0051); writes stay salesperson-only.
+_ASSIGNED_READ_ROLES = {"salesperson", "telecaller"}
+
+# Roles that may edit ANY lead's fields, not only leads they captured. A telecaller
+# (0051) works the whole enquiry list by phone; admin edits everything (0052). Delete
+# is narrower — see assert_can_delete_lead.
+_LEAD_EDIT_ANY = roles.VIEW_ALL | {"telecaller"}
+
+# Roles that may write a quotation for ANY customer without being assigned — the
+# front desk prepares quotations on a salesperson's behalf (0052). Quotations only:
+# orders, job cards and production stay on assert_can_write_customer.
+_QUOTE_WRITE_ANY = _QUOTE_ORDER_ADMIN | {"front_desk"}
 
 
 @dataclass(frozen=True)
@@ -28,6 +44,10 @@ class Caller:
     @property
     def is_admin(self) -> bool:
         return self.role in _QUOTE_ORDER_ADMIN
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role in roles.OWNER_LEVEL
 
 
 async def resolve_caller(session: AsyncSession, auth_uid: str) -> Caller:
@@ -54,7 +74,7 @@ async def _is_assigned(session: AsyncSession, salesperson_id: str, customer_id: 
 
 
 async def assert_can_write_customer(session: AsyncSession, caller: Caller, customer_id: str) -> None:
-    """Owner/admin may write any customer's quote/order; a salesperson only their
+    """Owner-level/admin may write any customer's quote/order; a salesperson only their
     assigned customers. Everyone else (accounts/workshop/delivery) is refused."""
     if caller.is_admin:
         return
@@ -62,6 +82,21 @@ async def assert_can_write_customer(session: AsyncSession, caller: Caller, custo
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized to write this customer's records")
+
+
+async def assert_can_write_quote(session: AsyncSession, caller: Caller, customer_id: str) -> None:
+    """assert_can_write_customer, plus the front desk for any customer (0052)."""
+    if caller.role in _QUOTE_WRITE_ANY:
+        return
+    await assert_can_write_customer(session, caller, customer_id)
+
+
+async def assert_can_read_quote(session: AsyncSession, caller: Caller, customer_id: str) -> None:
+    """assert_can_read_customer, plus the front desk for any quotation (0052) — it
+    prepares and shares them. Quotations only: receipts and challans stay as they were."""
+    if caller.role in _QUOTE_WRITE_ANY:
+        return
+    await assert_can_read_customer(session, caller, customer_id)
 
 
 def assert_admin(caller: Caller, *, action: str) -> None:
@@ -72,29 +107,70 @@ def assert_admin(caller: Caller, *, action: str) -> None:
                             detail=f"Only owner/admin may {action}")
 
 
-def assert_role(caller: Caller, roles: set[str], *, action: str) -> None:
+def assert_dispatcher(caller: Caller, *, action: str) -> None:
+    """Owner-level, admin or front desk — who may assign walk-ins (0052)."""
+    if caller.role not in roles.DISPATCH:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Only the front desk, an admin or the owner may {action}")
+
+
+def assert_may_remove(caller: Caller, *, action: str) -> None:
+    """Refuse a removal — delete, deactivate, retire, cancel — to the roles that may
+    never remove anything (admin, 0052). Called BEFORE the route's own gate, so the
+    403 says why rather than "not authorized"."""
+    if caller.role in roles.NO_REMOVAL:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Admins can view and edit but cannot {action}")
+
+
+def assert_role(caller: Caller, roles_: set[str], *, action: str) -> None:
     """Membership gate for the non-admin role sets (accounts, workshop_manager…)."""
-    if caller.role not in roles:
-        allowed = "/".join(sorted(roles))
+    if caller.role not in roles_:
+        allowed = "/".join(sorted(roles_))
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail=f"Only {allowed} may {action}")
 
 
-def assert_can_edit_lead(caller: Caller, lead: dict, *, action: str = "edit this lead") -> None:
-    """Only the salesperson who captured the lead, or the owner, may edit its fields.
-
-    Mirrors the leads_update policy in 0047. RLS does not run on the service-role
-    connection the API uses, so this is the enforcing copy.
-
-    Deliberately `role == "owner"`, NOT `caller.is_admin`: is_admin covers
-    {"owner", "admin"} and the product decision here is owner-only. A lead whose
-    created_by is NULL (captured before the API recorded a creator, and with no
-    assignee for 0047 to backfill from) is owner-editable only — the safe default.
-    """
-    if caller.role == "owner":
-        return
+def _is_lead_creator(caller: Caller, lead: dict) -> bool:
     created_by = lead.get("created_by")
-    if created_by is not None and str(created_by) == caller.salesperson_id:
+    return created_by is not None and str(created_by) == caller.salesperson_id
+
+
+def assert_can_edit_lead(caller: Caller, lead: dict, *, action: str = "edit this lead") -> None:
+    """The salesperson who captured the lead, owner-level, admin or a telecaller.
+
+    The owner/creator half mirrors the leads_update policy (0047). The telecaller and
+    admin halves are API-only on purpose — RLS is NOT widened for them (see 0051's
+    header), so this gate plus the LeadUpdate field whitelist is the only place they
+    are granted. RLS does not run on the service-role connection the API uses.
+
+    A lead whose created_by is NULL (captured before the API recorded a creator, and
+    with no assignee for 0047 to backfill from) is editable only by the any-lead
+    roles — the safe default.
+    """
+    if caller.role in _LEAD_EDIT_ANY or _is_lead_creator(caller, lead):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Only the person who captured this lead, the owner, an admin or a telecaller may {action}",
+    )
+
+
+def assert_can_delete_lead(caller: Caller, lead: dict, *, action: str = "delete this lead") -> None:
+    """Creator or owner-level — never a telecaller or an admin, not even on their own.
+
+    Covers deleting the lead and deleting its call recordings. A telecaller edits
+    every lead (0051), so letting them delete would put the whole enquiry list —
+    the denominator of the owner's conversion rate — one click from gone. An admin
+    removes nothing (0052).
+    """
+    if caller.role == "telecaller":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"A telecaller can edit leads but cannot {action}",
+        )
+    assert_may_remove(caller, action=action)
+    if caller.is_owner or _is_lead_creator(caller, lead):
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -110,7 +186,7 @@ def assert_can_clear_notification(
     notification row's own salesperson_id (fixed at creation time) rather than a
     lead's created_by, since a notification's "owner" and a lead's creator are
     different concepts that happen to often be the same person."""
-    if caller.role == "owner":
+    if caller.is_owner:
         return
     if str(notification.get("salesperson_id")) == caller.salesperson_id:
         return
@@ -157,11 +233,14 @@ def assert_capability(caps: frozenset[str], cap: str, *, action: str) -> None:
 
 
 async def assert_can_read_customer(session: AsyncSession, caller: Caller, customer_id: str) -> None:
-    """Read access to a customer's financial documents (receipts): owner/admin/
-    accounts may read any; a salesperson only their assigned customers."""
+    """Read access to a customer's documents (receipts, challans, quotation PDFs):
+    owner/admin/accounts may read any; a salesperson or telecaller only their
+    assigned customers."""
     if caller.role in _FINANCE_READ_ANY:
         return
-    if caller.role == "salesperson" and await _is_assigned(session, caller.salesperson_id, customer_id):
+    if caller.role in _ASSIGNED_READ_ROLES and await _is_assigned(
+        session, caller.salesperson_id, customer_id
+    ):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized to view this customer's records")

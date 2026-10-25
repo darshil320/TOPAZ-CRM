@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
 import { Card, StatCard, StatCardGrid } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -29,7 +30,8 @@ const FUNNEL = [
 export default async function AnalyticsPage() {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (!isOwnerRole(sp)) redirect("/dashboard");
+  // Owner-level and admin (0052: admin views everything).
+  if (!canViewAll(sp?.role)) redirect("/dashboard");
 
   const supabase = await createServerSupabaseClient();
 

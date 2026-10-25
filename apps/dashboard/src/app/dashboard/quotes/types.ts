@@ -64,4 +64,7 @@ export interface QuotePayload {
   terms: string | null;
   notes: string | null;
   items: QuoteItemPayload[];
+  /** Create only: the salesperson this quotation is FOR, when a dispatcher (front desk,
+   * admin, owner) prepares it on their behalf (0052). Null = the caller's own. */
+  salesperson_id?: string | null;
 }

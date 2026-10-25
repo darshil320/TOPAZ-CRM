@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 from ..config import get_settings
 from ..database import get_api_session
 from ..repositories import media_repo as repo
-from ..services import media_entities, storage
+from ..services import media_entities, roles, storage
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
 
@@ -345,7 +345,7 @@ async def media_url(media_id: UUID, thumb: bool = False,
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not available")
         # Mirrors the media_select RLS policy: customer media is off-limits to the
         # production/delivery roles.
-        if row["entity_type"] == "customer" and caller.role in ("workshop_manager", "delivery"):
+        if row["entity_type"] == "customer" and caller.role in roles.CUSTOMER_MEDIA_HIDDEN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Not authorized to view this image")
     key = row["thumb_key"] if (thumb and row["thumb_key"]) else row["storage_key"]
@@ -387,7 +387,7 @@ async def media_urls(req: UrlsRequest, caller_uid: str = Depends(get_caller_uid)
 
     # Same rule as media_url above (and the media_select RLS policy): customer
     # media is off-limits to the production/delivery roles.
-    hides_customer_media = caller.role in ("workshop_manager", "delivery")
+    hides_customer_media = caller.role in roles.CUSTOMER_MEDIA_HIDDEN
     keyed: dict[str, dict] = {}
     for row in rows:
         if row["status"] != "ready":

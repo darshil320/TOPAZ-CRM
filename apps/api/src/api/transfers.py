@@ -52,12 +52,16 @@ from ..repositories import (
     transfer_repo,
     workshop_staff_repo,
 )
-from ..services import handover, stage_flow
+from ..services import handover, roles, stage_flow
 from . import authz
 from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/transfers", dependencies=[Depends(require_dashboard_key)])
+
+# Who may be put on a run as the courier. Not just 'delivery': a small showroom's own
+# floor manager legitimately drives the tempo. Accounts must never appear here.
+_COURIER_ROLES = roles.VIEW_ALL | {"delivery", "workshop_manager"}
 
 # Legal predecessors, per edge. The single source of truth for "can this happen now".
 _EDGES: dict[str, tuple[str, ...]] = {
@@ -393,7 +397,7 @@ async def assign(transfer_id: UUID, req: AssignRequest,
             # Not a hard role check on 'delivery' alone: a small showroom's own floor
             # manager legitimately drives the tempo. But accounts must never appear on
             # a courier list, so the set is explicit.
-            if courier["role"] not in ("delivery", "workshop_manager", "owner", "admin"):
+            if courier["role"] not in _COURIER_ROLES:
                 raise _conflict(
                     f"A '{courier['role']}' cannot be assigned to carry goods"
                 )
@@ -549,6 +553,7 @@ async def cancel(transfer_id: UUID, req: CancelRequest,
     manager must be able to keep working."""
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
+        authz.assert_may_remove(caller, action="cancel a consignment")
         transfer = await _load_or_404(session, transfer_id)
         _assert_edge(transfer, "cancel")
         await _assert_custody_at(session, caller, str(transfer["from_workshop_id"]),

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canRemove, canViewAll } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
@@ -40,7 +41,9 @@ export default async function AdminPage({ searchParams }: Props) {
 
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (!isOwnerRole(sp)) redirect("/dashboard");
+  // Owner-level and admin (0052: admin views everything).
+  if (!canViewAll(sp?.role)) redirect("/dashboard");
+  const mayRemove = canRemove(sp?.role);
 
   const supabase = await createServerSupabaseClient();
 
@@ -158,6 +161,7 @@ export default async function AdminPage({ searchParams }: Props) {
               onAdd={addWorkshop}
               onUpdate={updateWorkshop}
               onDeactivate={deactivateWorkshop}
+              canRemove={mayRemove}
             />
           </Card>
 
@@ -166,6 +170,7 @@ export default async function AdminPage({ searchParams }: Props) {
               workshops={staffWorkshops}
               staffOptions={managerOptions}
               loadError={rosterError}
+              canRemove={mayRemove}
             />
           </Card>
 
@@ -175,6 +180,7 @@ export default async function AdminPage({ searchParams }: Props) {
               workshops={workshopResult.workshops}
               stages={(stageRows ?? []) as StageDef[]}
               loadError={templateResult.error}
+              canRemove={mayRemove}
             />
           </Card>
 
@@ -190,7 +196,7 @@ export default async function AdminPage({ searchParams }: Props) {
       {tab === "catalog" && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <Card className="shadow-sh border-ln">
-            <ProductAdmin products={(products ?? []) as AdminProduct[]} />
+            <ProductAdmin products={(products ?? []) as AdminProduct[]} canRemove={mayRemove} />
           </Card>
         </div>
       )}

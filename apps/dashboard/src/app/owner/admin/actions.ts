@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { apiHeaders } from "@/lib/apiAuth";
+import { getCurrentSalesperson } from "@/lib/auth";
+import { canRemove } from "@/lib/roles";
 
 // Workshop writes route through FastAPI (not straight to Supabase, even though RLS
 // would allow it): the E.164 phone rule with a usable message and the deactivation
@@ -98,6 +100,11 @@ export async function setProductPrimaryPhoto(
 
 export async function setProductActive(id: string, active: boolean): Promise<{ error: string | null }> {
   try {
+    // products_update RLS admits admin and cannot tell a deactivation from an edit, so the
+    // "admin removes nothing" rule (0052) is enforced here for this direct write.
+    if (!active && !canRemove((await getCurrentSalesperson())?.role)) {
+      return { error: "Admins can view and edit but cannot deactivate a product" };
+    }
     const supabase = await createServerSupabaseClient();
     const { error } = await supabase.from("products").update({ active }).eq("id", id);
     if (error) return { error: error.message };

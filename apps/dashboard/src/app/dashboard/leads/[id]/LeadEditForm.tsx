@@ -26,6 +26,8 @@ type EditableLead = {
 type Props = {
   lead: EditableLead;
   salespersons: { id: string; label: string }[];
+  /** False for a telecaller: they correct any lead but delete none (0051). */
+  canDelete: boolean;
 };
 
 /** null in the DB is an empty input, not the string "null". */
@@ -45,15 +47,15 @@ function formFor(lead: EditableLead) {
 }
 
 /**
- * Correct a captured lead. Rendered only when the viewer is the creator or the owner;
- * the API re-checks (authz.assert_can_edit_lead), so hiding this is convenience, not
- * security.
+ * Correct a captured lead. Rendered only when the viewer is the creator, the owner or a
+ * telecaller; the API re-checks (authz.assert_can_edit_lead / assert_can_delete_lead),
+ * so hiding this is convenience, not security.
  *
  * No router.refresh() after a save: the server action calls revalidatePath for both this
  * page and the list, which already delivers a fresh tree (same reasoning as
  * owner/admin/WorkshopAdmin.tsx).
  */
-export default function LeadEditForm({ lead, salespersons }: Props) {
+export default function LeadEditForm({ lead, salespersons, canDelete: mayDelete }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => formFor(lead));
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
   const [pending, start] = useTransition();
   const router = useRouter();
   // A converted lead backs a customer row; the API refuses (409), so don't offer it.
-  const canDelete = lead.status !== "converted";
+  const canDelete = mayDelete && lead.status !== "converted";
 
   const set = (key: keyof ReturnType<typeof formFor>) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -125,7 +127,7 @@ export default function LeadEditForm({ lead, salespersons }: Props) {
             Edit details
           </Button>
           <span className="text-caption text-t3">
-            {saved ? "Saved." : "You captured this lead, so you can correct it."}
+            {saved ? "Saved." : "You can correct this lead's details."}
           </span>
         </div>
       </Card>

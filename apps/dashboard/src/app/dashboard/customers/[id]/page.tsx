@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { buttonVariants } from "@/components/ui/Button";
@@ -25,7 +26,10 @@ export default async function CustomerPage({ params }: Props) {
 
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
+  // Owner-LEVEL keeps the owner-only toggles (alert mute — 0008 trigger). viewAll
+  // (owner-level + admin, 0052) opens the page and may add team members (ca_insert).
   const isOwner = isOwnerRole(sp);
+  const viewAll = canViewAll(sp?.role);
 
   const supabase = await createServerSupabaseClient();
 
@@ -59,12 +63,12 @@ export default async function CustomerPage({ params }: Props) {
     supabase.from("pipeline_stages").select("stage").eq("customer_id", id).single(),
     supabase.from("conversations").select("id, notes, budget, products, stage_at_time, created_at, salespersons(name)").eq("customer_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("customer_assignments").select("id, role, salespersons!salesperson_id(id, name)").eq("customer_id", id).eq("active", true),
-    isOwner
+    viewAll
       ? supabase.from("salespersons").select("id, name").eq("active", true)
       : Promise.resolve({ data: null }),
   ]);
 
-  if (!assignment && !isOwner) redirect("/dashboard");
+  if (!assignment && !viewAll) redirect("/dashboard");
   if (!customer) notFound();
 
   const teamRows = teamResult.data ?? [];
@@ -247,7 +251,7 @@ export default async function CustomerPage({ params }: Props) {
                 ))}
               </div>
             )}
-            {isOwner && (
+            {viewAll && (
               <AddCollaboratorForm customerId={id} options={addableSalespersons} />
             )}
           </Card>

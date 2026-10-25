@@ -209,8 +209,10 @@ async def cancellation_preview(order_id: UUID,
 async def patch_status(order_id: UUID, req: StatusPatch,
                        caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with get_api_session() as session:
-        await _authorize_order(session, caller_uid, order_id)
+        caller = await _authorize_order(session, caller_uid, order_id)
         cancelling = req.status == "cancelled"
+        if cancelling:
+            authz.assert_may_remove(caller, action="cancel an order")
         # The cancel path needs the blocker state anyway, and it carries the status —
         # so it replaces the get_status round-trip rather than adding to it.
         state = await repo.cancellation_state(session, order_id) if cancelling else {}

@@ -67,10 +67,9 @@ See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse 
 ### Known gaps (fix or make a deliberate call before go-live)
 
 - `customer_assignments` claim/collaborator UI now exists (`/dashboard/walkins`,
-  `/owner/salespersons`, and the "Assigned Team" section on a customer page) — but a
-  primary salesperson still cannot self-serve a handoff/collaborator-add without the
-  owner; that path still routes through the owner per the RLS design (0005 `ca_insert`
-  is owner-only by design, §19-A.2).
+  `/frontdesk` + the kiosk's front-desk "Assign to salesperson", and the "Assigned Team"
+  section on a customer page). Adding a collaborator is owner-level or admin
+  (`ca_insert`, §19-A.2). A primary salesperson still cannot self-serve a handoff.
 - `coverage_requests` (primary-on-leave coverage) is schema + RLS only — no repo, task,
   or UI. Build before relying on it.
 - **`supabase/migrations_pending/` holds two finished migrations that must NOT be pushed

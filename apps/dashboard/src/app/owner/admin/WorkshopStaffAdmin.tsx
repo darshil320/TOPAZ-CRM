@@ -44,16 +44,19 @@ const FIELD =
  * `capabilities_for()` grants them nothing anyway, so the row would be dead weight that
  * merely looks like access.
  */
-const ELIGIBLE_ROLES = new Set(["workshop_manager", "owner", "admin", "salesperson"]);
+const ELIGIBLE_ROLES = new Set(["workshop_manager", "super_admin", "owner", "admin", "salesperson"]);
 
 export default function WorkshopStaffAdmin({
   workshops,
   staffOptions,
   loadError,
+  canRemove,
 }: {
   workshops: StaffWorkshop[];
   staffOptions: StaffOption[];
   loadError: string | null;
+  /** False for admin (0052): may edit but never deactivate/remove. The API refuses it too. */
+  canRemove: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [rosters, setRosters] = useState<Record<string, StaffRow[]>>(
@@ -159,7 +162,7 @@ export default function WorkshopStaffAdmin({
                     </span>
                   )}
                 </span>
-                {lead && (
+                {lead && canRemove && (
                   <button
                     type="button"
                     onClick={() => handleRemove(workshop.id, lead.salesperson_id)}
@@ -187,14 +190,16 @@ export default function WorkshopStaffAdmin({
                           </span>
                         )}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(workshop.id, sub.salesperson_id)}
-                        disabled={isPending}
-                        className="flex items-center gap-1.5 rounded-md border border-ln px-2 py-1 text-caption font-semibold text-t2 hover:text-t1 disabled:opacity-50"
-                      >
-                        <UserMinus className="h-3.5 w-3.5" /> Remove
-                      </button>
+                      {canRemove && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(workshop.id, sub.salesperson_id)}
+                          disabled={isPending}
+                          className="flex items-center gap-1.5 rounded-md border border-ln px-2 py-1 text-caption font-semibold text-t2 hover:text-t1 disabled:opacity-50"
+                        >
+                          <UserMinus className="h-3.5 w-3.5" /> Remove
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

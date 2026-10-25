@@ -4,8 +4,9 @@ Mirrors test_leads_route.py's wired-fixture style: monkeypatch get_api_session,
 authz.resolve_caller, lead_repo.get_lead, lead_recording_repo.*, and storage.* —
 no DB, no network, no JWT.
 
-Gating mirrors assert_can_edit_lead exactly (creator + owner only may sign-upload
-or complete); listing is open to any active salesperson, matching leads_select.
+Gating mirrors assert_can_edit_lead exactly (creator, owner or telecaller may
+sign-upload or complete); listing is open to any active salesperson, matching
+leads_select.
 """
 import asyncio
 from contextlib import asynccontextmanager
@@ -140,6 +141,15 @@ def test_creator_may_sign_upload(wired):
 
 def test_owner_may_sign_upload(wired):
     _as(wired, role="owner", salesperson_id=OTHER)
+
+    _sign()
+
+    assert len(wired["create_calls"]) == 1
+
+
+def test_telecaller_may_sign_upload_on_anyones_lead(wired):
+    """A call recording is a lead detail; a telecaller edits any lead (0051)."""
+    _as(wired, role="telecaller", salesperson_id=OTHER)
 
     _sign()
 

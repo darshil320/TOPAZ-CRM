@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson, isOwnerRole } from "@/lib/auth";
+import { canViewAll } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import Pill from "@/components/ui/Pill";
@@ -12,7 +13,10 @@ import SalespersonsTableClient from "./SalespersonsTableClient";
 export default async function SalespersonsPage() {
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
-  if (!isOwnerRole(sp)) redirect("/dashboard");
+  // Admin sees the team (0052) but only owner-level manages it.
+  if (!canViewAll(sp.role)) redirect("/dashboard");
+  const canManage = isOwnerRole(sp);
+  const isSuperAdmin = sp.role === "super_admin";
 
   const supabase = await createServerSupabaseClient();
   const { data: salespersons } = await supabase
@@ -29,9 +33,9 @@ export default async function SalespersonsPage() {
         subtitle={`${list.length} total team members`}
       />
 
-      <AddSalespersonForm />
+      {canManage && <AddSalespersonForm allowSuperAdmin={isSuperAdmin} />}
 
-      <SalespersonsTableClient salespersons={list} />
+      <SalespersonsTableClient salespersons={list} canManage={canManage} isSuperAdmin={isSuperAdmin} />
     </div>
   );
 }

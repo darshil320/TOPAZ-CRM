@@ -4,7 +4,8 @@ Used directly ("delete") and by the dashboard's "replace" flow, which uploads th
 file first and deletes the old one only once the new one is ready.
 
 Pinned here:
-  * same gate as adding a recording: lead creator or owner (admin is NOT owner)
+  * lead creator or owner (admin is NOT owner); a telecaller may add a recording
+    to any lead but never delete one (0051)
   * 404 for a missing lead, a missing recording, or a recording on ANOTHER lead —
     the path's lead_id must own the recording, or the creator gate is bypassable by
     pairing a lead you own with someone else's recording id
@@ -120,6 +121,28 @@ def test_owner_may_delete_on_anyones_lead(wired):
 @pytest.mark.parametrize("role", ["salesperson", "admin"])
 def test_non_creator_is_refused_and_nothing_is_touched(wired, role):
     _as(wired, role=role, salesperson_id=OTHER)
+
+    with pytest.raises(HTTPException) as exc:
+        _delete()
+    assert exc.value.status_code == 403
+    assert wired["events"] == []
+
+
+@pytest.mark.parametrize("salesperson_id", [OTHER, CREATOR])
+def test_admin_may_never_delete_a_recording(wired, salesperson_id):
+    _as(wired, role="admin", salesperson_id=salesperson_id)
+
+    with pytest.raises(HTTPException) as exc:
+        _delete()
+    assert exc.value.status_code == 403
+    assert wired["events"] == []
+
+
+@pytest.mark.parametrize("salesperson_id", [OTHER, CREATOR])
+def test_telecaller_may_never_delete_a_recording(wired, salesperson_id):
+    """0051: a telecaller adds recordings to any lead but deletes none — the same
+    no-delete line as the lead itself, so "replace" stays an owner/creator action."""
+    _as(wired, role="telecaller", salesperson_id=salesperson_id)
 
     with pytest.raises(HTTPException) as exc:
         _delete()

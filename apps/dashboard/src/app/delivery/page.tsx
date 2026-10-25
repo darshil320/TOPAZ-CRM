@@ -1,3 +1,4 @@
+import { canViewAll } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentSalesperson } from "@/lib/auth";
@@ -52,7 +53,7 @@ export default async function DeliveryPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const isElevated = sp.role === "owner" || sp.role === "admin";
+  const isElevated = canViewAll(sp.role);
   let query = supabase
     .from("deliveries")
     // No `order_id` and no single customer since 0040 — the drops come off the run's

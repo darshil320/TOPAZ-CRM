@@ -8,6 +8,12 @@ import NavGroups from "./NavGroups";
 import AccountMenu, { type AccountMenuUser } from "./AccountMenu";
 import type { Role } from "@/components/nav-config";
 import type { PresenceEntry } from "./ShellChrome";
+import { canViewAll } from "@/lib/roles";
+
+function workspaceLabel(role: Role): string {
+  if (role === "front_desk") return "Front desk";
+  return canViewAll(role) ? "Owner" : "Sales";
+}
 
 export default function Sidebar({
   role,
@@ -47,7 +53,7 @@ export default function Sidebar({
           <span className="flex-1 min-w-0">
             <span className="block truncate text-ui font-semibold tracking-[-.012em] text-t1">Topaz CRM</span>
             <span className="block truncate text-[11px] font-medium text-t3">
-              {role === "owner" ? "Owner" : "Sales"} workspace · Surat
+              {workspaceLabel(role)} workspace · Surat
             </span>
           </span>
           <ChevronsUpDown className="w-[13px] h-[13px] text-t3 shrink-0" strokeWidth={2} />

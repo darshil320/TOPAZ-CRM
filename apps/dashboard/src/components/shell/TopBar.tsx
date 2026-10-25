@@ -19,6 +19,9 @@ const ANCESTOR_LABEL: Record<Role, string> = {
   accounts: "Sales Engine",
   workshop_manager: "Sales Engine",
   delivery: "Sales Engine",
+  telecaller: "Sales Engine",
+  super_admin: "Owner Control",
+  front_desk: "Front Desk",
 };
 
 export default function TopBar({

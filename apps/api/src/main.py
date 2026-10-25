@@ -39,6 +39,7 @@ from .api.public import router as public_router
 from .api.quotations import router as quotations_router
 from .api.recognition import router as recognition_router
 from .api.documents import router as documents_router
+from .api.frontdesk import router as frontdesk_router
 from .api.leads import router as leads_router
 from .api.lead_followup_notifications import router as lead_followup_notifications_router
 from .api.lead_recordings import router as lead_recordings_router
@@ -136,6 +137,7 @@ def create_app() -> FastAPI:
     app.include_router(stage_plan_router, prefix="/api")
     # Delivery challans (0037).
     app.include_router(documents_router, prefix="/api")
+    app.include_router(frontdesk_router, prefix="/api")
     # Mounted BEFORE leads_router, deliberately: leads.py has GET/PATCH
     # "/{lead_id}" on the same "/leads" prefix, and Starlette matches routes in
     # registration order across routers — "/leads/notifications" would otherwise

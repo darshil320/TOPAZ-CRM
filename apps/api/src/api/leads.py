@@ -165,7 +165,7 @@ async def get_lead(lead_id: UUID):
 async def update_lead(
     lead_id: UUID, body: LeadUpdate, auth_uid: str = Depends(get_caller_uid)
 ):
-    """Correct a captured lead's fields. Creator (or owner) only — see authz."""
+    """Correct a captured lead's fields. Creator, owner or telecaller — see authz."""
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, auth_uid)
         lead = await repo.get_lead(session, lead_id)
@@ -185,8 +185,9 @@ async def update_lead(
 async def delete_lead(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)) -> None:
     """Remove an enquiry captured by mistake (typically: the wrong number).
 
-    Creator or owner only, same as edit. A converted lead is refused — it is the
-    history behind a customer row; mark it lost instead.
+    Creator or owner only — never a telecaller (see authz.assert_can_delete_lead).
+    A converted lead is refused — it is the history behind a customer row; mark it
+    lost instead.
 
     Recordings first: the lead_recordings cascade drops the only record of their
     Storage keys, so the objects are removed BEFORE the row and a Storage failure
@@ -199,7 +200,7 @@ async def delete_lead(lead_id: UUID, auth_uid: str = Depends(get_caller_uid)) ->
         lead = await repo.get_lead(session, lead_id)
         if lead is None:
             raise HTTPException(status_code=404, detail="lead not found")
-        authz.assert_can_edit_lead(caller, lead, action="delete this lead")
+        authz.assert_can_delete_lead(caller, lead)
         if lead["status"] == "converted":
             raise HTTPException(
                 status_code=409,

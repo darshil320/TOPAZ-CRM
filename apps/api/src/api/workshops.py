@@ -187,6 +187,7 @@ async def deactivate_workshop(workshop_id: UUID, caller_uid: str = Depends(get_c
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshops")
+        authz.assert_may_remove(caller, action="deactivate a workshop")
         if await repo.get_workshop(session, workshop_id) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workshop not found")
         open_items = await repo.open_item_count(session, workshop_id)
@@ -328,6 +329,7 @@ async def remove_staff(workshop_id: UUID, salesperson_id: UUID,
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
         authz.assert_admin(caller, action="manage workshop staff")
+        authz.assert_may_remove(caller, action="remove workshop staff")
 
         membership = await staff_repo.get_membership(
             session, workshop_id=workshop_id, salesperson_id=salesperson_id

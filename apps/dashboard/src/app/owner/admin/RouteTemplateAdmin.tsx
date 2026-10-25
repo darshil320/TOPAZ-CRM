@@ -36,11 +36,14 @@ export default function RouteTemplateAdmin({
   workshops,
   stages,
   loadError,
+  canRemove,
 }: {
   templates: RouteTemplate[];
   workshops: { id: string; name: string; active: boolean }[];
   stages: StageDef[];
   loadError: string | null;
+  /** False for admin (0052): may edit but never deactivate/remove. The API refuses it too. */
+  canRemove: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
@@ -261,14 +264,16 @@ export default function RouteTemplateAdmin({
                   <Pill tone="neutral">
                     {template.legs.length} leg{template.legs.length === 1 ? "" : "s"}
                   </Pill>
-                  <button
-                    type="button"
-                    onClick={() => deactivate(template.id)}
-                    disabled={isPending}
-                    className="flex items-center gap-1.5 rounded-md border border-ln px-2 py-1 text-caption font-semibold text-t2 hover:text-t1 disabled:opacity-50"
-                  >
-                    <PowerOff className="h-3.5 w-3.5" /> Retire
-                  </button>
+                  {canRemove && (
+                    <button
+                      type="button"
+                      onClick={() => deactivate(template.id)}
+                      disabled={isPending}
+                      className="flex items-center gap-1.5 rounded-md border border-ln px-2 py-1 text-caption font-semibold text-t2 hover:text-t1 disabled:opacity-50"
+                    >
+                      <PowerOff className="h-3.5 w-3.5" /> Retire
+                    </button>
+                  )}
                 </div>
               </div>
               <ol className="space-y-1">

@@ -171,6 +171,80 @@ insert into doc_series (series, fiscal_year, last_no) values ('CHL', 'ALL', 66)
 on conflict (series, fiscal_year) do update set last_no = excluded.last_no;
 ```
 
+### Telecaller role (`0051`) — migration first, then API + dashboard
+
+`0051_telecaller_role.sql` only adds `telecaller` to `salespersons_role_check`. A
+telecaller may edit any lead's fields and add call recordings to any lead, but delete
+no lead and no recording — not even on a lead they captured. That rule lives in the
+API alone (`authz.assert_can_edit_lead` / `assert_can_delete_lead`); `leads_update`
+is deliberately **not** widened, since the dashboard never writes `leads` directly and
+a wider policy would let a telecaller's JWT rewrite `created_by`/`status` on any lead
+through PostgREST. Proven by `apps/api/tests/test_rls_telecaller.py` (RLS stays narrow)
+and the lead route tests (API gate).
+
+Order: **push `0051` before** the API/dashboard deploy — the dashboard's "Add staff" form
+offers the role, and an insert without the widened check constraint fails. Additive,
+safe to push early: no existing row or policy meaning changes for any other role.
+
+### Super admin / admin / front desk (`0052`) — migration first, then API, then dashboard
+
+`0052_super_admin_front_desk.sql` changes who may do what:
+
+- **`super_admin`** — every owner power. `is_owner()` now means owner-LEVEL (owner or
+  super_admin), so every existing owner rule covers it. Only a super_admin may add,
+  change or remove a super_admin row (trigger `salespersons_protect_super_admin`).
+- **`admin`** — sees and searches everything an owner sees (new `can_view_all()` on the
+  customer surface: customers, visits, threads, pipeline, alerts, audit log, staff list)
+  and may edit, but removes nothing: a RESTRICTIVE "admin never deletes" policy per table,
+  and the API refuses admin every delete / deactivate / retire / cancel
+  (`authz.assert_may_remove`). Soft deletes done as UPDATEs (quote → expired, order →
+  cancelled, product/workshop/roster/route template → inactive) are refused to an admin
+  JWT by the `refuse_admin_removal` trigger. Staff management, consent withdrawal,
+  assignment deactivation, the AI/mute toggles and `customers.consent_id` stay
+  owner-level; a staff JWT can no longer insert a `face_tracking` consent.
+- **`front_desk`** — assigns walk-ins and prepares quotations:
+  - **Kiosk:** when a front desk manager (or owner/admin) is signed in on the kiosk
+    device, the form offers "Assign to salesperson"; the new walk-in goes straight to that
+    salesperson (primary assignment). Left blank — or with nobody signed in — it lands in
+    every salesperson's walk-in queue exactly as before.
+  - **`/frontdesk` board:** every unclaimed walk-in with an "Assign to…" picker
+    (`POST /api/frontdesk/walkins/{id}/assign`; refuses claimed customers and withdrawn
+    consent), plus a shortcut to New Quotation.
+  - **Quotations on behalf:** `quotations.prepared_by` = desk, `created_by` = the
+    salesperson, who is added to the customer (primary if unclaimed, else collaborator)
+    so they can see it. Afterwards the desk may edit/revise/send/delete only quotations it
+    prepared. It never claims, never sees WhatsApp threads or customer photos, and cannot
+    create orders. Known: like accounts/admin it can read `quotations.approval_token`.
+- **Walk-in queue — unchanged.** Every unclaimed walk-in is in every salesperson's queue
+  and any of them may claim it (0007). Only the front desk is refused a claim (it assigns
+  instead). Side fixes: a customer who withdrew consent can no longer be claimed,
+  assigned or quoted-for (DPDPA), and a salesperson can re-claim a customer that was
+  released back to the queue (their old inactive row is reactivated instead of failing as
+  "already claimed"). The queue page now reads the `unclaimed_walkins` view, so owners
+  and admins (who see every customer) no longer lose older walk-ins past 500.
+
+Order matters: **push `0052` first** (the API reads `prepared_by` and the dashboard
+embeds the new FK and the `unclaimed_walkins` view), then deploy the API
+(`systemctl reload topaz`), then let Vercel deploy the dashboard. No backfill needed.
+
+Proven by `test_rls_roles_0052.py` (RLS), `test_authz_roles_0052.py`,
+`test_frontdesk_route.py`, `test_quotations_on_behalf_route.py`,
+`test_walkin_empirical.py`, and the updated lead/order tests.
+
+### Quotation Share button — API (+ worker) before dashboard, no migration
+
+The quote page's **Share** hands out the priced PDF through the phone's share sheet (file
+attached; desktop gets "Open PDF" / "Copy link"). Deliberately the PDF, not the `/q/{token}`
+link — that page can approve the quote. New routes `POST|GET /api/quotations/{id}/pdf`:
+POST queues the render in the **worker** (Chromium must not run in the 1GB api container),
+GET returns a signed URL valid `QUOTE_SHARE_URL_TTL_S` (default 7 days). Read access: owner/
+admin/accounts any quote, salesperson/telecaller their assigned customers'.
+
+Behaviour changes to know about: editing a draft now clears `quotations.pdf_key` (the next
+Share/Send re-renders), and every render writes a new uniquely-named Storage object instead
+of overwriting `quotes/{no}-r{rev}.pdf`. `systemctl reload topaz` rebuilds api + worker
+together; deploy it **before** the dashboard, or Share 404s against the old API.
+
 ---
 
 ## TRACK A — Railway env vars: replace every placeholder (YOU · ~30 min)

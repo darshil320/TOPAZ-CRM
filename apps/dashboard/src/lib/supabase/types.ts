@@ -967,6 +967,7 @@ export type Database = {
           igst: number
           notes: string | null
           pdf_key: string | null
+          prepared_by: string | null
           place_of_supply: string
           quote_no: string
           revision_no: number
@@ -993,6 +994,7 @@ export type Database = {
           igst?: number
           notes?: string | null
           pdf_key?: string | null
+          prepared_by?: string | null
           place_of_supply?: string
           quote_no: string
           revision_no?: number
@@ -1019,6 +1021,7 @@ export type Database = {
           igst?: number
           notes?: string | null
           pdf_key?: string | null
+          prepared_by?: string | null
           place_of_supply?: string
           quote_no?: string
           revision_no?: number
@@ -1032,6 +1035,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "quotations_prepared_by_fkey"
+            columns: ["prepared_by"]
+            isOneToOne: false
+            referencedRelation: "salespersons"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quotations_customer_id_fkey"
             columns: ["customer_id"]

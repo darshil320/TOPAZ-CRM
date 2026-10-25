@@ -21,7 +21,14 @@ export interface AdminProduct {
   primary_media_id: string | null;
 }
 
-export default function ProductAdmin({ products }: { products: AdminProduct[] }) {
+export default function ProductAdmin({
+  products,
+  canRemove,
+}: {
+  products: AdminProduct[];
+  /** False for admin (0052): may re-activate a product, never deactivate one. */
+  canRemove: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -207,7 +214,7 @@ export default function ProductAdmin({ products }: { products: AdminProduct[] })
                       <button
                         type="button"
                         onClick={() => toggle(p.id, !p.active)}
-                        disabled={isPending}
+                        disabled={isPending || (p.active && !canRemove)}
                         className="focus:outline-none"
                       >
                         <Pill tone={p.active ? "pos" : "neutral"} dot={true}>

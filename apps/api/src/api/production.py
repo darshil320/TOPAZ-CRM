@@ -54,13 +54,17 @@ from sqlalchemy.exc import IntegrityError
 from ..database import get_api_session
 from ..repositories import production_repo as repo
 from ..repositories import route_repo, stage_plan_repo, transfer_repo, workshop_staff_repo
-from ..services import handover, stage_flow
+from ..services import handover, roles, stage_flow
 from . import authz
 from . import stage_plan as stage_plan_api
 from .deps import get_caller_uid, require_dashboard_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/production", dependencies=[Depends(require_dashboard_key)])
+
+# Who may plan production. A workshop manager must never self-allocate work;
+# accounts/delivery have no production role at all.
+_ALLOCATING_ROLES = roles.VIEW_ALL | {"salesperson"}
 
 # Re-allocation mid-production is legitimate (a workshop falls behind); a cancelled,
 # delivered or closed order is not.
@@ -88,7 +92,7 @@ async def _active_workshop(session, workshop_id: UUID) -> None:
 async def unallocated(caller_uid: str = Depends(get_caller_uid)) -> dict:
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, caller_uid)
-        if caller.role not in ("owner", "admin", "salesperson"):
+        if caller.role not in _ALLOCATING_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Your role cannot allocate production work")
         # Scope the queue the same way the write path is scoped: a salesperson may
@@ -110,7 +114,7 @@ async def allocate(req: AllocateRequest, caller_uid: str = Depends(get_caller_ui
         caller = await authz.resolve_caller(session, caller_uid)
         # A workshop manager must never self-allocate work; accounts/delivery have
         # no production role at all.
-        if caller.role not in ("owner", "admin", "salesperson"):
+        if caller.role not in _ALLOCATING_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Your role cannot allocate production work")
 

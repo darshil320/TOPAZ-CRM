@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import Pill from "@/components/ui/Pill";
 import Pagination from "@/components/ui/Pagination";
 import ActiveToggle from "./ActiveToggle";
+import { isOwnerLevel } from "@/lib/roles";
 
 export interface SalespersonRow {
   id: string;
@@ -16,7 +17,15 @@ export interface SalespersonRow {
   created_at: string;
 }
 
-export default function SalespersonsTableClient({ salespersons }: { salespersons: SalespersonRow[] }) {
+interface Props {
+  salespersons: SalespersonRow[];
+  /** Owner-level: may activate/deactivate. An admin sees the list read-only (0052). */
+  canManage: boolean;
+  /** Only a super admin may change a super admin row (0052 trigger). */
+  isSuperAdmin: boolean;
+}
+
+export default function SalespersonsTableClient({ salespersons, canManage, isSuperAdmin }: Props) {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
 
@@ -44,7 +53,7 @@ export default function SalespersonsTableClient({ salespersons }: { salespersons
                 <td className="px-4 py-3 font-semibold text-t1">{s.name}</td>
                 <td className="px-4 py-3 text-t2 font-mono">{s.whatsapp}</td>
                 <td className="px-4 py-3">
-                  <Pill tone={s.role === "owner" ? "warn" : "neutral"} dot={false}>
+                  <Pill tone={isOwnerLevel(s.role) ? "warn" : "neutral"} dot={false}>
                     {s.role}
                   </Pill>
                 </td>
@@ -56,7 +65,13 @@ export default function SalespersonsTableClient({ salespersons }: { salespersons
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <ActiveToggle salespersonId={s.id} initialActive={s.active} />
+                  {canManage && (s.role !== "super_admin" || isSuperAdmin) ? (
+                    <ActiveToggle salespersonId={s.id} initialActive={s.active} />
+                  ) : (
+                    <Pill tone={s.active ? "pos" : "neutral"} dot={false}>
+                      {s.active ? "Active" : "Deactivated"}
+                    </Pill>
+                  )}
                 </td>
               </tr>
             ))}

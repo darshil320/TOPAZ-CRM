@@ -19,7 +19,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.api import orders
+from src.api import authz, orders
 from src.repositories import order_repo
 
 
@@ -32,6 +32,7 @@ def wired(monkeypatch):
         "set_status_calls": [],
         "stand_down_calls": [],
         "committed": False,
+        "role": "salesperson",
     }
 
     class _S:
@@ -43,7 +44,7 @@ def wired(monkeypatch):
         yield _S()
 
     async def _authorize_order(session, caller_uid, order_id):
-        return None
+        return authz.Caller(salesperson_id=str(uuid4()), role=state["role"])
 
     async def _cancellation_state(session, order_id):
         return state["cancellation_state"]
@@ -179,6 +180,17 @@ def test_cancel_without_a_reason_is_422(wired):
         _patch(reason="   ")
     assert exc.value.status_code == 422
     assert wired["set_status_calls"] == []
+
+
+def test_admin_cannot_cancel_an_order(wired):
+    """0052: an admin removes nothing, and cancelling stands production down."""
+    wired["role"] = "admin"
+
+    with pytest.raises(HTTPException) as exc:
+        _patch()
+    assert exc.value.status_code == 403
+    assert wired["set_status_calls"] == [] and wired["stand_down_calls"] == []
+    assert not wired["committed"]
 
 
 def test_missing_order_is_404(wired):

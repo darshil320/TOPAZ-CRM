@@ -6,7 +6,16 @@ import CancelOrderDialog from "./CancelOrderDialog";
 import { patchOrderStatus } from "./actions";
 import { NEXT_TRANSITIONS } from "./status";
 
-export default function OrderStatusActions({ orderId, status }: { orderId: string; status: string }) {
+export default function OrderStatusActions({
+  orderId,
+  status,
+  canCancel,
+}: {
+  orderId: string;
+  status: string;
+  /** False for admin (0052): cancelling stands production down — a removal. */
+  canCancel: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -25,7 +34,7 @@ export default function OrderStatusActions({ orderId, status }: { orderId: strin
   // cancelling costs (a refund owed, goods in transit) before it happens. The forward
   // transitions stay one tap.
   const forward = transitions.filter((t) => t.to !== "cancelled");
-  const cancellable = transitions.some((t) => t.to === "cancelled");
+  const cancellable = canCancel && transitions.some((t) => t.to === "cancelled");
 
   const move = (to: string) => {
     setError(null);

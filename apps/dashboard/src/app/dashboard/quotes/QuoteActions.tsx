@@ -5,21 +5,28 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteQuote, reviseQuote, sendQuote } from "./actions";
 import { createOrderFromQuote } from "../orders/actions";
+import ShareQuoteButton from "./ShareQuoteButton";
 
 interface Props {
   quoteId: string;
+  quoteNo: string;
   status: string;
+  /** False for admin (0052): removes nothing. The API refuses it too. */
+  canDelete: boolean;
+  /** False for the front desk (0052): it prepares quotations, it does not take orders. */
+  canCreateOrder: boolean;
 }
 
 /** Detail-view actions. Edit/Delete are draft-only (the server also enforces
- * this with a 409); Revise clones any quotation into a fresh draft revision. */
-export default function QuoteActions({ quoteId, status }: Props) {
+ * this with a 409); Revise clones any quotation into a fresh draft revision.
+ * Share works in every status — it hands out the priced PDF, not the approval link. */
+export default function QuoteActions({ quoteId, quoteNo, status, canDelete, canCreateOrder }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isDraft = status === "draft";
 
-  const isApproved = status === "approved";
+  const isApproved = status === "approved" && canCreateOrder;
   const toOrder = () => {
     setError(null);
     startTransition(async () => {
@@ -117,7 +124,10 @@ export default function QuoteActions({ quoteId, status }: Props) {
         >
           {isPending ? "Working…" : "Revise"}
         </button>
-        {isDraft && (
+        {/* A deleted draft (soft-deleted to "expired") must not circulate with its
+            prices on it; the API refuses it with a 409 as well. */}
+        {status !== "expired" && <ShareQuoteButton quoteId={quoteId} quoteNo={quoteNo} />}
+        {isDraft && canDelete && (
           <button
             type="button"
             onClick={remove}

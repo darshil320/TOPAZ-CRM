@@ -19,6 +19,7 @@
 import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "./supabase/server";
+import { isOwnerLevel } from "./roles";
 
 export type CurrentSalesperson = {
   id: string;
@@ -57,7 +58,7 @@ export const getCurrentSalesperson = cache(
   },
 );
 
-/** True when the current salesperson is an owner. */
+/** True when the current salesperson is owner-LEVEL (owner or super_admin, 0052). */
 export function isOwnerRole(sp: CurrentSalesperson | null): boolean {
-  return sp?.role === "owner";
+  return isOwnerLevel(sp?.role);
 }

@@ -7,13 +7,14 @@ with its own table (`lead_recordings`, 0048) and bucket (`lead-audio`) — see 0
 header for why this is not `media`.
 
 GATING, restated from the plan:
-  * sign-upload / complete  -> authz.assert_can_edit_lead (creator + owner only,
+  * sign-upload / complete  -> authz.assert_can_edit_lead (creator, owner or telecaller,
     same rule LeadEditForm's PATCH already enforces — a voice note is exactly the
     kind of lead detail that gate protects).
   * list                    -> open to any active salesperson, matching leads_select
     ("the person who picks up the phone is rarely the one who took the original
     enquiry" applies identically to hearing a prior call).
-  * delete                  -> creator + owner, same as adding one. Product call
+  * delete                  -> authz.assert_can_delete_lead: creator + owner, never
+    a telecaller (0051 — they edit any lead but delete nothing). Product call
     (2026-10): staff must be able to remove a wrong/accidental recording, and
     "replace" is upload-new-then-delete-old from the dashboard. This supersedes the
     earlier "no DELETE route, a recording is evidence" stance.
@@ -118,7 +119,8 @@ async def complete_upload(
         lead = await _load_lead_or_404(session, lead_id)
         # Re-checked, not just "uploader may complete": a completion confirmation is
         # still a write to this lead's records (mirrors media.py's own-upload check,
-        # but using the same creator+owner rule as the rest of this lead's edits).
+        # but using the same creator/owner/telecaller rule as the rest of this lead's
+        # edits).
         authz.assert_can_edit_lead(caller, lead, action="add a recording to this lead")
 
         row = await repo.get_recording(session, recording_id)
@@ -212,7 +214,7 @@ async def delete_recording(
     async with get_api_session() as session:
         caller = await authz.resolve_caller(session, auth_uid)
         lead = await _load_lead_or_404(session, lead_id)
-        authz.assert_can_edit_lead(caller, lead, action="delete a recording on this lead")
+        authz.assert_can_delete_lead(caller, lead, action="delete a recording on this lead")
 
         row = await repo.get_recording(session, recording_id)
         # str() both sides — asyncpg returns UUID objects (see complete_upload).

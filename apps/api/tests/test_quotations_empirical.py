@@ -6,7 +6,9 @@ Async repo is driven via asyncio.run so no pytest-asyncio is required.
 """
 import asyncio
 import os
+from datetime import timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -125,6 +127,67 @@ def test_draft_only_guard_blocks_edit_and_delete_once_sent():
                 assert await repo.update_draft(s, qid, totals=totals, items=items) is False
                 assert await repo.soft_delete_draft(s, qid) is False
                 await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())
+
+
+def test_editing_a_draft_clears_its_pdf_key():
+    """A shared/sent PDF must show the prices on screen: an edit invalidates it, so the
+    next Share or Send renders afresh instead of serving the pre-edit document."""
+    async def scenario():
+        engine = create_async_engine(_async_url(), connect_args={"ssl": False})
+        try:
+            async with await _session(engine) as s:
+                cust, sp = await _seed_customer(s)
+                items, totals = _mixed_items()
+                qid = await repo.create_quotation(s, quote_no="QTN-TEST-0006", customer_id=cust,
+                                                  totals=totals, items=items, created_by=sp)
+                assert await repo.set_pdf_key(s, qid, "quotes/old.pdf", rendered_from=None) is True
+                assert (await repo.get_pdf_info(s, qid))["pdf_key"] == "quotes/old.pdf"
+
+                assert await repo.update_draft(s, qid, totals=totals, items=items) is True
+
+                info = await repo.get_pdf_info(s, qid)
+                assert info["pdf_key"] is None
+                assert info["quote_no"] == "QTN-TEST-0006"
+                assert info["status"] == "draft"
+                assert str(info["customer_id"]) == str(cust)
+                await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())
+
+
+def test_set_pdf_key_refuses_a_render_of_a_superseded_snapshot():
+    async def scenario():
+        engine = create_async_engine(_async_url(), connect_args={"ssl": False})
+        try:
+            async with await _session(engine) as s:
+                cust, sp = await _seed_customer(s)
+                items, totals = _mixed_items()
+                qid = await repo.create_quotation(s, quote_no="QTN-TEST-0007", customer_id=cust,
+                                                  totals=totals, items=items, created_by=sp)
+                seen = (await repo.get_quotation(s, qid))["updated_at"]
+
+                stale = seen - timedelta(seconds=5)
+                assert await repo.set_pdf_key(s, qid, "quotes/stale.pdf", rendered_from=stale) is False
+                assert (await repo.get_pdf_info(s, qid))["pdf_key"] is None
+
+                assert await repo.set_pdf_key(s, qid, "quotes/fresh.pdf", rendered_from=seen) is True
+                assert (await repo.get_pdf_info(s, qid))["pdf_key"] == "quotes/fresh.pdf"
+                await s.rollback()
+        finally:
+            await engine.dispose()
+    run(scenario())
+
+
+def test_get_pdf_info_unknown_quotation_is_none():
+    async def scenario():
+        engine = create_async_engine(_async_url(), connect_args={"ssl": False})
+        try:
+            async with await _session(engine) as s:
+                assert await repo.get_pdf_info(s, uuid4()) is None
         finally:
             await engine.dispose()
     run(scenario())

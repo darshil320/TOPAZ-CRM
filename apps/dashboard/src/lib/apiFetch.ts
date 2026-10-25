@@ -23,6 +23,9 @@ const TIMEOUT_MS = 20_000;
 export interface ApiResult<T> {
   data: T | null;
   error: string | null;
+  /** HTTP status of a non-2xx response; absent on success and on network failure. Lets a
+   * caller tell an expected 404 ("not generated yet") from a real failure. */
+  status?: number;
 }
 
 export async function apiCall<T>(
@@ -62,7 +65,7 @@ export async function apiCall<T>(
       } catch {
         // non-JSON body — keep the status line
       }
-      return { data: null, error: detail };
+      return { data: null, error: detail, status: resp.status };
     }
 
     return { data: (await resp.json()) as T, error: null };

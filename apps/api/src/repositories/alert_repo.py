@@ -5,6 +5,8 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..services import roles
+
 
 async def create_alert(
     session: AsyncSession,
@@ -46,12 +48,12 @@ async def create_alert(
 
 
 async def get_owner_whatsapp(session: AsyncSession) -> str | None:
-    """WhatsApp number of an active owner — fallback recipient for unclaimed customers."""
+    """WhatsApp number of an active owner (else a super_admin) — fallback recipient
+    for unclaimed customers."""
     result = await session.execute(
         text(
             "SELECT whatsapp FROM salespersons"
-            " WHERE role = 'owner' AND active = true AND whatsapp IS NOT NULL"
-            " ORDER BY created_at LIMIT 1"
+            " WHERE whatsapp IS NOT NULL AND " + roles.OWNER_FALLBACK_ORDER_SQL + " LIMIT 1"
         )
     )
     row = result.first()
