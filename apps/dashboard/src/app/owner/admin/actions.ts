@@ -3,8 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { apiHeaders } from "@/lib/apiAuth";
-import { getCurrentSalesperson } from "@/lib/auth";
-import { canRemove } from "@/lib/roles";
 
 // Workshop writes route through FastAPI (not straight to Supabase, even though RLS
 // would allow it): the E.164 phone rule with a usable message and the deactivation
@@ -15,105 +13,7 @@ const WORKSHOPS_API = `${API_BASE}/api/workshops`;
 const TIMEOUT_MS = 30_000;
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 
-export interface ProductInput {
-  name: string;
-  category?: string;
-  hsn: string;
-  gst_rate: string;
-  base_price?: string;
-  unit?: string;
-}
-
-export async function addProduct(input: ProductInput): Promise<{ error: string | null }> {
-  if (!input.name.trim()) return { error: "Name is required" };
-  const rate = Number(input.gst_rate);
-  if (!(rate >= 0 && rate <= 100)) return { error: "GST rate must be 0–100" };
-  try {
-    const supabase = await createServerSupabaseClient();
-    // RLS products_insert is owner/admin only — a non-admin fails here too.
-    const { error } = await supabase.from("products").insert({
-      name: input.name.trim(),
-      category: input.category?.trim() || null,
-      hsn: input.hsn.trim() || "9403",
-      gst_rate: rate,
-      base_price: input.base_price ? Number(input.base_price) : null,
-      unit: input.unit?.trim() || "nos",
-    });
-    if (error) return { error: error.message };
-    revalidatePath("/owner/admin");
-    return { error: null };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Server error" };
-  }
-}
-
-/**
- * Point a product at its CATALOG photo (migration 0027).
- *
- * This is what makes the photo reusable: every quote and order line referencing
- * the product inherits it on the job card, so the same sofa is never re-uploaded.
- * A line can still override with its own photo, which always wins.
- *
- * The media row itself is created by MediaUpload through the FastAPI media route;
- * this only records which one is primary, and `products` RLS already restricts
- * that write to owner/admin.
- */
-export async function setProductPrimaryPhoto(
-  id: string,
-  mediaId: string | null,
-): Promise<{ error: string | null }> {
-  try {
-    const supabase = await createServerSupabaseClient();
-
-    // Server Actions are callable RPC, not just whatever the UI sends — so verify
-    // the media row really is THIS product's catalog photo before pointing at it.
-    // `primary_media_id` is a bare FK to media(id): without this check a caller
-    // could aim it at a customer's 'site' photo (a home interior), which the job
-    // card would then inline and WhatsApp to an outside vendor workshop.
-    // job_card_repo enforces the same triple at read time; both layers matter.
-    if (mediaId) {
-      const { data: media, error: lookupError } = await supabase
-        .from("media")
-        .select("id")
-        .eq("id", mediaId)
-        .eq("entity_type", "product")
-        .eq("entity_id", id)
-        .eq("status", "ready")
-        .maybeSingle();
-      if (lookupError) return { error: lookupError.message };
-      if (!media) {
-        return { error: "That image is not a finished catalog photo for this product." };
-      }
-    }
-
-    const { error } = await supabase
-      .from("products")
-      .update({ primary_media_id: mediaId })
-      .eq("id", id);
-    if (error) return { error: error.message };
-    revalidatePath("/owner/admin");
-    return { error: null };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Server error" };
-  }
-}
-
-export async function setProductActive(id: string, active: boolean): Promise<{ error: string | null }> {
-  try {
-    // products_update RLS admits admin and cannot tell a deactivation from an edit, so the
-    // "admin removes nothing" rule (0052) is enforced here for this direct write.
-    if (!active && !canRemove((await getCurrentSalesperson())?.role)) {
-      return { error: "Admins can view and edit but cannot deactivate a product" };
-    }
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from("products").update({ active }).eq("id", id);
-    if (error) return { error: error.message };
-    revalidatePath("/owner/admin");
-    return { error: null };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Server error" };
-  }
-}
+// Product catalog writes moved to lib/products/actions.ts with the products page (0053).
 
 // ─── Workshops (Phase 2B, module 08) ────────────────────────────────────────
 

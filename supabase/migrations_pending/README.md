@@ -29,7 +29,9 @@ deliberate backward-compatibility bridges (`deliveries.order_id` still derived,
 
 | File | Gate — do not promote until |
 |---|---|
+| `0054_products_price_columns_staff_only.sql` | The dashboard build that reads prices from the `product_prices` view (0053 rollout: quote builder + Products pages) is **live on Vercel** and `rg -n 'base_price\|gst_rate' apps/dashboard/src --glob '!**/types.ts'` shows no `.from("products")` select of them. Revokes SELECT on `products.base_price/gst_rate/hsn` from browser JWTs so workshop/delivery roles cannot read prices straight from PostgREST. Reversible (re-grant). `test_rls_products_0053.py` already proves it inside a rolled-back transaction. |
 | `0042_drop_deliveries_order_id.sql` | 0041 has soaked for a release **and** `rg -n 'deliveries\.order_id' apps/` is clean. Irreversible: drops `deliveries.order_id` and the four challan columns that moved to `delivery_consignments` in 0040. |
 
-Both belong to the 0040 multi-order-delivery rollout; see that migration's header for the
-full four-phase sequence.
+`0042` belongs to the 0040 multi-order-delivery rollout; see that migration's header for the
+full four-phase sequence. `0054` is the last step of the 0053 QR-product-tag rollout
+(`docs/DEPLOYMENT.md`).

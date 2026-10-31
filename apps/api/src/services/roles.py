@@ -21,6 +21,17 @@ SELLING = frozenset({"salesperson"})
 # Never see photos of a customer (their home, their site) — mirrors 0052's media_select.
 CUSTOMER_MEDIA_HIDDEN = frozenset({"workshop_manager", "delivery", "front_desk"})
 
+# Product catalog (0053). PRICE_VIEW ⇔ can_view_prices(): everyone who sells or bills.
+# workshop_manager and delivery are left out on purpose — a vendor workshop's manager is
+# an outside party, the same reason job cards carry no prices (0027).
+PRICE_VIEW = VIEW_ALL | {"salesperson", "front_desk", "telecaller", "accounts"}
+# STOCK_VIEW ⇔ can_view_stock(): every staff role — a driver needs to know a piece is
+# in the Godown before driving there.
+STOCK_VIEW = PRICE_VIEW | {"workshop_manager", "delivery"}
+# Create/edit products, set stock, print QR stickers. Deactivating one is a removal, so
+# NO_REMOVAL still applies on top.
+PRODUCT_MANAGE = VIEW_ALL
+
 # Preferred first when an alert has to fall back to "the owner": the business owner,
 # then a super_admin when no owner account exists.
 OWNER_FALLBACK_ORDER_SQL = (

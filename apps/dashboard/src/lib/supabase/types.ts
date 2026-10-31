@@ -915,6 +915,13 @@ export type Database = {
           primary_media_id: string | null
           unit: string | null
           updated_at: string
+          description: string | null
+          sizes: string | null
+          dimensions: string | null
+          material: string | null
+          finish: string | null
+          stock_status: string
+          qr_code: string
         }
         Insert: {
           active?: boolean
@@ -928,6 +935,13 @@ export type Database = {
           primary_media_id?: string | null
           unit?: string | null
           updated_at?: string
+          description?: string | null
+          sizes?: string | null
+          dimensions?: string | null
+          material?: string | null
+          finish?: string | null
+          stock_status?: string
+          qr_code?: string
         }
         Update: {
           active?: boolean
@@ -941,6 +955,12 @@ export type Database = {
           primary_media_id?: string | null
           unit?: string | null
           updated_at?: string
+          description?: string | null
+          sizes?: string | null
+          dimensions?: string | null
+          material?: string | null
+          finish?: string | null
+          stock_status?: string
         }
         Relationships: [
           {
@@ -951,6 +971,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_stock: {
+        Row: {
+          product_id: string
+          location_id: string
+          quantity: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          product_id: string
+          location_id: string
+          quantity?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          product_id?: string
+          location_id?: string
+          quantity?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_stock_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_locations: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          kind: string
+          sort: number
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          kind: string
+          sort?: number
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          kind?: string
+          sort?: number
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: []
       }
       quotations: {
         Row: {
@@ -1925,6 +2014,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_prices: {
+        Row: {
+          product_id: string
+          hsn: string
+          gst_rate: number
+          base_price: number | null
+          name: string
+          unit: string | null
+          active: boolean
+        }
+        Relationships: []
+      }
+      product_categories: {
+        Row: {
+          category: string
+        }
+        Relationships: []
       }
       order_outstanding: {
         Row: {

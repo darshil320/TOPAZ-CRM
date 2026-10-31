@@ -68,10 +68,28 @@ def render_html_to_image(
     return image
 
 
-def render_html_to_pdf(html: str) -> bytes:
-    """Render a full HTML document to A4 PDF bytes. Raises PdfRenderError.
+_A4_PDF_OPTIONS = {
+    "format": "A4",
+    "print_background": True,
+    "margin": {"top": "12mm", "bottom": "14mm", "left": "12mm", "right": "12mm"},
+}
+# The document's own `@page { size; margin }` decides the paper — QR sticker sheets
+# (services/qr_stickers.py) print on A4 OR on a single label from a roll.
+_CSS_PAGE_PDF_OPTIONS = {
+    "prefer_css_page_size": True,
+    "print_background": True,
+    "margin": {"top": "0", "bottom": "0", "left": "0", "right": "0"},
+}
 
-    Synchronous (Celery workers are sync) via Playwright's sync API.
+
+def render_html_to_pdf(html: str, *, css_page_size: bool = False) -> bytes:
+    """Render a full HTML document to PDF bytes. Raises PdfRenderError.
+
+    A4 with document margins by default; `css_page_size=True` hands paper size and
+    margins to the HTML's `@page` rule instead.
+
+    Synchronous (Celery workers are sync) via Playwright's sync API — callers under an
+    event loop MUST wrap this in asyncio.to_thread.
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -86,11 +104,7 @@ def render_html_to_pdf(html: str) -> bytes:
             try:
                 page = browser.new_page()
                 page.set_content(html, wait_until="networkidle")
-                pdf = page.pdf(
-                    format="A4",
-                    print_background=True,
-                    margin={"top": "12mm", "bottom": "14mm", "left": "12mm", "right": "12mm"},
-                )
+                pdf = page.pdf(**(_CSS_PAGE_PDF_OPTIONS if css_page_size else _A4_PDF_OPTIONS))
             finally:
                 browser.close()
     except Exception as exc:  # pragma: no cover - runtime/browser errors

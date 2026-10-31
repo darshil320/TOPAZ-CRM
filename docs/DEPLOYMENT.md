@@ -257,6 +257,52 @@ together; deploy it **before** the dashboard, or Share 404s against the old API.
 
 ---
 
+### QR product tags + stock (`0053`) — migration, then API (+ worker), then dashboard; `0054` last
+
+Products get a permanent QR sticker (8-char code, assigned by the DB, never changes),
+customer-facing details, a stock status and a quantity at each of the four locations
+(Bhatar Showroom, Ichhapore Showroom, Godown, Workshop — seeded rows in
+`stock_locations`). Staff scan with `/scan` (ZXing-C++ WebAssembly in a Web Worker) or
+the phone camera; customers' cameras open `/p/<code>`, which shows only photos, name,
+description, sizes/dimensions, material and finish.
+
+**The customer boundary** (client's strict requirement — no price/GST/location for
+customers, even via page source or direct API calls) is held by three independent layers,
+each tested: `anon` has no privilege on any catalog table/view (0053 revokes Supabase's
+blanket grant), the public route `GET /api/public/products/{code}` selects a column
+allowlist and has a closed response model, and `/p/[code]` renders server-side
+(`force-dynamic`, never cached — a cached staff render served to a customer would be the
+leak). Tests: `test_rls_products_0053.py`, `test_product_public.py`,
+`test_products_repo_empirical.py`.
+
+0053 also tightens `products_select` from 0013's `using (true)` to active staff:
+phone-OTP login (`signInWithOtp`, default `shouldCreateUser`) creates an auth user for
+ANY number, so "authenticated" is not "staff". Other tables still on `using (true)`
+(workshops, route templates, …) remain readable by such an account — turning off
+Supabase Auth signups in prod (staff are provisioned by script) closes that class.
+
+Order:
+1. **Push `0053_product_qr_stock.sql`.** Additive: new columns/tables/views, existing
+   products get a QR code backfilled. The deployed dashboard keeps working.
+2. **Deploy the API** (`systemctl reload topaz` — rebuilds api **and worker**; the new
+   `segno` dependency comes from `pyproject.toml`). Sticker PDFs render in the **worker**
+   (Chromium, ~1GB) and are stored under `documents/stickers/<job>.pdf` — disposable,
+   purge freely. Then **the dashboard** (Vercel). Dashboard against an old API: Products
+   saves and Print 404.
+3. **Before the first sticker print run, fix the QR domain.** Stickers encode
+   `PRODUCT_QR_BASE_URL` (default `${DASHBOARD_URL}/p`). Printed stickers freeze it:
+   moving the dashboard to another host later breaks every sticker already on furniture.
+   A short permanent host (e.g. `https://tpz.in/p`) also makes a smaller, faster QR.
+4. **Promote `migrations_pending/0054`** once step 2's dashboard is live — it stops
+   workshop/delivery JWTs reading `products.base_price` directly (gate in that README).
+
+The scanner self-hosts its WebAssembly decoder: `scripts/copy-zxing-wasm.mjs` copies it
+to `public/zxing/` on `postinstall` and before `next build` (gitignored, cached
+`immutable` via `next.config.ts`). If `/zxing/zxing_reader-<version>.wasm` 404s in
+production, the build skipped that script.
+
+---
+
 ## TRACK A — Railway env vars: replace every placeholder (YOU · ~30 min)
 
 Placeholders still live: `DATABASE_URL`, `WA_TOKEN`, `WA_APP_SECRET` (missing), `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_API_KEY`, `EDGE_API_KEY`, `DASHBOARD_URL`. Nothing works until these are real.

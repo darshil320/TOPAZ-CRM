@@ -1,0 +1,86 @@
+<!doctype html>
+{#- QR product stickers (0053). Rendered by services/qr_stickers.py → services/pdf.py
+    with css_page_size=True, so @page below IS the paper size: A4 for "sheet", the label
+    itself for "roll". No price, no GST, no location — stickers face customers. -#}
+{%- set sheet_layout = layout == "sheet" -%}
+{%- set page_w = sheet.width_mm if sheet_layout else size.width_mm -%}
+{%- set page_h = sheet.height_mm if sheet_layout else size.height_mm -%}
+<html>
+<head>
+<meta charset="utf-8">
+<title>Topaz product stickers</title>
+<style>
+  @page { size: {{ page_w }}mm {{ page_h }}mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page {
+    width: {{ page_w }}mm;
+    height: {{ page_h }}mm;
+    overflow: hidden;
+    break-after: page;
+  }
+  .page:last-child { break-after: auto; }
+  .page.sheet {
+    padding: {{ sheet.margin_mm }}mm;
+    display: grid;
+    grid-template-columns: repeat({{ cols }}, {{ size.width_mm }}mm);
+    grid-auto-rows: {{ size.height_mm }}mm;
+    gap: {{ sheet.gap_mm }}mm;
+    align-content: start;
+  }
+  .sticker {
+    width: {{ size.width_mm }}mm;
+    height: {{ size.height_mm }}mm;
+    padding: 1.2mm;
+    overflow: hidden;
+    display: flex;
+    background: #fff;
+  }
+  /* Faint cut guide for plain sticker paper; a roll label is already cut. */
+  .page.sheet .sticker { outline: 0.15mm dashed #c8c8c8; }
+  .stack { flex-direction: column; align-items: center; justify-content: center; }
+  .side { flex-direction: row; align-items: center; gap: 1mm; }
+  .qr { width: {{ size.qr_mm }}mm; height: {{ size.qr_mm }}mm; flex: none; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .text { min-width: 0; display: flex; flex-direction: column; gap: 0.6mm; }
+  .stack .text { align-items: center; text-align: center; width: 100%; }
+  .brand { font-size: 5.5pt; font-weight: 700; letter-spacing: 0.6pt; }
+  .name {
+    font-size: 6.5pt;
+    font-weight: 700;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: {{ 3 if size.arrangement == "side" else 1 }};
+    overflow: hidden;
+    word-break: break-word;
+  }
+  .code { font-family: "Courier New", Courier, monospace; font-size: 6.5pt; font-weight: 700; letter-spacing: 0.5pt; }
+</style>
+</head>
+<body>
+{%- for page in pages %}
+  <div class="page {{ 'sheet' if sheet_layout else 'roll' }}">
+  {%- for s in page %}
+    <div class="sticker {{ size.arrangement }}">
+      {%- if size.arrangement == "stack" and size.show_name %}
+      <div class="brand">TOPAZ FURNITURE</div>
+      {%- endif %}
+      <div class="qr">{{ s.svg | safe }}</div>
+      <div class="text">
+        {%- if size.show_name %}
+        <div class="name">{{ s.name }}</div>
+        {%- endif %}
+        <div class="code">{{ s.code }}</div>
+      </div>
+    </div>
+  {%- endfor %}
+  </div>
+{%- endfor %}
+</body>
+</html>

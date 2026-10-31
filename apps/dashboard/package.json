@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
+    "dev": "node scripts/copy-zxing-wasm.mjs && next dev --turbopack",
+    "build": "node scripts/copy-zxing-wasm.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "postinstall": "node scripts/copy-zxing-wasm.mjs",
+    "test:unit": "node --test --experimental-strip-types --no-warnings \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -23,7 +25,8 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.0",
     "tailwind-merge": "^3.6.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.0",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listQuoteProductOptions } from "@/lib/products/reads";
 import { getCurrentSalesperson } from "@/lib/auth";
 import PageHeader from "@/components/ui/PageHeader";
 import QuoteBuilder, { type QuoteBuilderInitial } from "../../QuoteBuilder";
@@ -33,11 +34,8 @@ export default async function EditQuotePage({ params }: Props) {
       .eq("quotation_id", id)
       .order("sort", { ascending: true })
       .order("id", { ascending: true }),
-    supabase
-      .from("products")
-      .select("id, name, hsn, gst_rate, base_price, unit")
-      .eq("active", true)
-      .order("name", { ascending: true }),
+    // Prices come from the product_prices view (0053), never products.* — see lib/products/reads.
+    listQuoteProductOptions(supabase).then((data) => ({ data })),
   ]);
 
   const customer = (Array.isArray(quote.customers) ? quote.customers[0] : quote.customers) as

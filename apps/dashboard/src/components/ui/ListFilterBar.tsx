@@ -21,6 +21,14 @@ export interface FilterOption {
   label: string;
 }
 
+/** A further dropdown, each bound to its own query param (e.g. the product list's
+ *  category / location / stock-status filters). */
+export interface ExtraFilter {
+  param: string;
+  allLabel: string;
+  options: FilterOption[];
+}
+
 interface Props {
   searchPlaceholder: string;
   /** Options for the dropdown. Fewer than two ⇒ the dropdown is hidden. */
@@ -30,6 +38,8 @@ interface Props {
   /** Query-param names. Defaults match the list pages. */
   searchParam?: string;
   filterParam?: string;
+  /** Additional dropdowns after the first. Each hides itself below two options. */
+  extraFilters?: ExtraFilter[];
 }
 
 export default function ListFilterBar({
@@ -38,6 +48,7 @@ export default function ListFilterBar({
   allOptionLabel,
   searchParam = "q",
   filterParam = "sp",
+  extraFilters = [],
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -76,10 +87,11 @@ export default function ListFilterBar({
     return () => clearTimeout(timer);
   }, [query, urlQuery, commit, searchParam]);
 
-  const hasFilters = urlQuery !== "" || selected !== "";
+  const hasFilters =
+    urlQuery !== "" || selected !== "" || extraFilters.some((f) => searchParams.get(f.param));
 
   return (
-    <div className="bg-sf rounded-card p-3 border border-ln shadow-sh flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+    <div className="bg-sf rounded-card p-3 border border-ln shadow-sh flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
       <div className="relative flex-1 max-w-md">
         <Search className="w-4 h-4 text-t3 absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.8} />
         <input
@@ -108,6 +120,25 @@ export default function ListFilterBar({
         </select>
       )}
 
+      {extraFilters
+        .filter((f) => f.options.length > 1)
+        .map((f) => (
+          <select
+            key={f.param}
+            value={searchParams.get(f.param) ?? ""}
+            aria-label={f.allLabel}
+            onChange={(e) => commit({ [f.param]: e.target.value })}
+            className="py-1.5 px-3 bg-sf2 border border-ln rounded-md text-ui text-t1 font-medium focus:outline-none focus:border-acc transition-all"
+          >
+            <option value="">{f.allLabel}</option>
+            {f.options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ))}
+
       <div className="flex items-center gap-2 sm:ml-auto">
         {isPending && <span className="text-caption text-t3">Searching…</span>}
         {hasFilters && (
@@ -115,7 +146,11 @@ export default function ListFilterBar({
             type="button"
             onClick={() => {
               setQuery("");
-              commit({ [searchParam]: "", [filterParam]: "" });
+              commit({
+                [searchParam]: "",
+                [filterParam]: "",
+                ...Object.fromEntries(extraFilters.map((f) => [f.param, ""])),
+              });
             }}
             className="flex items-center gap-1 py-1.5 px-2.5 rounded-md border border-ln bg-sf2 text-caption font-semibold text-t2 hover:border-accL hover:text-t1 transition-colors"
           >

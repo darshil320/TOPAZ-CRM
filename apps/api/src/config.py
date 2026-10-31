@@ -93,6 +93,18 @@ class Settings(BaseSettings):
     # Dashboard URL — embedded in salesperson alert links.
     DASHBOARD_URL: str = "https://topaz.dmcdigital.in"
 
+    # What a product QR sticker encodes: `<base>/<code>`. Unset ⇒ `{DASHBOARD_URL}/p`.
+    # PRINTED STICKERS FREEZE THIS VALUE — change it and every sticker already on a
+    # piece of furniture points at the old host. Pick the permanent domain before the
+    # first print run. A shorter host also means a smaller, faster-scanning QR.
+    PRODUCT_QR_BASE_URL: str | None = None
+    # Most stickers one PDF request may render (Chromium memory + render time bound).
+    PRODUCT_QR_MAX_STICKERS: int = 300
+    # Lifetime of the signed link to a rendered sticker PDF (it is opened immediately).
+    PRODUCT_QR_PDF_URL_TTL_S: int = 600
+    # Photos the customer-facing product page shows (and signs URLs for).
+    PRODUCT_PUBLIC_MAX_PHOTOS: int = 12
+
     # Extra browser origins allowed to read API responses, comma-separated.
     # DASHBOARD_URL is always allowed; this is for preview deployments and the
     # custom domain, e.g. "https://topaz-crm.vercel.app,https://www.topaz.dmcdigital.in".

@@ -9,6 +9,8 @@ export const config = {
   matcher: [
     // `q/` (public, token-gated customer approval page) is excluded — it needs
     // no auth session and must be reachable by anonymous customers.
-    "/((?!_next/static|_next/image|favicon.ico|q/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // `zxing/` (the scanner's static .wasm) needs no session either — refreshing one
+    // on a 1 MB asset request would only delay the scanner's first frame.
+    "/((?!_next/static|_next/image|favicon.ico|q/|zxing/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|wasm)$).*)",
   ],
 };

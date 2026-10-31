@@ -35,7 +35,9 @@ from .api.media import router as media_router
 from .api.orders import router as orders_router
 from .api.payments import router as payments_router
 from .api.production import router as production_router
+from .api.products import router as products_router
 from .api.public import router as public_router
+from .api.public_products import router as public_products_router
 from .api.quotations import router as quotations_router
 from .api.recognition import router as recognition_router
 from .api.documents import router as documents_router
@@ -138,6 +140,8 @@ def create_app() -> FastAPI:
     # Delivery challans (0037).
     app.include_router(documents_router, prefix="/api")
     app.include_router(frontdesk_router, prefix="/api")
+    # QR product tags + multi-location stock (0053).
+    app.include_router(products_router, prefix="/api")
     # Mounted BEFORE leads_router, deliberately: leads.py has GET/PATCH
     # "/{lead_id}" on the same "/leads" prefix, and Starlette matches routes in
     # registration order across routers — "/leads/notifications" would otherwise
@@ -148,6 +152,9 @@ def create_app() -> FastAPI:
     app.include_router(lead_recordings_router, prefix="/api")
     # Public, token-gated (no dashboard key) — customer approval flow.
     app.include_router(public_router, prefix="/api")
+    # Public (no dashboard key) — the customer side of a product QR sticker. Allowlisted
+    # columns only; see api/public_products.py.
+    app.include_router(public_products_router, prefix="/api")
 
     @app.exception_handler(ProgrammingError)
     async def missing_schema_handler(request: Request, exc: ProgrammingError) -> JSONResponse:

@@ -81,6 +81,11 @@ See [`docs/MONOREPO.md`](docs/MONOREPO.md) for the prototype→production reuse 
   reads/writes anywhere in the app. Either build the meeting-notes feature that was
   presumably intended, or drop the table in a migration — don't leave it silently dead.
   Dropping a table is a destructive schema change: get explicit sign-off before doing it.
+- QR product tags + stock (0053): stock locations are seeded rows with no admin UI (add
+  one with SQL), and stock history is the `audit_log` (`product_created/updated` with a
+  per-location delta) — there is no movement ledger or transfer flow. `0054` (staff price
+  column lockdown) is still in `migrations_pending/`. Stickers freeze
+  `PRODUCT_QR_BASE_URL` — settle the permanent domain before printing.
 - Consent withdrawal has no UI/API path yet; the DB cascade trigger
   (`cascade_on_consent_withdrawal`) purges `face_embeddings` but the Storage face-crop
   files are not purged by any app code — finish this before go-live (DPDPA risk).

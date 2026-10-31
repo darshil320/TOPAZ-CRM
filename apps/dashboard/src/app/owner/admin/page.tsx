@@ -7,7 +7,6 @@ import PageHeader from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Pill from "@/components/ui/Pill";
-import ProductAdmin, { type AdminProduct } from "./ProductAdmin";
 import SettingsAdmin, { type AdminSettings } from "./SettingsAdmin";
 import WorkshopAdmin from "./WorkshopAdmin";
 import WorkshopStaffAdmin, { type StaffWorkshop } from "./WorkshopStaffAdmin";
@@ -38,6 +37,8 @@ type Props = {
 
 export default async function AdminPage({ searchParams }: Props) {
   const { tab = "production" } = await searchParams;
+  // The catalog moved to /dashboard/products (0053: QR tags + stock). Old links land there.
+  if (tab === "catalog") redirect("/dashboard/products");
 
   const sp = await getCurrentSalesperson();
   if (!sp) redirect("/login");
@@ -56,11 +57,9 @@ export default async function AdminPage({ searchParams }: Props) {
   // for itself.
   const NONE = Promise.resolve({ data: null, error: null });
   const productionTab = tab === "production";
-  const catalogTab = tab === "catalog";
   const settingsTab = tab === "settings";
 
   const [
-    { data: products },
     { data: settingsRows },
     { data: salespersons },
     { data: stageRows },
@@ -69,12 +68,6 @@ export default async function AdminPage({ searchParams }: Props) {
     stageDefaultsResult,
     rosterResult,
   ] = await Promise.all([
-    catalogTab
-      ? supabase
-          .from("products")
-          .select("id, name, category, hsn, gst_rate, base_price, unit, active, primary_media_id")
-          .order("name")
-      : NONE,
     settingsTab ? supabase.from("app_settings").select("key, value") : NONE,
     // The manager/staff pickers live on the production tab only.
     productionTab
@@ -122,9 +115,10 @@ export default async function AdminPage({ searchParams }: Props) {
     role: s.role,
   }));
 
-  const TABS = [
+  const TABS: { id: string; label: string; href?: string }[] = [
     { id: "production", label: "Production & Routing" },
-    { id: "catalog", label: "Product Catalog" },
+    // Lives in the CRM now, next to stock and QR stickers.
+    { id: "catalog", label: "Product Catalog", href: "/dashboard/products" },
     { id: "settings", label: "System Settings" },
   ];
 
@@ -139,7 +133,7 @@ export default async function AdminPage({ searchParams }: Props) {
         {TABS.map((t) => (
           <Link
             key={t.id}
-            href={`/owner/admin?tab=${t.id}`}
+            href={t.href ?? `/owner/admin?tab=${t.id}`}
             className={`px-4 py-2 rounded-lg text-caption font-semibold transition-all whitespace-nowrap ${
               tab === t.id
                 ? "bg-sf shadow-shp text-t1 border-none"
@@ -189,14 +183,6 @@ export default async function AdminPage({ searchParams }: Props) {
               stages={stageDefaultsResult.data?.stages ?? []}
               loadError={stageDefaultsResult.error}
             />
-          </Card>
-        </div>
-      )}
-
-      {tab === "catalog" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Card className="shadow-sh border-ln">
-            <ProductAdmin products={(products ?? []) as AdminProduct[]} canRemove={mayRemove} />
           </Card>
         </div>
       )}

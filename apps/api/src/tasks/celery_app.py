@@ -35,6 +35,7 @@ def create_celery_app() -> Celery:
             "src.tasks.stage_reminders",
             "src.tasks.challan",
             "src.tasks.lead_followup_notify",
+            "src.tasks.qr_stickers",
         ],
     )
 

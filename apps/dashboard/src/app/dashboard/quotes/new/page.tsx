@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listQuoteProductOptions } from "@/lib/products/reads";
 import { getCurrentSalesperson } from "@/lib/auth";
 import { isDispatcher, isFrontDesk } from "@/lib/roles";
 import PageHeader from "@/components/ui/PageHeader";
@@ -57,11 +58,8 @@ export default async function NewQuotePage({ searchParams }: Props) {
   const dispatcher = isDispatcher(sp.role);
   const [{ data: customers }, { data: products }, { data: settings }, { data: sellers }] = await Promise.all([
     supabase.from("customers").select("id, name, phone").order("name", { ascending: true }).limit(500),
-    supabase
-      .from("products")
-      .select("id, name, hsn, gst_rate, base_price, unit")
-      .eq("active", true)
-      .order("name", { ascending: true }),
+    // Prices come from the product_prices view (0053), never products.* — see lib/products/reads.
+    listQuoteProductOptions(supabase).then((data) => ({ data })),
     supabase.from("app_settings").select("key, value").in("key", ["quote_terms", "quote_validity_days"]),
     // Dispatchers (0052) may prepare a quotation on a salesperson's behalf.
     dispatcher

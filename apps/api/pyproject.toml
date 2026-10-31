@@ -25,6 +25,9 @@ dependencies = [
     # Thumbnail generation (module 08). Imported lazily inside tasks/media.py so
     # the pure test suite still runs where Pillow is absent.
     "pillow>=10.4,<12.0",
+    # QR sticker encoding (product tags, 0053). Pure Python, no native deps; imported
+    # lazily inside services/qr_stickers.py.
+    "segno>=1.6,<2.0",
 ]
 
 [project.optional-dependencies]

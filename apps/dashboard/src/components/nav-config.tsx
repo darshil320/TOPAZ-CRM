@@ -16,6 +16,8 @@ import {
   Factory,
   Truck,
   Route,
+  Boxes,
+  ScanLine,
 } from "lucide-react";
 import { canViewAll } from "@/lib/roles";
 
@@ -84,7 +86,20 @@ export const ICONS = {
   // the two are different journeys (mid-production vs to the customer) and a driver
   // must never confuse the two lists.
   transit: (c: string) => <Route className={c} strokeWidth={STROKE} />,
+  // QR product tags + stock (0053).
+  products: (c: string) => <Boxes className={c} strokeWidth={STROKE} />,
+  scan: (c: string) => <ScanLine className={c} strokeWidth={STROKE} />,
 } as const;
+
+/**
+ * Products & Stock + the QR scanner: every staff role. What each role SEES on those
+ * screens (price/GST, stock/locations) is decided by the product_prices gate and
+ * product_stock RLS, not by hiding the nav item.
+ */
+const PRODUCT_ITEMS: NavItem[] = [
+  { href: "/dashboard/products", label: "Products & Stock", shortLabel: "Products", icon: ICONS.products },
+  { href: "/scan", label: "Scan Product QR", shortLabel: "Scan", icon: ICONS.scan, exact: true },
+];
 
 /** Roles the production allocate route accepts — mirrors api/production.py. */
 const ALLOCATING_ROLES: readonly Role[] = ["super_admin", "owner", "admin", "salesperson"];
@@ -137,6 +152,7 @@ export const SALES_NAV: NavItem[] = [
     roles: TRANSIT_ROLES,
   },
   { href: "/dashboard/pipeline", label: "Lead Pipeline", shortLabel: "Leads", icon: ICONS.pipeline },
+  ...PRODUCT_ITEMS,
 ];
 
 export const OWNER_NAV: NavItem[] = [
@@ -180,6 +196,7 @@ export function visibleTo(items: NavItem[], role: Role): NavItem[] {
 export const FRONT_DESK_NAV: NavItem[] = [
   { href: "/frontdesk", label: "Front Desk", shortLabel: "Desk", icon: ICONS.walkin, exact: true },
   { href: "/dashboard/quotes", label: "Quotations", shortLabel: "Quotes", icon: ICONS.quotes },
+  ...PRODUCT_ITEMS,
 ];
 
 export interface NavSection {
