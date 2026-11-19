@@ -5,7 +5,7 @@ tests stub the repository; this proves the SQL itself:
 
   * the PUBLIC read returns the allowlisted columns and nothing else — no price, GST,
     HSN or stock column exists in the row at all — and only for ACTIVE products
-  * photos come back cover-first, capped, ready-only, with thumbnails index-aligned
+  * no photos at all in the public row (customers see text only)
   * create assigns a QR code; update keeps it
   * stock upserts in one statement and leaves unchanged rows untouched
   * sticker rows come back in request order
@@ -75,10 +75,10 @@ async def _photo(session, product_id, *, status="ready", thumb=True, age_s=0) ->
 def test_public_read_is_the_allowlist_and_nothing_else():
     async def scenario(session):
         created = await _create(session)
-        row = await product_repo.get_public_by_code(session, created["qr_code"], max_photos=12)
+        row = await product_repo.get_public_by_code(session, created["qr_code"])
         assert row["name"] == "Royal Sofa" and row["dimensions"] == "84 x 36 x 32 in"
         assert not set(row) & FORBIDDEN
-        assert set(row) == {"code", *product_repo.PUBLIC_COLUMNS, "photo_keys", "thumb_keys"}
+        assert set(row) == {"code", *product_repo.PUBLIC_COLUMNS}
     run(scenario)
 
 
@@ -87,29 +87,16 @@ def test_public_read_hides_inactive_products():
         created = await _create(session)
         await session.execute(text("update products set active = false where id = :id"),
                               {"id": str(created["id"])})
-        assert await product_repo.get_public_by_code(session, created["qr_code"], max_photos=12) is None
+        assert await product_repo.get_public_by_code(session, created["qr_code"]) is None
     run(scenario)
 
 
-def test_public_photos_are_cover_first_ready_only_capped_and_aligned():
+def test_public_row_has_no_photos_even_when_the_product_has_some():
     async def scenario(session):
         created = await _create(session)
-        pid = created["id"]
-        old = await _photo(session, pid, age_s=300, thumb=False)
-        newest = await _photo(session, pid, age_s=0)
-        await _photo(session, pid, status="pending")
-        cover_key = await _photo(session, pid, age_s=900)
-        cover_id = cover_key.rsplit("/", 1)[1].split(".")[0]
-        await session.execute(text("update products set primary_media_id = :m where id = :id"),
-                              {"m": cover_id, "id": str(pid)})
-
-        row = await product_repo.get_public_by_code(session, created["qr_code"], max_photos=12)
-        assert row["photo_keys"] == [cover_key, newest, old]
-        assert row["thumb_keys"] == [cover_key.replace(".jpg", "_thumb.jpg"),
-                                     newest.replace(".jpg", "_thumb.jpg"), None]
-
-        capped = await product_repo.get_public_by_code(session, created["qr_code"], max_photos=2)
-        assert capped["photo_keys"] == [cover_key, newest]
+        await _photo(session, created["id"])
+        row = await product_repo.get_public_by_code(session, created["qr_code"])
+        assert not {"photo_keys", "thumb_keys", "photos"} & set(row)
     run(scenario)
 
 

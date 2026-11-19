@@ -27,29 +27,18 @@ EDITABLE_COLUMNS: tuple[str, ...] = (
     "hsn", "gst_rate", "base_price", "unit", "stock_status",
 )
 
-_PHOTO_ORDER = (
-    " ORDER BY coalesce(m.id = p.primary_media_id, false) DESC, m.created_at DESC, m.id"
-)
-_PHOTO_FILTER = (
-    " FROM media m WHERE m.entity_type = 'product' AND m.entity_id = p.id"
-    " AND m.status = 'ready'"
-)
-
+# No photos: the client decided customers see text details only (2026-11-19), so the
+# public query does not even read the media registry.
 PUBLIC_PRODUCT_SQL = (
     "SELECT p.qr_code AS code, "
     + ", ".join(f"p.{c}" for c in PUBLIC_COLUMNS)
-    + f", ARRAY(SELECT m.storage_key{_PHOTO_FILTER}{_PHOTO_ORDER} LIMIT :max_photos) AS photo_keys"
-    + f", ARRAY(SELECT m.thumb_key{_PHOTO_FILTER}{_PHOTO_ORDER} LIMIT :max_photos) AS thumb_keys"
     + " FROM products p WHERE p.qr_code = :code AND p.active = true"
 )
 
 
-async def get_public_by_code(session: AsyncSession, code: str, *, max_photos: int) -> dict | None:
-    """The customer view of an ACTIVE product, or None. Photo keys come primary-first;
-    `thumb_keys[i]` belongs to `photo_keys[i]` (same ORDER BY, total by m.id)."""
-    result = await session.execute(
-        text(PUBLIC_PRODUCT_SQL), {"code": code, "max_photos": max_photos}
-    )
+async def get_public_by_code(session: AsyncSession, code: str) -> dict | None:
+    """The customer view of an ACTIVE product, or None."""
+    result = await session.execute(text(PUBLIC_PRODUCT_SQL), {"code": code})
     row = result.mappings().first()
     return None if row is None else dict(row)
 

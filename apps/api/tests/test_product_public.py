@@ -22,7 +22,7 @@ from src.main import create_app
 from src.repositories import product_repo
 from src.services import storage
 
-FORBIDDEN = ("base_price", "gst_rate", "hsn", "price", "gst", "stock", "location",
+FORBIDDEN = ("photos", "photo_keys", "base_price", "gst_rate", "hsn", "price", "gst", "stock", "location",
              "quantity", "stock_status", "qr_code_id", "id")
 
 LEAKY_ROW = {
@@ -34,8 +34,7 @@ LEAKY_ROW = {
     "dimensions": "84 x 36 x 32 in",
     "material": "Teak",
     "finish": "Walnut",
-    "photo_keys": ["product/p1/m1.jpg", "product/p1/m2.jpg"],
-    "thumb_keys": ["product/p1/m1_thumb.jpg", None],
+    "photo_keys": ["product/p1/m1.jpg"],     # a future bug that joined media
     # A future bug that selected too much — none of this may reach the customer.
     "id": "60000000-0000-0000-0000-000000000001",
     "base_price": 42000,
@@ -54,7 +53,7 @@ def wired(monkeypatch):
     async def _session():
         yield object()
 
-    async def _get_public(session, code, *, max_photos):
+    async def _get_public(session, code):
         state["repo_calls"].append(code)
         return state["row"]
 
@@ -98,7 +97,7 @@ def test_public_sql_only_serves_active_products():
 
 def test_response_model_is_exactly_the_allowlist():
     fields = set(public_products.PublicProduct.model_fields)
-    assert fields == {"code", "photos", *product_repo.PUBLIC_COLUMNS}
+    assert fields == {"code", *product_repo.PUBLIC_COLUMNS}
     assert not fields & set(FORBIDDEN)
 
 
@@ -122,20 +121,19 @@ def test_needs_no_dashboard_key(wired, client):
     assert client.get("/api/public/products/7K3M9QXA").status_code == 200
 
 
-def test_photos_come_signed_primary_first_with_thumbnails(wired, client):
-    photos = client.get("/api/public/products/7K3M9QXA").json()["photos"]
-    assert [p["url"].split("?")[0] for p in photos] == [
-        "https://signed.example/product/p1/m1.jpg",
-        "https://signed.example/product/p1/m2.jpg",
-    ]
-    assert photos[0]["thumb_url"].startswith("https://signed.example/product/p1/m1_thumb.jpg")
-    assert photos[1]["thumb_url"] is None
+def test_customers_get_no_photos_and_storage_is_never_touched(wired, client, monkeypatch):
+    async def _boom(*a, **k):
+        raise AssertionError("public route signed a photo")
 
-
-def test_storage_outage_costs_the_photos_not_the_page(wired, client):
-    wired["sign_fails"] = True
+    monkeypatch.setattr(storage, "signed_urls_async", _boom)
     resp = client.get("/api/public/products/7K3M9QXA")
-    assert resp.status_code == 200 and resp.json()["photos"] == []
+    assert resp.status_code == 200
+    assert "photos" not in resp.json() and "product/p1" not in resp.text
+
+
+@pytest.mark.parametrize("token", ["media", "storage_key", "thumb_key"])
+def test_public_sql_never_reads_media(token):
+    assert token not in product_repo.PUBLIC_PRODUCT_SQL
 
 
 def test_response_is_never_cached(wired, client):

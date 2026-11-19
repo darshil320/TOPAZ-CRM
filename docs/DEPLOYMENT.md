@@ -263,7 +263,7 @@ Products get a permanent QR sticker (8-char code, assigned by the DB, never chan
 customer-facing details, a stock status and a quantity at each of the four locations
 (Bhatar Showroom, Ichhapore Showroom, Godown, Workshop — seeded rows in
 `stock_locations`). Staff scan with `/scan` (ZXing-C++ WebAssembly in a Web Worker) or
-the phone camera; customers' cameras open `/p/<code>`, which shows only photos, name,
+the phone camera; customers' cameras open `/p/<code>`, which shows only name,
 description, sizes/dimensions, material and finish.
 
 **The customer boundary** (client's strict requirement — no price/GST/location for

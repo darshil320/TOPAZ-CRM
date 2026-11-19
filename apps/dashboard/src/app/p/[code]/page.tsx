@@ -90,10 +90,8 @@ function PublicShell({ children }: { children: React.ReactNode }) {
 }
 
 function PublicView({ product }: { product: PublicProduct }) {
-  const photos = product.photos.map((p) => ({ url: p.url, thumbUrl: p.thumb_url ?? null }));
   return (
     <>
-      <ProductPhotos photos={photos} alt={product.name} />
       <div className="rounded-card border border-ln bg-sf p-4 shadow-sh space-y-3">
         <h1 className="text-title text-t1">{product.name}</h1>
         <ProductSpecs product={product} />

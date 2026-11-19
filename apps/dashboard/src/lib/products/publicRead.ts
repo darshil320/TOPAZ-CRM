@@ -5,7 +5,7 @@
  * holds no privilege on the catalog (0053). The API's public route selects an
  * allowlist of columns; this module then parses the reply through a schema that knows
  * only those fields, so even a misbehaving API could not put a price into the page —
- * zod drops every key it does not declare.
+ * zod drops every key it does not declare. No photos: customers see text details only.
  */
 import { z } from "zod";
 
@@ -21,9 +21,6 @@ const PublicProductSchema = z.object({
   dimensions: z.string().nullable().optional(),
   material: z.string().nullable().optional(),
   finish: z.string().nullable().optional(),
-  photos: z
-    .array(z.object({ url: z.string().url(), thumb_url: z.string().url().nullable().optional() }))
-    .default([]),
 });
 
 export type PublicProduct = z.infer<typeof PublicProductSchema>;

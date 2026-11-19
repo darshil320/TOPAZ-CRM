@@ -12,6 +12,9 @@ things hold it, any one of which is enough:
      those fields and nothing else even if a future change put more in the dict;
   3. tests/test_product_public.py pins both.
 
+No photos: customers see text details only (client decision, 2026-11-19). Staff still
+see photos in their own view.
+
 An unknown, malformed or deactivated code is a uniform 404 — the response never says
 which, so codes cannot be probed for "exists but hidden".
 """
@@ -21,20 +24,12 @@ import logging
 from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict
 
-from ..config import get_settings
 from ..database import get_api_session
 from ..repositories import product_repo
-from ..services import product_codes, storage
+from ..services import product_codes
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/public/products")
-
-
-class PublicPhoto(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    url: str
-    thumb_url: str | None = None
 
 
 class PublicProduct(BaseModel):
@@ -51,45 +46,14 @@ class PublicProduct(BaseModel):
     dimensions: str | None = None
     material: str | None = None
     finish: str | None = None
-    photos: list[PublicPhoto] = []
 
 
 _NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
 
-async def _sign_photos(row: dict) -> list[PublicPhoto]:
-    """Signed URLs for the photos, full + thumbnail, in ONE Storage round-trip. Fails
-    soft: a Storage hiccup costs the photos, never the page."""
-    keys = [k for k in row.get("photo_keys") or [] if k]
-    thumbs = list(row.get("thumb_keys") or [])
-    if not keys:
-        return []
-    settings = get_settings()
-    wanted = keys + [t for t in thumbs if t]
-    try:
-        signed = await storage.signed_urls_async(
-            settings.MEDIA_BUCKET, wanted, settings.MEDIA_URL_TTL_SECONDS
-        )
-    except storage.StorageError as exc:
-        logger.warning("Could not sign product photos for %s: %s", row.get("code"), exc)
-        return []
-    photos = []
-    for i, key in enumerate(keys):
-        url = signed.get(key)
-        if url is None:
-            continue
-        thumb_key = thumbs[i] if i < len(thumbs) else None
-        photos.append(PublicPhoto(url=url, thumb_url=signed.get(thumb_key) if thumb_key else None))
-    return photos
-
-
-def to_public(row: dict, photos: list[PublicPhoto]) -> PublicProduct:
+def to_public(row: dict) -> PublicProduct:
     """Build the response from the allowlist only — never `**row`."""
-    return PublicProduct(
-        code=row["code"],
-        **{c: row.get(c) for c in product_repo.PUBLIC_COLUMNS},
-        photos=photos,
-    )
+    return PublicProduct(code=row["code"], **{c: row.get(c) for c in product_repo.PUBLIC_COLUMNS})
 
 
 @router.get("/{code}", response_model=PublicProduct)
@@ -97,16 +61,12 @@ async def public_product(code: str, response: Response) -> PublicProduct:
     canonical = product_codes.normalize_code(code)
     if canonical is None:
         raise _NOT_FOUND
-    settings = get_settings()
     async with get_api_session() as session:
-        row = await product_repo.get_public_by_code(
-            session, canonical, max_photos=settings.PRODUCT_PUBLIC_MAX_PHOTOS
-        )
+        row = await product_repo.get_public_by_code(session, canonical)
     if row is None:
         raise _NOT_FOUND
 
-    photos = await _sign_photos(row)
-    # Signed URLs expire and edits must show on the next scan: nothing may cache this.
+    # Edits must show on the next scan: nothing may cache this.
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Robots-Tag"] = "noindex"
-    return to_public(row, photos)
+    return to_public(row)

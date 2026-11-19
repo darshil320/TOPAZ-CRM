@@ -102,8 +102,6 @@ class Settings(BaseSettings):
     PRODUCT_QR_MAX_STICKERS: int = 300
     # Lifetime of the signed link to a rendered sticker PDF (it is opened immediately).
     PRODUCT_QR_PDF_URL_TTL_S: int = 600
-    # Photos the customer-facing product page shows (and signs URLs for).
-    PRODUCT_PUBLIC_MAX_PHOTOS: int = 12
 
     # Extra browser origins allowed to read API responses, comma-separated.
     # DASHBOARD_URL is always allowed; this is for preview deployments and the
