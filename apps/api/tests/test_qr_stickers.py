@@ -67,10 +67,11 @@ def test_names_are_html_escaped():
     assert "<Dining>" not in html
 
 
-def test_small_sticker_shows_code_but_not_name():
-    html = qs.render_stickers_html(PRODUCTS, size_key="small", layout="sheet", copies=1, base_url=BASE)
-    assert "7K3M9QXA" in html
-    assert "Royal Sofa" not in html
+@pytest.mark.parametrize("size", ["small", "medium", "large"])
+def test_every_size_prints_the_name_below_the_qr(size):
+    html = qs.render_stickers_html(PRODUCTS, size_key=size, layout="sheet", copies=1, base_url=BASE)
+    first = html.index('class="qr"')
+    assert first < html.index("Royal Sofa", first) < html.index("7K3M9QXA", first)
 
 
 @pytest.mark.parametrize("kwargs, message", [
