@@ -125,3 +125,24 @@ def test_worker_task_does_not_retry_a_bad_request(monkeypatch):
     monkeypatch.setattr(task, "upload_bytes", lambda *a: pytest.fail("uploaded"))
     assert task.render_qr_stickers("0f9c1c26-1f6f-4c2e-9a3a-2b7f0f8c1111", PRODUCTS, "huge",
                                    "sheet", 1, BASE) is None
+
+
+@pytest.mark.parametrize("size", ["small", "medium", "large"])
+def test_every_size_prints_the_logo_above_the_qr(size):
+    html = qs.render_stickers_html(PRODUCTS, size_key=size, layout="sheet", copies=1, base_url=BASE)
+    assert html.index('class="logo"') < html.index('class="qr"')
+    assert "data:image/png;base64," in html
+
+
+def test_roll_labels_print_the_logo_in_solid_black():
+    html = qs.render_stickers_html(PRODUCTS, size_key="medium", layout="roll", copies=1, base_url=BASE)
+    assert ".page.roll .logo { filter: brightness(0); }" in html
+
+
+def test_everything_fits_the_sticker_height():
+    # logo + QR + name lines + code + padding/gaps, in mm (1 pt = 0.3528 mm).
+    for size in qs.STICKER_SIZES.values():
+        logo_h = size.logo_mm / 4.0                      # trimmed asset is 4:1
+        text_h = (size.name_pt * 1.12 * size.name_lines + (size.name_pt - 0.5)) * 0.3528
+        assert logo_h + size.qr_mm + text_h + 2.4 + 1.6 <= size.height_mm, size.key
+        assert size.logo_mm <= size.width_mm - 2.4 and size.qr_mm <= size.width_mm - 2.4

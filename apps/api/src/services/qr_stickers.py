@@ -20,7 +20,9 @@ lock onto from a normal arm's length.
 Unit-tested by tests/test_qr_stickers.py.
 """
 
+import base64
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from uuid import UUID
 
@@ -42,28 +44,39 @@ LAYOUTS = ("sheet", "roll")
 
 @dataclass(frozen=True)
 class StickerSize:
-    """Every size prints QR on top, then the product NAME, then the code — the name is
-    what tells the person holding a sheet which piece of furniture each sticker goes on.
-    Long names are clamped to `name_lines` with an ellipsis; the code below always fits."""
+    """Every size prints, top to bottom: the Topaz logo, the QR, the product NAME, the
+    code. The name is what tells the person holding a sheet which piece of furniture
+    each sticker goes on; long names are clamped to `name_lines` with an ellipsis.
+    The 25 mm-tall sizes keep the name to one line so the QR stays scannable."""
 
     key: str
     label: str
     width_mm: float
     height_mm: float
+    logo_mm: float
     qr_mm: float
     name_pt: float
     name_lines: int
-    show_brand: bool
 
 
 STICKER_SIZES: dict[str, StickerSize] = {
     s.key: s
     for s in (
-        StickerSize("small", "Small · 25 × 25 mm", 25, 25, 15.5, 5.5, 2, False),
-        StickerSize("medium", "Medium · 38 × 25 mm", 38, 25, 15.5, 6.5, 2, False),
-        StickerSize("large", "Large · 50 × 50 mm", 50, 50, 33, 7.5, 2, True),
+        StickerSize("small", "Small · 25 × 25 mm", 25, 25, 13, 13.5, 5.5, 1),
+        StickerSize("medium", "Medium · 38 × 25 mm", 38, 25, 14, 13, 6, 1),
+        StickerSize("large", "Large · 50 × 50 mm", 50, 50, 28, 29, 7.5, 2),
     )
 }
+
+# The official logo (topazfurniture.in/LOGO.png, trimmed to its ink, 720 px wide).
+# Inlined as a data URI: the PDF renderer loads the page with set_content, so a file
+# or network URL would be a second thing that can fail mid-render.
+LOGO_PATH = Path(__file__).resolve().parent.parent / "templates" / "assets" / "topaz_logo.png"
+
+
+@lru_cache(maxsize=1)
+def logo_data_uri() -> str:
+    return "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
 
 
 def sticker_pdf_key(job_id: UUID | str) -> str:
@@ -146,6 +159,7 @@ def build_context(
         "layout": layout,
         "cols": cols,
         "pages": paginate(stickers, cols * rows),
+        "logo_src": logo_data_uri(),
         "sheet": {
             "width_mm": SHEET_WIDTH_MM,
             "height_mm": SHEET_HEIGHT_MM,
