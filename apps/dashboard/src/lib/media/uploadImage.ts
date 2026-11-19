@@ -20,10 +20,20 @@ import {
   type MediaMime,
 } from "@/lib/media/actions";
 
-// Compression targets. Deliberately generous — a workshop photo has to stay
-// legible as evidence; the API's max_bytes is the real ceiling.
-const TARGET_MB = 1.5;
-const MAX_EDGE_PX = 2000;
+/** How hard to compress before upload. The API's max_bytes is the real ceiling. */
+export interface CompressionProfile {
+  maxMB: number;
+  maxEdgePx: number;
+  quality: number;
+}
+
+// Deliberately generous — a workshop photo has to stay legible as evidence.
+export const EVIDENCE_PHOTO: CompressionProfile = { maxMB: 1.5, maxEdgePx: 2000, quality: 0.82 };
+
+// A catalog photo is looked at on a phone screen (≤ ~1200 px wide at 3x DPR) and its
+// 400 px thumbnail carries every list. 1600 px / ~0.6 MB is visually identical there,
+// uploads 2–3x faster on showroom 4G, and signs/serves faster to every later viewer.
+export const CATALOG_PHOTO: CompressionProfile = { maxMB: 0.6, maxEdgePx: 1600, quality: 0.8 };
 
 const PASSTHROUGH_MIME: Record<string, MediaMime> = {
   "image/png": "image/png",
@@ -48,14 +58,14 @@ function outputMimeFor(file: File): MediaMime {
   return PASSTHROUGH_MIME[file.type] ?? "image/jpeg";
 }
 
-async function compress(file: File, mime: MediaMime, maxMB: number): Promise<File> {
+async function compress(file: File, mime: MediaMime, maxMB: number, profile: CompressionProfile): Promise<File> {
   const { default: imageCompression } = await import("browser-image-compression");
   return imageCompression(file, {
     maxSizeMB: maxMB,
-    maxWidthOrHeight: MAX_EDGE_PX,
+    maxWidthOrHeight: profile.maxEdgePx,
     fileType: mime,
     useWebWorker: true,
-    initialQuality: 0.82,
+    initialQuality: profile.quality,
   });
 }
 
@@ -98,13 +108,14 @@ export async function uploadImage(
   file: File,
   target: UploadTarget,
   onStep: (step: UploadStep, progress: number) => void = () => {},
+  profile: CompressionProfile = EVIDENCE_PHOTO,
 ): Promise<UploadOutcome> {
   const mime = outputMimeFor(file);
   onStep("compressing", 0);
 
   let blob: File;
   try {
-    blob = await compress(file, mime, TARGET_MB);
+    blob = await compress(file, mime, profile.maxMB, profile);
   } catch {
     return { mediaId: null, error: "Could not read that image — retake it or pick a different file." };
   }
@@ -119,7 +130,7 @@ export async function uploadImage(
   // instruction rather than a rejected PUT the user cannot interpret.
   if (blob.size > max_bytes) {
     try {
-      blob = await compress(file, mime, (max_bytes * 0.9) / (1024 * 1024));
+      blob = await compress(file, mime, (max_bytes * 0.9) / (1024 * 1024), profile);
     } catch {
       // fall through to the size check below
     }

@@ -37,14 +37,7 @@ export default function ProductPhotos({ photos, alt }: { photos: PhotoUrls[]; al
         className="block aspect-[4/3] w-full overflow-hidden rounded-card border border-ln bg-sf2"
         aria-label="Enlarge photo"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
-        <img
-          src={current.url}
-          alt={alt}
-          className="h-full w-full object-cover"
-          fetchPriority="high"
-          decoding="async"
-        />
+        <ProgressiveImage key={current.url} full={current.url} thumb={current.thumbUrl} alt={alt} />
       </button>
 
       {photos.length > 1 && (
@@ -61,7 +54,7 @@ export default function ProductPhotos({ photos, alt }: { photos: PhotoUrls[]; al
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.thumbUrl ?? p.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <img src={p.thumbUrl ?? p.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
             </button>
           ))}
         </div>
@@ -92,5 +85,32 @@ export default function ProductPhotos({ photos, alt }: { photos: PhotoUrls[]; al
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The ~30 KB thumbnail paints first (often already cached from the list), then the
+ * full image fades in over it once decoded — the hero is never an empty grey box
+ * while ~0.5 MB arrives on 4G.
+ */
+function ProgressiveImage({ full, thumb, alt }: { full: string; thumb: string | null; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <span className="relative block h-full w-full">
+      {thumb && (
+        // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
+        <img src={thumb} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" fetchPriority="high" />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+      <img
+        src={full}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+          loaded || !thumb ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </span>
   );
 }

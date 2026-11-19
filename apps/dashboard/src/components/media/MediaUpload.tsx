@@ -21,7 +21,7 @@ import { useCallback, useRef, useState } from "react";
 import { Camera, ImagePlus, RotateCcw, Check, X, Loader2 } from "lucide-react";
 import Button, { IconButton } from "@/components/ui/Button";
 import type { MediaEntityType, MediaKind } from "@/lib/media/actions";
-import { uploadImage } from "@/lib/media/uploadImage";
+import { EVIDENCE_PHOTO, uploadImage, type CompressionProfile } from "@/lib/media/uploadImage";
 
 type Phase = "queued" | "compressing" | "uploading" | "finalising" | "done" | "error";
 
@@ -42,8 +42,11 @@ export interface MediaUploadProps {
   kind: MediaKind;
   /** Overline label above the picker. */
   label?: string;
-  /** Called once per file that reaches `ready`. */
-  onUploaded?: (mediaId: string) => void;
+  /** Called once per file that reaches `ready` — with the picked file, so a caller can
+   *  show it immediately from memory instead of waiting for a signed URL. */
+  onUploaded?: (mediaId: string, file: File) => void;
+  /** Compression before upload. Defaults to evidence quality (production/delivery). */
+  profile?: CompressionProfile;
   className?: string;
 }
 
@@ -58,6 +61,7 @@ export default function MediaUpload({
   label = "Photos",
   onUploaded,
   className,
+  profile = EVIDENCE_PHOTO,
 }: MediaUploadProps) {
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -68,8 +72,11 @@ export default function MediaUpload({
       const { key, file } = entry;
       setEntries((prev) => update(prev, key, { phase: "compressing", progress: 0, error: null }));
 
-      const outcome = await uploadImage(file, { entityType, entityId, kind }, (step, progress) =>
-        setEntries((prev) => update(prev, key, { phase: step, progress })),
+      const outcome = await uploadImage(
+        file,
+        { entityType, entityId, kind },
+        (step, progress) => setEntries((prev) => update(prev, key, { phase: step, progress })),
+        profile,
       );
       if (outcome.error || !outcome.mediaId) {
         setEntries((prev) =>
@@ -83,9 +90,9 @@ export default function MediaUpload({
       }
 
       setEntries((prev) => update(prev, key, { phase: "done", progress: 100, error: null }));
-      onUploaded?.(outcome.mediaId);
+      onUploaded?.(outcome.mediaId, file);
     },
-    [entityType, entityId, kind, onUploaded],
+    [entityType, entityId, kind, onUploaded, profile],
   );
 
   const enqueue = useCallback(

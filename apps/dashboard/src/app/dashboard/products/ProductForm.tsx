@@ -9,12 +9,12 @@
  * Save returns its id — the admin photographs the piece while filling the form, as the
  * client asked, instead of saving first and coming back for photos.
  */
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { saveProduct, setProductCover } from "@/lib/products/actions";
-import { uploadImage } from "@/lib/media/uploadImage";
+import { CATALOG_PHOTO, uploadImage } from "@/lib/media/uploadImage";
 import {
   STOCK_STATUSES,
   STOCK_STATUS_LABEL,
@@ -25,6 +25,8 @@ import {
 import PendingPhotos, { toPending, type PendingPhoto } from "./PendingPhotos";
 import StockInputs from "./StockInputs";
 
+// Parallel photo uploads after Save. 3 saturates a phone uplink without starving it.
+const UPLOAD_CONCURRENCY = 3;
 const GST_SUGGESTIONS = ["0", "5", "12", "18", "28", "40"];
 const INPUT =
   "w-full rounded-md border border-ln bg-sf2 px-3 py-2 text-ui text-t1 placeholder-t3 focus:border-acc focus:bg-sf focus:outline-none";
@@ -56,6 +58,11 @@ export default function ProductForm({
   const [, startTransition] = useTransition();
   const busy = phase !== "idle";
 
+  // Edit: warm the product page now, so the jump back after Save is instant.
+  useEffect(() => {
+    if (productId) router.prefetch(`/dashboard/products/${productId}`);
+  }, [productId, router]);
+
   const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -68,24 +75,34 @@ export default function ProductForm({
   const patchPhoto = (key: string, patch: Partial<PendingPhoto>) =>
     setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
 
+  /**
+   * Upload every picked photo, UPLOAD_CONCURRENCY at a time (sequential uploads made a
+   * 5-photo product wait for five round-trips back to back). The cover is the first
+   * photo in the order the user took them, not whichever finished first.
+   */
   async function uploadPending(id: string): Promise<number> {
-    let cover: string | null = null;
-    let failed = 0;
-    for (const photo of photos) {
-      patchPhoto(photo.key, { state: "uploading", progress: 0 });
-      const outcome = await uploadImage(photo.file, { entityType: "product", entityId: id, kind: "reference" }, (_s, pct) =>
-        patchPhoto(photo.key, { progress: pct }),
-      );
-      if (outcome.error || !outcome.mediaId) {
-        failed += 1;
-        patchPhoto(photo.key, { state: "failed" });
-        continue;
+    const results: (string | null)[] = new Array(photos.length).fill(null);
+    let next = 0;
+    const worker = async () => {
+      while (next < photos.length) {
+        const i = next++;
+        const photo = photos[i];
+        patchPhoto(photo.key, { state: "uploading", progress: 0 });
+        const outcome = await uploadImage(
+          photo.file,
+          { entityType: "product", entityId: id, kind: "reference" },
+          (_s, pct) => patchPhoto(photo.key, { progress: pct }),
+          CATALOG_PHOTO,
+        );
+        const ok = !outcome.error && outcome.mediaId;
+        patchPhoto(photo.key, ok ? { state: "done", progress: 100 } : { state: "failed" });
+        results[i] = ok ? outcome.mediaId : null;
       }
-      patchPhoto(photo.key, { state: "done", progress: 100 });
-      cover = cover ?? outcome.mediaId;
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, photos.length) }, worker));
+    const cover = results.find((m) => m !== null);
     if (cover) await setProductCover(id, cover);
-    return failed;
+    return results.filter((m) => m === null).length;
   }
 
   const submit = () => {
