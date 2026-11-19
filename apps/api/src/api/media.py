@@ -76,10 +76,10 @@ async def _authorize_upload(session, caller: authz.Caller, entity_type: str, ent
     """Who may attach media to this entity."""
     # A CATALOG photo belongs to no customer — it is reused across every future
     # quote and order line for that product, so a bad one is a company-wide defect,
-    # not one customer's problem. Gate it on the same owner/admin role that already
-    # governs the products table (products_insert/products_update RLS, 0013).
+    # not one customer's problem. Gate it on the same roles that govern the products
+    # table (roles.PRODUCT_MANAGE; products_insert/products_update RLS, 0055).
     if entity_type == "product":
-        authz.assert_admin(caller, action="upload catalog photos")
+        authz.assert_role(caller, set(roles.PRODUCT_MANAGE), action="upload catalog photos")
         return
 
     # A HANDOVER photo (module 14, 0031) belongs to a consignment, not a customer: it

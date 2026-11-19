@@ -7,7 +7,7 @@ whole, audited with the stock delta. product_stock has no browser write grant at
 Reads stay on Supabase under RLS (list, detail, staff scan view) — the house pattern.
 The customer-facing read is api/public_products.py, not this router.
 
-Who: create/edit/print = roles.PRODUCT_MANAGE (owner-level + admin). The QR image is
+Who: create/edit/print = roles.PRODUCT_MANAGE (owner-level, admin, front desk). The QR image is
 for any staff member (it encodes nothing a sticker does not already show).
 Deactivation stays on the existing dashboard action (NO_REMOVAL applies there).
 """

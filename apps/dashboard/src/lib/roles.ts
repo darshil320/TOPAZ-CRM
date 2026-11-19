@@ -21,8 +21,8 @@ const NO_REMOVAL: readonly string[] = ["admin"];
 const PRICE_VIEW: readonly string[] = [...VIEW_ALL, "salesperson", "front_desk", "telecaller", "accounts"];
 /** Stock quantities + locations ⇔ can_view_stock() (0053): every staff role. */
 const STOCK_VIEW: readonly string[] = [...PRICE_VIEW, "workshop_manager", "delivery"];
-/** Create/edit products, set stock, print QR stickers (api/products.py). */
-const PRODUCT_MANAGE: readonly string[] = [...VIEW_ALL];
+/** Create/edit products, set stock, upload photos, print QR stickers (api/products.py, 0055). */
+const PRODUCT_MANAGE: readonly string[] = [...VIEW_ALL, "front_desk"];
 
 export const isOwnerLevel = (role: MaybeRole) => OWNER_LEVEL.includes(role ?? "");
 export const canViewAll = (role: MaybeRole) => VIEW_ALL.includes(role ?? "");

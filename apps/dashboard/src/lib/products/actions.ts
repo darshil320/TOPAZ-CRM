@@ -73,7 +73,7 @@ export async function saveProduct(
   loadedStock?: Record<string, string>,
 ): Promise<SaveResult> {
   const sp = await getCurrentSalesperson();
-  if (!canManageProducts(sp?.role)) return { error: "Only the owner or an admin can edit products" };
+  if (!canManageProducts(sp?.role)) return { error: "Only the owner, an admin or the front desk can edit products" };
 
   const parsed = ProductInputSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
@@ -105,7 +105,7 @@ export async function saveProduct(
 export async function setProductCover(productId: string, mediaId: string): Promise<{ error: string | null }> {
   try {
     if (!canManageProducts((await getCurrentSalesperson())?.role)) {
-      return { error: "Only the owner or an admin can change product photos" };
+      return { error: "Only the owner, an admin or the front desk can change product photos" };
     }
     const supabase = await createServerSupabaseClient();
     const { data: media, error: lookupError } = await supabase
@@ -119,7 +119,7 @@ export async function setProductCover(productId: string, mediaId: string): Promi
     if (lookupError) return { error: lookupError.message };
     if (!media) return { error: "That image is not a finished photo of this product." };
 
-    // products_update RLS: owner/admin only. `.select` so a write RLS filtered out
+    // products_update RLS: owner/admin/front desk (0055). `.select` so a write RLS filtered out
     // reports as a failure instead of a silent success.
     const { data: updated, error } = await supabase
       .from("products")
@@ -141,7 +141,7 @@ export async function setProductActive(id: string, active: boolean): Promise<{ e
     // products_update RLS admits admin and cannot tell a deactivation from an edit, so
     // "admin removes nothing" (0052) is enforced here for this direct write.
     const role = (await getCurrentSalesperson())?.role;
-    if (!canManageProducts(role)) return { error: "Only the owner or an admin can change this" };
+    if (!canManageProducts(role)) return { error: "Only the owner, an admin or the front desk can change this" };
     if (!active && !canRemove(role)) {
       return { error: "Admins can view and edit but cannot deactivate a product" };
     }

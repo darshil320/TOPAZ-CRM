@@ -28,9 +28,10 @@ PRICE_VIEW = VIEW_ALL | {"salesperson", "front_desk", "telecaller", "accounts"}
 # STOCK_VIEW ⇔ can_view_stock(): every staff role — a driver needs to know a piece is
 # in the Godown before driving there.
 STOCK_VIEW = PRICE_VIEW | {"workshop_manager", "delivery"}
-# Create/edit products, set stock, print QR stickers. Deactivating one is a removal, so
+# Create/edit products, set stock, upload catalog photos, print QR stickers. The front
+# desk runs the stock catalog day to day (0055). Deactivating one is a removal, so
 # NO_REMOVAL still applies on top.
-PRODUCT_MANAGE = VIEW_ALL
+PRODUCT_MANAGE = VIEW_ALL | {"front_desk"}
 
 # Preferred first when an alert has to fall back to "the owner": the business owner,
 # then a super_admin when no owner account exists.

@@ -29,6 +29,7 @@ ADMIN_ID, ADMIN_UID = "10000000-0000-0000-0000-0000000000e1", "a0000000-0000-000
 WM_ID, WM_UID = "10000000-0000-0000-0000-0000000000e2", "a0000000-0000-0000-0000-0000000000e2"
 DRV_ID, DRV_UID = "10000000-0000-0000-0000-0000000000e3", "a0000000-0000-0000-0000-0000000000e3"
 ACC_ID, ACC_UID = "10000000-0000-0000-0000-0000000000e4", "a0000000-0000-0000-0000-0000000000e4"
+FD_ID, FD_UID = "10000000-0000-0000-0000-0000000000e5", "a0000000-0000-0000-0000-0000000000e5"
 PRODUCT = "60000000-0000-0000-0000-0000000000e1"
 
 QR_FORMAT = re.compile(r"^[0-9A-HJKMNP-TV-Z]{8}$")
@@ -49,6 +50,7 @@ def _seed():
             (WM_ID, WM_UID, "Workshop", "+910000000032", "workshop_manager"),
             (DRV_ID, DRV_UID, "Driver", "+910000000033", "delivery"),
             (ACC_ID, ACC_UID, "Accounts", "+910000000034", "accounts"),
+            (FD_ID, FD_UID, "Desk", "+910000000035", "front_desk"),
         ):
             cur.execute("insert into salespersons (id, auth_uid, name, whatsapp, role) "
                         "values (%s,%s,%s,%s,%s)", (sid, uid, name, wa, role))
@@ -288,3 +290,25 @@ def test_0054_categories_view_still_works():
     with with_0054(WM_UID) as cur:
         cur.execute("select category from product_categories")
         assert ("Sofa",) in cur.fetchall()
+
+
+# ─── 0055: the front desk manages the catalog ─────────────────────────────────
+
+def as_front_desk():
+    return as_role("authenticated", FD_UID)
+
+
+def test_front_desk_may_add_and_edit_products_directly():
+    """Cover photo and active toggle are direct browser writes (products_update)."""
+    with as_front_desk() as cur:
+        cur.execute("insert into products (name) values ('Desk-made sofa')")
+        assert cur.rowcount == 1
+        cur.execute("update products set active = false where id = %s", (PRODUCT,))
+        assert cur.rowcount == 1
+
+
+@pytest.mark.parametrize("persona", [as_sp1, as_accounts, as_workshop])
+def test_other_staff_still_cannot_write_products(persona):
+    with persona() as cur:
+        cur.execute("update products set name = 'X' where id = %s", (PRODUCT,))
+        assert cur.rowcount == 0

@@ -107,7 +107,7 @@ def _update(state, **over):
     return asyncio.run(products.update_product(PRODUCT_ID, _body(**over), uid="uid"))
 
 
-@pytest.mark.parametrize("role", ["owner", "super_admin", "admin"])
+@pytest.mark.parametrize("role", ["owner", "super_admin", "admin", "front_desk"])
 def test_managers_create_a_product_with_stock(wired, role):
     wired["caller"] = authz.Caller(salesperson_id=wired["caller"].salesperson_id, role=role)
     out = _create(wired)
@@ -117,7 +117,7 @@ def test_managers_create_a_product_with_stock(wired, role):
     assert wired["committed"]
 
 
-@pytest.mark.parametrize("role", ["salesperson", "front_desk", "telecaller", "accounts",
+@pytest.mark.parametrize("role", ["salesperson", "telecaller", "accounts",
                                   "workshop_manager", "delivery"])
 def test_everyone_else_is_refused_and_nothing_is_written(wired, role):
     wired["caller"] = authz.Caller(salesperson_id=str(uuid4()), role=role)
